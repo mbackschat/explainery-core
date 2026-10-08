@@ -42,6 +42,29 @@ pnpm exec explainery estimate --wps 2.2  # a slower narrator
 
 `estimate` gives each scene the length of its spoken words plus its `hold`, and puts each beat after the words spoken before its marker. Scenes follow in story order, and a scene's `overlap` starts the next one that much earlier. It writes `timing.json` with `source: estimate`, so scenes can be animated and previewed before any narration is recorded; run `explainery assemble` afterwards. It replaces an earlier estimate, but refuses to replace `aligned` or `imported` timing unless you pass `--force`, because those come from a real voice.
 
+## Draft a voice
+
+A recorded voiceover is the goal, but a local synthetic voice lets you hear and time a story first. `hyperframes tts` speaks with Kokoro, an English-only local model; it has no German voice. One-time setup on macOS, with the Python packages in their own uv environment:
+
+```bash
+brew install espeak-ng
+uv venv ~/.venvs/kokoro
+uv pip install --python ~/.venvs/kokoro/bin/python kokoro-onnx soundfile
+export HYPERFRAMES_PYTHON=~/.venvs/kokoro/bin/python
+export PHONEMIZER_ESPEAK_LIBRARY=/opt/homebrew/lib/libespeak-ng.dylib
+```
+
+The Homebrew eSpeak NG library is needed because the macOS library bundled with `espeakng-loader` 0.2.4 ignores the data path it is given and fails on `/Users/runner/…/phontab` (reproduced 2026-10-09). Then voice the story and time it to that voice:
+
+```bash
+pnpm exec explainery narration > narration.txt     # the spoken text, one scene per paragraph
+pnpm exec hyperframes tts narration.txt --voice am_michael -o assets/narration.wav
+pnpm exec explainery align --audio assets/narration.wav
+pnpm exec explainery assemble
+```
+
+The first run downloads the Kokoro model, and the first `align` downloads the whisper model, into `~/.cache/hyperframes`. If HyperFrames' model download stalls, fetch `ggml-small.en.bin` from `huggingface.co/ggerganov/whisper.cpp` into `~/.cache/hyperframes/whisper/models/` yourself.
+
 ## Align timing to a recorded voice
 
 ```bash

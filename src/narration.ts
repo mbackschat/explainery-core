@@ -19,6 +19,9 @@ export function narrationBeats(narration: string): { beats: string[]; errors: st
   return { beats, errors };
 }
 
+/** The narration as spoken and shown to readers: beat markers removed, whitespace and punctuation tidied. */
+export const spokenText = (narration: string) => narration.replace(MARKER, '').replace(/\s+/g, ' ').replace(/\s+([.,;:!?])/g, '$1').trim();
+
 /**
  * Splits a narration into its spoken words and, per {beat} marker, the number of words spoken before it.
  *

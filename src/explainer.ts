@@ -2,12 +2,12 @@ import { copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promi
 import { dirname, join } from 'node:path';
 import { filmFiles } from './film-files.ts';
 import { hyperframesDist } from './hyperframes.ts';
+import { spokenText } from './narration.ts';
 import type { Scene, SceneTiming, Story, Timing } from './types.ts';
 import { validateProject } from './validate.ts';
 
 const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const seconds = (value: number) => String(Number(value.toFixed(6)));
-const spoken = (narration: string) => narration.replace(/\{[^{}]*\}/g, '').replace(/\s+/g, ' ').replace(/\s+([.,;:!?])/g, '$1').trim();
 
 const PLAYER = 'src="film/index.html" runtime-src="player/hyperframe.runtime.js"';
 
@@ -26,7 +26,7 @@ function sceneSection(scene: Scene, slot: SceneTiming, fps: number): string {
       </div>
       <div class="explainer-text">
 ${category === undefined ? '' : `        <p class="explainer-category">${escape(category)}</p>\n`}        <h2>${escape(headline)}</h2>
-${support === undefined ? '' : `        <p class="explainer-support">${escape(support)}</p>\n`}        <p class="explainer-narration">${escape(spoken(scene.narration))}</p>
+${support === undefined ? '' : `        <p class="explainer-support">${escape(support)}</p>\n`}        <p class="explainer-narration">${escape(spokenText(scene.narration))}</p>
       </div>
     </section>`;
 }

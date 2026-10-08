@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { alignTiming, assembleIndex, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, loadStory, transcribe, validateProject, validateStoryTiming, type Timing, type TranscriptWord } from '../src/index.ts';
+import { alignTiming, assembleIndex, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, loadStory, spokenText, transcribe, validateProject, validateStoryTiming, type Timing, type TranscriptWord } from '../src/index.ts';
 
-const USAGE = 'Usage: explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>]';
+const USAGE = 'Usage: explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>]';
 const args = process.argv.slice(2);
 const option = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const optionValues = ['--out', '--wps', '--audio', '--transcript'].map(option);
@@ -89,6 +89,12 @@ async function align({ audio, transcript, force }: { audio: string | undefined; 
   return report(`Aligned ${count} ${count === 1 ? 'scene' : 'scenes'} to ${track}, ${timing.duration}s, into timing.json; run explainery assemble`);
 }
 
+async function narration() {
+  const story = await loadStory(project);
+  if (!story.value) return fail(story.errors);
+  return report(story.value.scenes.map(scene => spokenText(scene.narration)).join('\n\n'));
+}
+
 async function validate() {
   const validation = await validateProject(project);
   if (!validation.valid) return fail(validation.errors);
@@ -121,6 +127,9 @@ async function exportPage(out: string | undefined) {
 }
 
 switch (command) {
+  case 'narration':
+    await narration();
+    break;
   case 'estimate':
     await estimate({ wps: option('--wps'), force: args.includes('--force') });
     break;

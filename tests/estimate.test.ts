@@ -96,3 +96,9 @@ test('the estimate command replaces an earlier estimate but never timing from a 
   await run(process.execPath, [cli, 'estimate', dir, '--force']);
   assert.equal(JSON.parse(await readFile(join(dir, 'timing.json'), 'utf8')).source, 'estimate');
 });
+
+test('the narration command prints the spoken text without beat markers, ready for a voice', async () => {
+  const dir = await project();
+  const { stdout } = await run(process.execPath, [cli, 'narration', dir]);
+  assert.equal(stdout, 'One two three four five.\n');
+});
