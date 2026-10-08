@@ -1,0 +1,19 @@
+<template id="probe-template">
+  <style>
+    #probe-scene { position: absolute; inset: 0; }
+    #flash { position: absolute; inset: 0; background: #ff0000; opacity: 0; }
+    #probe-scene h1, #probe-scene p { position: absolute; left: 20px; margin: 0; color: #fff; font-size: 24px; }
+    #probe-scene h1 { top: 20px; }
+    #probe-scene p { top: 60px; }
+  </style>
+  <div id="probe-scene" data-composition-id="probe" data-width="640" data-height="360" data-duration="2">
+    <div id="flash"></div>
+    <h1 id="probe-headline" data-copy="headline">Fallback copy</h1>
+    <p id="probe-support" data-copy="support">Copy the story leaves out</p>
+  </div>
+  <script>
+    defineScene({ window, document, gsap }, 'probe', (tl, { beat }) => {
+      tl.fromTo('#flash', { opacity: 0 }, { opacity: 1, duration: 0.01 }, beat('show'));
+    });
+  </script>
+</template>

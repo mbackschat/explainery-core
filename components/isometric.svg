@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <symbol id="cube" viewBox="0 0 52 61">
+    <g stroke="var(--cube-edge)" stroke-width="1.6" stroke-linejoin="round">
+      <path d="M26 0 52 15 26 30 0 15Z" fill="var(--cube-top)"/>
+      <path d="M0 15 26 30 26 61 0 46Z" fill="var(--cube-left)"/>
+      <path d="M26 30 52 15 52 46 26 61Z" fill="var(--cube-right)"/>
+    </g>
+  </symbol>
+</svg>

@@ -1,0 +1,8 @@
+id: scene-runtime-fixture
+title: Scene runtime fixture
+theme: dark
+canvas: { width: 640, height: 360, fps: 30 }
+scenes:
+  - id: probe
+    copy: { headline: Story copy }
+    narration: Show it {show}.

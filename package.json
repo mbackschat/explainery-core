@@ -1,0 +1,34 @@
+{
+  "name": "explainery-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Open-source visual storytelling on HyperFrames, with themes.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "explainery": "bin/explainery.mjs"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "ajv": "8.17.1",
+    "yaml": "2.8.1"
+  },
+  "peerDependencies": {
+    "gsap": "^3.14.2",
+    "hyperframes": ">=0.8.124"
+  },
+  "devDependencies": {
+    "gsap": "3.14.2",
+    "hyperframes": "0.8.124",
+    "playwright-core": "1.56.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

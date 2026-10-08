@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>Dark theme fixture</title>
+    <script src="node_modules/gsap/dist/gsap.min.js"></script>
+    <link rel="stylesheet" href="node_modules/explainery-core/themes/dark/theme.css">
+    <style>
+      html, body { width: 1920px; height: 1080px; margin: 0; overflow: hidden; }
+      .clip { position: absolute; inset: 0; width: 100%; height: 100%; }
+      #cube-probe { position: absolute; left: 600px; top: 200px; width: 52px; height: 61px; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="1" data-width="1920" data-height="1080">
+      <div class="background" data-layout-ignore=""></div>
+      <svg id="cube-probe" viewBox="0 0 52 61"><use href="node_modules/explainery-core/components/isometric.svg#cube" width="52" height="61" /></svg>
+      <div class="copy">
+        <div class="accent-rule"></div>
+        <p class="category">CATEGORY</p>
+        <h1>A themed headline</h1>
+        <p class="support">Supporting text set in the theme's light weight.</p>
+      </div>
+      <div id="brand-frame" class="clip" data-composition-id="brand-frame" data-no-timeline data-composition-src="node_modules/explainery-core/themes/dark/brand-frame.html" data-start="0" data-duration="1" data-width="1920" data-height="1080" data-track-index="1"></div>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines['main'] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>

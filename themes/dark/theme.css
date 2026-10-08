@@ -1,0 +1,56 @@
+/*
+ * Explainery dark theme. A project loads this stylesheet first and overrides tokens after it, so the cascade runs
+ * core → theme → project. Components and scenes take colour only from these tokens.
+ */
+@font-face { font-family: Roboto; src: url('fonts/roboto-regular.ttf'); font-weight: 400; }
+@font-face { font-family: Roboto; src: url('fonts/roboto-light.ttf'); font-weight: 300; }
+@font-face { font-family: Roboto; src: url('fonts/roboto-bold.ttf'); font-weight: 700; }
+@font-face { font-family: Roboto; src: url('fonts/roboto-black.ttf'); font-weight: 900; }
+
+:root {
+  /* Generic hue palette. Projects map roles onto it, for example --sandbox: var(--hue-lime). */
+  --hue-pale-blue: #a9bfdc;
+  --hue-lime: #b4df40;
+  --hue-gold: #f3cd36;
+  --hue-cyan: #32c5e8;
+
+  --canvas: #000;
+  --text: #fff;
+  --text-secondary: #b7bec2;
+  --text-muted: #aeb5b8;
+  --accent: var(--hue-pale-blue);
+  --texture-opacity: .38;
+
+  --font-family: Roboto, sans-serif;
+  --type-category: 17px;
+  --type-headline: 65px;
+  --type-support: 28px;
+  --type-diagram-label: 38px;
+  --type-diagram-tag: 15px;
+
+  /* Copy block anchors at 1080p: the block sits low-left, below the diagram. */
+  --copy-left: 110px;
+  --copy-top: 786px;
+  --copy-width: 1500px;
+  --support-width: 650px;
+
+  /* Faces of components/isometric.svg#cube. Recolour one cube by overriding these on its element. */
+  --cube-top: #c5d9f0;
+  --cube-left: #778da7;
+  --cube-right: #52647a;
+  --cube-edge: #b4cce8;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--canvas); color: var(--text); font-family: var(--font-family); }
+
+.background { position: absolute; inset: 0; background: var(--canvas) url('texture.svg'); opacity: var(--texture-opacity); }
+
+.copy { position: absolute; left: var(--copy-left); top: var(--copy-top); width: var(--copy-width); }
+.accent-rule { width: 46px; height: 5px; background: var(--accent); }
+.category { margin: 14px 0 8px; color: var(--accent); font-size: var(--type-category); font-weight: 700; letter-spacing: 3px; }
+.copy h1 { margin: 0 0 10px; font-size: var(--type-headline); font-weight: 900; line-height: 1.1; letter-spacing: -1.1px; }
+.support { margin: 0; max-width: var(--support-width); color: var(--text-secondary); font-size: var(--type-support); line-height: 38px; font-weight: 300; }
+
+.diagram-label { font-size: var(--type-diagram-label); font-weight: 900; fill: var(--accent); text-anchor: middle; }
+.diagram-tag { font-size: var(--type-diagram-tag); font-weight: 700; letter-spacing: 2px; fill: var(--text-muted); text-anchor: middle; }

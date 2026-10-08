@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Explainery timing",
+  "description": "timing.json places scenes and beats in seconds. Beats are scene-local.",
+  "type": "object",
+  "required": ["source", "duration", "scenes"],
+  "additionalProperties": false,
+  "properties": {
+    "source": { "enum": ["estimate", "aligned", "imported"] },
+    "audio": { "type": "string", "minLength": 1 },
+    "duration": { "type": "number", "exclusiveMinimum": 0 },
+    "scenes": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/definitions/slug" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["start", "duration", "beats"],
+        "additionalProperties": false,
+        "properties": {
+          "start": { "type": "number", "minimum": 0 },
+          "duration": { "type": "number", "exclusiveMinimum": 0 },
+          "beats": {
+            "type": "object",
+            "propertyNames": { "$ref": "#/definitions/slug" },
+            "additionalProperties": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+  }
+}

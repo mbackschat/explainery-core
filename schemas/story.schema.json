@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Explainery story",
+  "description": "One story.yaml per project. It owns all on-screen copy and narration, so the video, explainer page, and captions share one source.",
+  "type": "object",
+  "required": ["id", "title", "theme", "canvas", "scenes"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "$ref": "#/definitions/slug" },
+    "title": { "type": "string", "minLength": 1 },
+    "theme": { "$ref": "#/definitions/slug", "description": "Theme directory in explainery-core/themes, for example \"dark\"." },
+    "canvas": {
+      "type": "object",
+      "required": ["width", "height", "fps"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "fps": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "copy", "narration"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/definitions/slug", "description": "Names the composition file compositions/<id>.html." },
+          "copy": {
+            "type": "object",
+            "required": ["headline"],
+            "additionalProperties": false,
+            "properties": {
+              "category": { "type": "string" },
+              "headline": { "type": "string" },
+              "support": { "type": "string" }
+            }
+          },
+          "narration": { "type": "string", "description": "Spoken text; {beat-id} markers name the beats that scene tweens anchor to." },
+          "hold": { "type": "number", "minimum": 0, "description": "Seconds the scene stays after its narration ends." },
+          "overlap": { "type": "number", "minimum": 0, "description": "Seconds of crossfade into the next scene." }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+  }
+}
