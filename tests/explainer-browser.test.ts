@@ -14,8 +14,11 @@ import { core, fixtureProject } from './support/fixture.ts';
 // HyperFrames' managed headless Chrome, with the page's scrubber driving a scene player.
 const run = promisify(execFile);
 const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.wav': 'audio/wav', '.png': 'image/png' };
-// The page callbacks run in the browser, where HyperFrames' custom element exposes these members.
-interface Player extends HTMLElement { ready: boolean; currentTime: number }
+// The page callbacks run in the browser. The Node project has no DOM lib, so this module declares only the members
+// they use: HyperFrames' <hyperframes-player> element, the scrubber input, and document lookups.
+interface Player { ready: boolean; currentTime: number }
+interface Scrubber { value: string; dispatchEvent(event: Event): boolean }
+declare const document: { querySelectorAll(selector: string): Iterable<unknown>; getElementById(id: string): unknown };
 
 function serve(root: string): Promise<Server> {
   const server = createServer(async (request, response) => {
@@ -53,7 +56,7 @@ test('the exported page shows a scene through its own player, scrubbed within th
     const player = page.locator('#probe-player');
     assert.equal(await page.evaluate(() => (document.getElementById('probe-player') as Player).currentTime), 1, 'opens on the middle frame');
     const scrubTo = async (seconds: number) => {
-      await page.locator('[data-player="probe-player"]').evaluate<void, string, HTMLInputElement>((scrub, frame) => {
+      await page.locator('[data-player="probe-player"]').evaluate<void, string, Scrubber>((scrub, frame) => {
         scrub.value = frame;
         scrub.dispatchEvent(new Event('input'));
       }, String(seconds * 30));
