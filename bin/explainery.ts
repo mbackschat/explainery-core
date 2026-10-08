@@ -1,34 +1,35 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { assembleIndex, exportExplainer, validateProject } from '../src/index.mjs';
+import { assembleIndex, exportExplainer, validateProject } from '../src/index.ts';
 
 const USAGE = 'Usage: explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>]';
 const args = process.argv.slice(2);
-const option = name => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+const option = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const optionValues = ['--out'].map(option);
 const [command, dir = '.'] = args.filter(arg => !arg.startsWith('--') && !optionValues.includes(arg));
 const project = resolve(dir);
 
-function fail(errors) {
+function fail(errors: string[]) {
   for (const error of errors) console.error(error);
   process.exitCode = 1;
 }
 
-function report(message) {
+function report(message: string) {
   console.log(message);
 }
 
 async function validate() {
-  const { errors, story } = await validateProject(project);
-  if (errors.length) return fail(errors);
-  const count = story.scenes.length;
+  const validation = await validateProject(project);
+  if (!validation.valid) return fail(validation.errors);
+  const count = validation.story.scenes.length;
   return report(`Valid: ${count} ${count === 1 ? 'scene' : 'scenes'} in ${project}`);
 }
 
-async function assemble({ check }) {
-  const { errors, story, timing } = await validateProject(project);
-  if (errors.length) return fail(errors);
+async function assemble({ check }: { check: boolean }) {
+  const validation = await validateProject(project);
+  if (!validation.valid) return fail(validation.errors);
+  const { story, timing } = validation;
   const file = join(project, 'index.html');
   const current = await readFile(file, 'utf8');
   const assembled = assembleIndex(current, story, timing);
@@ -39,13 +40,13 @@ async function assemble({ check }) {
   return report(`Assembled ${story.scenes.length} scenes into index.html`);
 }
 
-async function exportPage(out) {
+async function exportPage(out: string | undefined) {
   const target = resolve(out ?? join(project, 'explainer'));
   try {
     const { scenes, files } = await exportExplainer(project, target);
     return report(`Exported ${scenes} ${scenes === 1 ? 'scene' : 'scenes'} and ${files} film files to ${target}; serve it over http, not file://`);
   } catch (error) {
-    return fail([error.message]);
+    return fail([(error as Error).message]);
   }
 }
 

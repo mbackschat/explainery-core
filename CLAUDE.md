@@ -11,7 +11,8 @@ Projects live in their own repositories next to this checkout; no pnpm workspace
 ## Build, Test, and Development Commands
 
 - `pnpm install`: install the pinned dependencies. Projects resolve this package's dependencies through the `link:` symlink, so this checkout needs its own install.
-- `pnpm test`: run all tests with `node --test`. The HyperFrames fixture tests need FFmpeg and use the browser HyperFrames manages; the SVG guard needs `xmllint`.
+- `pnpm test`: type-check with `tsc` (both the Node project and `runtime/`), then run all tests with `node --test`. The HyperFrames fixture tests need FFmpeg and use the browser HyperFrames manages; the SVG guard needs `xmllint`.
+- `pnpm build:runtime`: regenerate `runtime/scene.js` from `runtime/scene.ts`; commit both. A test fails while they disagree.
 
 ## Scope
 
@@ -19,7 +20,7 @@ Accessibility is out of scope for the produced animations and videos: do not rai
 
 ## Coding Style & Naming Conventions
 
-Plain JavaScript ES modules (`.mjs`) for Node code, no build step. Browser code under `runtime/` is a classic script, because HyperFrames runs scene scripts in the host page. Use two-space indentation, kebab-case file names, and stable, descriptive SVG IDs. Write Markdown paragraphs on single physical lines and link related documents normally.
+Strict TypeScript ES modules (`.ts`) that Node runs by type stripping, so there is no build step for Node code ([ADR 0002](docs/adr/0002-typescript.md)): use only erasable syntax (no `enum`, `namespace`, or parameter properties), `import type` for type-only imports, and `.ts` extensions in relative imports. The browser runtime is the one exception: `runtime/scene.ts` compiles to the classic script `runtime/scene.js`, because HyperFrames loads it with a plain `<script>` in the host page. Inline scripts in HTML compositions and fixtures stay JavaScript. Use two-space indentation, kebab-case file names, and stable, descriptive SVG IDs. Write Markdown paragraphs on single physical lines and link related documents normally.
 
 ## Testing Guidelines
 

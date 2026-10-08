@@ -4,22 +4,22 @@ import { lstat, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
-import { explainerPage, exportExplainer } from '../src/index.mjs';
-import { core, fixtureProject } from './support/fixture.mjs';
+import { explainerPage, exportExplainer, type Story, type Timing } from '../src/index.ts';
+import { core, fixtureProject } from './support/fixture.ts';
 
-const story = {
+const story: Story = {
   id: 'demo', title: 'Demo & Co', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 },
   scenes: [
     { id: 'registry', copy: { category: 'SHARE', headline: 'Team Registry', support: 'Publish once.' }, narration: 'Publish it {publish} and   pull it {pull}.' },
     { id: 'scopes', copy: { headline: "It's <yours> & ours" }, narration: '{grow} Grow.' },
   ],
 };
-const timing = {
+const timing: Timing = {
   source: 'imported', duration: 16,
   scenes: { registry: { start: 0, duration: 8.9, beats: { publish: 2.45, pull: 4.5 } }, scopes: { start: 8.2, duration: 7.8, beats: { grow: 2.2 } } },
 };
 const page = explainerPage(story, timing, { stylesheets: ['node_modules/explainery-core/themes/dark/theme.css', 'theme/brand.css'] });
-const section = id => page.match(new RegExp(`<section class="explainer-scene" id="${id}">[\\s\\S]*?</section>`))[0];
+const section = (id: string) => page.match(new RegExp(`<section class="explainer-scene" id="${id}">[\\s\\S]*?</section>`))![0];
 
 test('the page loads the film stylesheets so it shares the film theme', () => {
   assert.match(page, /<title>Demo &amp; Co<\/title>/);
@@ -74,7 +74,7 @@ test('export never replaces a folder that is not an earlier export', async () =>
 
 test('the export command writes the folder and reports what it shipped', async () => {
   const project = await fixtureProject('scene-runtime');
-  const cli = join(core, 'bin/explainery.mjs');
+  const cli = join(core, 'bin/explainery.ts');
   const { stdout } = await promisify(execFile)(process.execPath, [cli, 'export', project, '--out', join(project, 'site')]);
   assert.match(stdout, /Exported 1 scene and 4 film files to .*site; serve it over http/);
   assert.ok((await lstat(join(project, 'site/index.html'))).isFile());

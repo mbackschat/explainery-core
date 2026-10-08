@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
-import { core, fixtureProject } from './support/fixture.mjs';
+import { core, fixtureProject } from './support/fixture.ts';
 
 // These tests prove what only HyperFrames can: per-instance variables reach a scene through its scoped
 // getVariables(), a scene error fails `hyperframes check`, and the theme and components resolve through the
@@ -11,10 +11,10 @@ import { core, fixtureProject } from './support/fixture.mjs';
 const cli = join(core, 'node_modules/hyperframes/dist/cli.js');
 const run = promisify(execFile);
 
-const hyperframes = (dir, ...args) => run(process.execPath, [cli, ...args], { cwd: dir, timeout: 120000, maxBuffer: 8 * 1024 * 1024 });
-const snapshot = (dir, ...args) => hyperframes(dir, 'snapshot', '--no-end', '--no-browser-gpu', '--describe', 'false', '--output', join(dir, 'out'), ...args);
+const hyperframes = (dir: string, ...args: string[]) => run(process.execPath, [cli, ...args], { cwd: dir, timeout: 120000, maxBuffer: 8 * 1024 * 1024 });
+const snapshot = (dir: string, ...args: string[]) => hyperframes(dir, 'snapshot', '--no-end', '--no-browser-gpu', '--describe', 'false', '--output', join(dir, 'out'), ...args);
 
-async function pixel(png, x, y) {
+async function pixel(png: string, x: number, y: number) {
   const { stdout } = await run('ffmpeg', ['-v', 'error', '-i', png, '-vf', `crop=1:1:${x}:${y}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], { encoding: 'buffer' });
   return [...stdout];
 }
@@ -36,7 +36,7 @@ test('a scene that overruns its duration fails hyperframes check', { timeout: 15
   const dir = await fixtureProject('scene-runtime', html => html.replace('"duration":2', '"duration":1'));
   await assert.rejects(
     hyperframes(dir, 'check', '--no-browser-gpu', '--no-contrast', '--samples', '2'),
-    error => error.code === 1 && error.stdout.includes('scene "probe" timeline ends at 1.01s, after its 1s'),
+    (error: { code: number; stdout: string }) => error.code === 1 && error.stdout.includes('scene "probe" timeline ends at 1.01s, after its 1s'),
   );
 });
 

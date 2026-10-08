@@ -9,7 +9,7 @@ export const core = fileURLToPath(new URL('../../', import.meta.url));
  * Copies a fixture project to a temporary folder and links this checkout, GSAP, and HyperFrames into its
  * node_modules exactly as a real project resolves them. `edit` may rewrite the copied index.html.
  */
-export async function fixtureProject(fixture, edit = html => html) {
+export async function fixtureProject(fixture: string, edit: (html: string) => string = html => html): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'explainery-fixture-'));
   await cp(join(core, 'tests/fixtures', fixture), dir, { recursive: true });
   await mkdir(join(dir, 'node_modules'));

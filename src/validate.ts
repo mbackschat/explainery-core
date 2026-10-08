@@ -1,12 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { narrationBeats } from './narration.mjs';
-import { checkStory, checkTiming } from './schemas.mjs';
+import { narrationBeats } from './narration.ts';
+import { checkStory, checkTiming } from './schemas.ts';
+import type { SceneTiming, Story, Timing } from './types.ts';
 
 // Timing values come from float arithmetic (estimates, alignment offsets); a microsecond is far below one frame.
 const EPSILON = 1e-6;
-const seconds = value => `${Number(value.toFixed(6))}s`;
+const seconds = (value: number) => `${Number(value.toFixed(6))}s`;
 
 /**
  * Checks that a schema-valid story and timing describe the same scenes and beats.
@@ -14,14 +15,14 @@ const seconds = value => `${Number(value.toFixed(6))}s`;
  * Returns human-readable errors, empty when consistent. Scenes must start in story order and end within the story;
  * beats must exist exactly where the narration marks them, follow narration order, and lie within their scene.
  */
-export function validateStoryTiming(story, timing) {
-  const errors = [];
+export function validateStoryTiming(story: Story, timing: Timing): string[] {
+  const errors: string[] = [];
   const ids = story.scenes.map(scene => scene.id);
   for (const id of new Set(ids.filter((id, index) => ids.indexOf(id) !== index))) errors.push(`story.yaml: scene id "${id}" is used twice`);
   for (const id of ids) if (!timing.scenes[id]) errors.push(`timing.json: no timing for scene "${id}"`);
   for (const id of Object.keys(timing.scenes)) if (!ids.includes(id)) errors.push(`timing.json: scene "${id}" is not in the story`);
 
-  let previous;
+  let previous: { id: string; slot: SceneTiming } | undefined;
   for (const scene of story.scenes) {
     const { beats: marked, errors: markerErrors } = narrationBeats(scene.narration);
     errors.push(...markerErrors.map(error => `story.yaml scene "${scene.id}": ${error}`));
@@ -39,13 +40,13 @@ export function validateStoryTiming(story, timing) {
   return errors;
 }
 
-function checkBeats(where, marked, slot) {
-  const errors = [];
+function checkBeats(where: string, marked: string[], slot: SceneTiming): string[] {
+  const errors: string[] = [];
   for (const id of marked) if (!(id in slot.beats)) errors.push(`${where}: no time for beat "${id}"`);
   for (const id of Object.keys(slot.beats)) if (!marked.includes(id)) errors.push(`${where}: beat "${id}" is not marked in the narration`);
   const timed = marked.filter(id => id in slot.beats);
   for (let i = 1; i < timed.length; i++) {
-    const [before, after] = [timed[i - 1], timed[i]];
+    const [before, after] = [timed[i - 1]!, timed[i]!];
     if (slot.beats[after] < slot.beats[before] - EPSILON) {
       errors.push(`${where}: beat "${after}" at ${seconds(slot.beats[after])} comes before "${before}" at ${seconds(slot.beats[before])}, but the narration marks it after`);
     }
@@ -56,25 +57,29 @@ function checkBeats(where, marked, slot) {
   return errors;
 }
 
-async function load(dir, file, parse, check) {
-  let value;
+// The schema check is what makes the parsed value a T; load returns a value only when it passes.
+const isMissing = (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT';
+
+async function load<T>(dir: string, file: string, parse: (text: string) => unknown, check: (value: unknown) => string[]): Promise<{ value?: T; errors: string[] }> {
+  let value: unknown;
   try {
     value = parse(await readFile(join(dir, file), 'utf8'));
   } catch (error) {
-    return { errors: [`${file}: ${error.code === 'ENOENT' ? 'missing' : error.message.split('\n')[0]}`] };
+    return { errors: [`${file}: ${isMissing(error) ? 'missing' : (error as Error).message.split('\n')[0]}`] };
   }
-  return { value, errors: check(value).map(error => `${file} ${error}`) };
+  const errors = check(value).map(error => `${file} ${error}`);
+  return errors.length ? { errors } : { value: value as T, errors };
 }
 
-async function checkCompositions(dir, story) {
-  const errors = [];
+async function checkCompositions(dir: string, story: Story): Promise<string[]> {
+  const errors: string[] = [];
   for (const id of new Set(story.scenes.map(scene => scene.id))) {
     const file = `compositions/${id}.html`;
     let html;
     try {
       html = await readFile(join(dir, file), 'utf8');
     } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
+      if (!isMissing(error)) throw error;
       errors.push(`${file}: missing`);
       continue;
     }
@@ -85,16 +90,23 @@ async function checkCompositions(dir, story) {
 }
 
 /**
+ * The outcome of validateProject. `valid` is true exactly when there are no errors; story and timing are present
+ * whenever their file parsed and passed its schema, even if the project is inconsistent.
+ */
+export type ProjectValidation =
+  | { valid: true; errors: string[]; story: Story; timing: Timing }
+  | { valid: false; errors: string[]; story?: Story; timing?: Timing };
+
+/**
  * Validates the story.yaml, timing.json, and scene compositions of a project directory.
  *
  * Returns the errors, empty when valid, with the parsed story and timing. Unreadable or schema-invalid files are
  * reported per file and stop the deeper checks, since those assume valid shapes.
  */
-export async function validateProject(dir) {
-  const story = await load(dir, 'story.yaml', parseYaml, checkStory);
-  const timing = await load(dir, 'timing.json', JSON.parse, checkTiming);
-  const project = { story: story.value, timing: timing.value };
-  const errors = [...story.errors, ...timing.errors];
-  if (errors.length) return { errors, ...project };
-  return { errors: [...validateStoryTiming(project.story, project.timing), ...(await checkCompositions(dir, project.story))], ...project };
+export async function validateProject(dir: string): Promise<ProjectValidation> {
+  const story = await load<Story>(dir, 'story.yaml', parseYaml, checkStory);
+  const timing = await load<Timing>(dir, 'timing.json', JSON.parse, checkTiming);
+  if (!story.value || !timing.value) return { valid: false, errors: [...story.errors, ...timing.errors], story: story.value, timing: timing.value };
+  const errors = [...validateStoryTiming(story.value, timing.value), ...(await checkCompositions(dir, story.value))];
+  return errors.length ? { valid: false, errors, story: story.value, timing: timing.value } : { valid: true, errors, story: story.value, timing: timing.value };
 }

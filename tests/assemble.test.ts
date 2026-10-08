@@ -5,16 +5,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
-import { assembleIndex } from '../src/index.mjs';
+import { assembleIndex, type Story, type Timing } from '../src/index.ts';
 
-const story = {
+const story: Story = {
   id: 'demo', title: 'Demo', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 },
   scenes: [
     { id: 'registry', copy: { category: 'SHARE', headline: 'Team Registry' }, narration: 'Publish {publish} it.' },
     { id: 'scopes', copy: { headline: "It's <yours> & ours" }, narration: 'Grow {grow}.' },
   ],
 };
-const timing = {
+const timing: Timing = {
   source: 'imported', audio: 'assets/narration.wav', duration: 16,
   scenes: { registry: { start: 0, duration: 8.9, beats: { publish: 2.45 } }, scopes: { start: 8.2, duration: 7.8, beats: { grow: 2.2 } } },
 };
@@ -27,9 +27,9 @@ const index = `<body>
   </div>
 </body>`;
 
-const unescape = value => value.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-function attributes(html, id) {
-  const tag = html.match(new RegExp(`<[a-z]+ id="${id}"(?:\\s+[^\\s"'>/=]+(?:=(?:"[^"]*"|'[^']*'))?)*\\s*>`))[0];
+const unescape = (value: string) => value.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+function attributes(html: string, id: string): Record<string, string> {
+  const tag = html.match(new RegExp(`<[a-z]+ id="${id}"(?:\\s+[^\\s"'>/=]+(?:=(?:"[^"]*"|'[^']*'))?)*\\s*>`))![0];
   return Object.fromEntries([...tag.matchAll(/\s([^\s"'>/=]+)(?:=(?:"([^"]*)"|'([^']*)'))?/g)].map(([, name, double, single]) => [name, unescape(double ?? single ?? '')]));
 }
 
@@ -72,8 +72,8 @@ test('the assemble command writes index.html, and --check fails while it is stal
   for (const id of ['registry', 'scopes']) await writeFile(join(dir, 'compositions', `${id}.html`), `<template><div data-composition-id="${id}"></div></template>`);
   await writeFile(join(dir, 'index.html'), index);
   const run = promisify(execFile);
-  const cli = new URL('../bin/explainery.mjs', import.meta.url).pathname;
-  await assert.rejects(run(process.execPath, [cli, 'assemble', dir, '--check']), error => error.code === 1 && /index\.html is out of date/.test(error.stderr));
+  const cli = new URL('../bin/explainery.ts', import.meta.url).pathname;
+  await assert.rejects(run(process.execPath, [cli, 'assemble', dir, '--check']), (error: { code: number; stderr: string }) => error.code === 1 && /index\.html is out of date/.test(error.stderr));
   await run(process.execPath, [cli, 'assemble', dir]);
   assert.equal(await readFile(join(dir, 'index.html'), 'utf8'), assembleIndex(index, story, timing).html);
   await run(process.execPath, [cli, 'assemble', dir, '--check']);

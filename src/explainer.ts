@@ -1,19 +1,20 @@
 import { copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { filmFiles } from './film-files.mjs';
-import { validateProject } from './validate.mjs';
+import { filmFiles } from './film-files.ts';
+import type { Scene, SceneTiming, Story, Timing } from './types.ts';
+import { validateProject } from './validate.ts';
 
-const escape = text => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-const seconds = value => String(Number(value.toFixed(6)));
-const spoken = narration => narration.replace(/\{[^{}]*\}/g, '').replace(/\s+/g, ' ').replace(/\s+([.,;:!?])/g, '$1').trim();
+const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const seconds = (value: number) => String(Number(value.toFixed(6)));
+const spoken = (narration: string) => narration.replace(/\{[^{}]*\}/g, '').replace(/\s+/g, ' ').replace(/\s+([.,;:!?])/g, '$1').trim();
 
 const PLAYER = 'src="film/index.html" runtime-src="player/hyperframe.runtime.js"';
 
-function sceneSection(scene, slot, fps) {
+function sceneSection(scene: Scene, slot: SceneTiming, fps: number): string {
   // The scrubber counts whole frames: a fractional step such as 1/30 s rounds, and the player then floors the rounded
   // time to the previous frame.
-  const frame = time => Math.round(time * fps);
+  const frame = (time: number) => Math.round(time * fps);
   const { category, headline, support } = scene.copy;
   const start = seconds(slot.start);
   const end = seconds(slot.start + slot.duration);
@@ -38,7 +39,7 @@ ${support === undefined ? '' : `        <p class="explainer-support">${escape(su
  * theme's tokens and fonts; its own classes are prefixed explainer- to stay clear of theme classes. Each scene opens
  * on its middle frame, and its scrubber moves frame by frame within the scene.
  */
-export function explainerPage(story, timing, { stylesheets }) {
+export function explainerPage(story: Story, timing: Timing, { stylesheets }: { stylesheets: string[] }): string {
   const { width, height, fps } = story.canvas;
   const links = stylesheets.map(href => `    <link rel="stylesheet" href="film/${escape(href)}">`).join('\n');
   const sections = story.scenes.map(scene => sceneSection(scene, timing.scenes[scene.id], fps)).join('\n');
@@ -85,20 +86,20 @@ ${sections}
 `;
 }
 
-function stylesheetsOf(html) {
+function stylesheetsOf(html: string): string[] {
   return [...html.matchAll(/<link\b[^>]*>/g)]
     .map(([tag]) => tag)
     .filter(tag => /\srel=["']stylesheet["']/.test(tag))
-    .map(tag => tag.match(/\shref=["']([^"']+)["']/)[1]);
+    .map(tag => tag.match(/\shref=["']([^"']+)["']/)![1]);
 }
 
 // Replacing the output folder deletes it first, so only a missing, empty, or earlier export folder may be replaced.
-async function prepareOutput(outDir) {
-  let entries;
+async function prepareOutput(outDir: string): Promise<void> {
+  let entries: string[];
   try {
     entries = await readdir(outDir);
   } catch (error) {
-    if (error.code === 'ENOENT') return;
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
     throw error;
   }
   if (entries.length && !(['index.html', 'film', 'player'].every(entry => entries.includes(entry)))) {
@@ -113,9 +114,10 @@ async function prepareOutput(outDir) {
  *
  * The folder must be served over http(s): on file:// the player ignores runtime-src and loads its runtime from a CDN.
  */
-export async function exportExplainer(projectDir, outDir) {
-  const { errors, story, timing } = await validateProject(projectDir);
-  if (errors.length) throw new Error(`The project does not validate:\n${errors.join('\n')}`);
+export async function exportExplainer(projectDir: string, outDir: string): Promise<{ files: number; scenes: number }> {
+  const validation = await validateProject(projectDir);
+  if (!validation.valid) throw new Error(`The project does not validate:\n${validation.errors.join('\n')}`);
+  const { story, timing } = validation;
   const files = await filmFiles(projectDir);
   await prepareOutput(outDir);
   for (const file of files) {

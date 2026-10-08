@@ -3,9 +3,9 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
-import { filmFiles } from '../src/index.mjs';
+import { filmFiles } from '../src/index.ts';
 
-async function project(files) {
+async function project(files: Record<string, string>) {
   const dir = await mkdtemp(join(tmpdir(), 'explainery-film-'));
   for (const [path, content] of Object.entries(files)) {
     await mkdir(dirname(join(dir, path)), { recursive: true });
@@ -14,7 +14,7 @@ async function project(files) {
   return dir;
 }
 
-const files = {
+const files: Record<string, string> = {
   'index.html': `<html><head>
     <script src="node_modules/gsap/dist/gsap.min.js"></script>
     <link rel="stylesheet" href="node_modules/theme/theme.css">

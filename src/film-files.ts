@@ -5,8 +5,8 @@ const HTML_REFERENCE = /\s(?:src|href|xlink:href|data-composition-src)\s*=\s*(?:
 const CSS_REFERENCE = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"'\s]*))\s*\)|@import\s+(?:"([^"]*)"|'([^']*)')/g;
 const EXTERNAL = /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i;
 
-function references(text, pattern) {
-  return [...text.matchAll(pattern)].map(match => match.slice(1).find(value => value !== undefined)).filter(Boolean);
+function references(text: string, pattern: RegExp): string[] {
+  return [...text.matchAll(pattern)].map(match => match.slice(1).find(value => value !== undefined)).filter((value): value is string => Boolean(value));
 }
 
 /**
@@ -17,10 +17,10 @@ function references(text, pattern) {
  * SVG files resolve references relative to themselves, as the browser does. Absolute URLs, data: URIs, and
  * fragments are skipped. A reference to a missing file, or one that leaves the project, throws.
  */
-export async function filmFiles(projectDir) {
-  const found = new Set();
-  const problems = [];
-  const visit = async (path, from) => {
+export async function filmFiles(projectDir: string): Promise<string[]> {
+  const found = new Set<string>();
+  const problems: string[] = [];
+  const visit = async (path: string, from: string): Promise<void> => {
     if (found.has(path)) return;
     if (path.startsWith('../')) {
       problems.push(`${path} (referenced by ${from}) lies outside the project`);

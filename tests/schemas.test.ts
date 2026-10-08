@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { checkStory, checkTiming } from '../src/index.mjs';
+import { checkStory, checkTiming, type Copy, type Scene, type Story, type Timing } from '../src/index.ts';
 
-const story = () => ({
+const story = (): Story => ({
   id: 'demo',
   title: 'Demo',
   theme: 'dark',
@@ -18,7 +18,7 @@ const story = () => ({
   ],
 });
 
-const timing = () => ({
+const timing = (): Timing => ({
   source: 'estimate',
   duration: 4,
   scenes: { intro: { start: 0, duration: 4, beats: { wave: 0.8 } } },
@@ -31,13 +31,13 @@ test('a complete story and timing pass their schemas', () => {
 
 test('a scene without a headline is reported at its path', () => {
   const value = story();
-  delete value.scenes[0].copy.headline;
+  delete (value.scenes[0].copy as Partial<Copy>).headline;
   assert.deepEqual(checkStory(value), ["/scenes/0/copy: must have required property 'headline'"]);
 });
 
 test('a misspelt story key is rejected instead of ignored', () => {
   const value = story();
-  value.scenes[0].hlod = 1;
+  (value.scenes[0] as Scene & { hlod: number }).hlod = 1;
   assert.deepEqual(checkStory(value), ['/scenes/0: must NOT have additional property "hlod"']);
 });
 
@@ -50,7 +50,7 @@ test('scene ids must be kebab-case because they name composition files', () => {
 
 test('timing rejects an unknown source and a negative beat', () => {
   const value = timing();
-  value.source = 'guessed';
+  (value as { source: string }).source = 'guessed';
   value.scenes.intro.beats.wave = -1;
   assert.deepEqual(checkTiming(value), [
     '/source: must be equal to one of the allowed values (estimate, aligned, imported)',

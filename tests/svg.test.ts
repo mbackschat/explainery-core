@@ -10,7 +10,7 @@ import test from 'node:test';
 // when it is malformed; a "--" inside an XML comment was enough to blank the cube sprite (reproduced 2026-10-08).
 const root = fileURLToPath(new URL('../', import.meta.url));
 
-async function svgFiles(dir) {
+async function svgFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
   const nested = await Promise.all(entries.map(entry => {
     const path = join(dir, entry.name);
@@ -23,5 +23,5 @@ async function svgFiles(dir) {
 test('every shipped SVG is well-formed XML', async () => {
   const files = await svgFiles(root);
   assert.ok(files.length > 0);
-  await promisify(execFile)('xmllint', ['--noout', ...files]).catch(error => assert.fail(error.stderr));
+  await promisify(execFile)('xmllint', ['--noout', ...files]).catch((error: { stderr: string }) => assert.fail(error.stderr));
 });

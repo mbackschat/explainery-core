@@ -7,19 +7,31 @@ import { gsap } from 'gsap';
 // The runtime is a classic browser script; evaluate the shipped file as-is instead of a Node re-export.
 const source = await readFile(new URL('../runtime/scene.js', import.meta.url), 'utf8');
 
-function sceneScope(variables, elements = [], blocks = {}) {
-  const context = {};
+// The minimal shapes this test fakes and calls; runtime/scene.ts owns the authoritative DefineScene signature.
+interface Variables { copy?: Record<string, string>; beats?: Record<string, number>; duration?: number }
+interface FakeElement { dataset: { copy: string }; textContent: string; removed: boolean; remove(): void }
+interface Reveal { at?: number; duration?: number }
+interface Tools { beat(name: string): number; duration: number; enterCopy(at: number, timing?: { headline?: Reveal; support?: Reveal }): void }
+interface Scope {
+  window: { __hyperframes: { getVariables(): Variables }; __timelines: Record<string, gsap.core.Timeline> };
+  document: { querySelectorAll(selector: string): FakeElement[]; querySelector(selector: string): object | null };
+  gsap: typeof gsap;
+}
+type DefineScene = (scope: Scope, id: string, build: (timeline: gsap.core.Timeline, tools: Tools) => void) => gsap.core.Timeline;
+
+function sceneScope(variables: Variables, elements: FakeElement[] = [], blocks: Record<string, object> = {}) {
+  const context = {} as { defineScene: DefineScene };
   runInNewContext(source, context);
-  const window = { __hyperframes: { getVariables: () => variables }, __timelines: {} };
-  const document = {
+  const window: Scope['window'] = { __hyperframes: { getVariables: () => variables }, __timelines: {} };
+  const document: Scope['document'] = {
     querySelectorAll: selector => (selector === '[data-copy]' ? elements : []),
     querySelector: selector => blocks[selector] ?? null,
   };
   return { defineScene: context.defineScene, scope: { window, document, gsap } };
 }
 
-const copyElement = key => ({ dataset: { copy: key }, textContent: 'fallback', removed: false, remove() { this.removed = true; } });
-const variables = () => ({ copy: { headline: 'Hello' }, beats: { publish: 2.45 }, duration: 8.9 });
+const copyElement = (key: string): FakeElement => ({ dataset: { copy: key }, textContent: 'fallback', removed: false, remove() { this.removed = true; } });
+const variables = (): Variables => ({ copy: { headline: 'Hello' }, beats: { publish: 2.45 }, duration: 8.9 });
 
 test('a scene registers a paused timeline whose tweens start at their beat', () => {
   const { defineScene, scope } = sceneScope(variables());
@@ -37,7 +49,7 @@ test('a scene registers a paused timeline whose tweens start at their beat', () 
 
 test('the build receives the scene duration for tweens that span the whole scene', () => {
   const { defineScene, scope } = sceneScope(variables());
-  let received;
+  let received: number | undefined;
   defineScene(scope, 'registry', (tl, { duration }) => { received = duration; });
   assert.equal(received, 8.9);
 });
@@ -70,15 +82,15 @@ test('a scene without a duration variable fails before building', () => {
   assert.throws(() => defineScene(scope, 'registry', () => assert.fail('built without a duration')), /scene "registry" received no duration/);
 });
 
-const copyBlock = () => ({
+const copyBlock = (): Record<string, { name: string }> => ({
   '.copy .accent-rule': { name: 'accent' },
   '.copy [data-copy="category"]': { name: 'category' },
   '.copy [data-copy="headline"]': { name: 'headline' },
   '.copy [data-copy="support"]': { name: 'support' },
 });
 
-function entrance(timeline) {
-  return Object.fromEntries(timeline.getChildren().map(tween => [tween.targets()[0].name, { start: Number(tween.startTime().toFixed(6)), duration: tween.duration(), ease: typeof tween.vars.ease === 'string' ? tween.vars.ease : undefined }]));
+function entrance(timeline: gsap.core.Timeline) {
+  return Object.fromEntries((timeline.getChildren() as gsap.core.Tween[]).map(tween => [(tween.targets()[0] as { name: string }).name, { start: Number(tween.startTime().toFixed(6)), duration: tween.duration(), ease: typeof tween.vars.ease === 'string' ? tween.vars.ease : undefined }]));
 }
 
 test('enterCopy reveals the copy block in reading order from its start', () => {

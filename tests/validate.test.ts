@@ -5,11 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
-import { narrationBeats, validateProject, validateStoryTiming } from '../src/index.mjs';
+import { narrationBeats, validateProject, validateStoryTiming, type Scene, type Story, type Timing } from '../src/index.ts';
 
-const scene = (id, narration) => ({ id, copy: { headline: id }, narration });
-const story = (...scenes) => ({ id: 'demo', title: 'Demo', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 }, scenes });
-const consistent = () => ({
+const scene = (id: string, narration: string): Scene => ({ id, copy: { headline: id }, narration });
+const story = (...scenes: Scene[]): Story => ({ id: 'demo', title: 'Demo', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 }, scenes });
+const consistent = (): { story: Story; timing: Timing } => ({
   story: story(scene('first', 'Publish {publish} then pull {pull}.'), scene('second', 'Grow {grow}.')),
   timing: {
     source: 'imported',
@@ -78,7 +78,7 @@ test('a scene id used twice fails', () => {
   assert.deepEqual(validateStoryTiming(story(scene('first', 'Publish {publish} then pull {pull}.'), scene('first', 'Again.')), timing).slice(0, 1), ['story.yaml: scene id "first" is used twice']);
 });
 
-async function project({ storyYaml, timingJson, compositions }) {
+async function project({ storyYaml, timingJson, compositions }: { storyYaml: string; timingJson?: string; compositions: Record<string, string> }) {
   const dir = await mkdtemp(join(tmpdir(), 'explainery-validate-'));
   await mkdir(join(dir, 'compositions'));
   await writeFile(join(dir, 'story.yaml'), storyYaml);
@@ -128,8 +128,8 @@ test('unreadable files are reported rather than thrown', async () => {
 test('the validate command exits non-zero and prints each error', async () => {
   const dir = await project({ storyYaml, timingJson, compositions: {} });
   const run = promisify(execFile);
-  const cli = new URL('../bin/explainery.mjs', import.meta.url).pathname;
-  await assert.rejects(run(process.execPath, [cli, 'validate', dir]), error => error.code === 1 && error.stderr.includes('compositions/intro.html: missing'));
+  const cli = new URL('../bin/explainery.ts', import.meta.url).pathname;
+  await assert.rejects(run(process.execPath, [cli, 'validate', dir]), (error: { code: number; stderr: string }) => error.code === 1 && error.stderr.includes('compositions/intro.html: missing'));
   await writeFile(join(dir, 'compositions', 'intro.html'), introHtml);
   const { stdout } = await run(process.execPath, [cli, 'validate', dir]);
   assert.match(stdout, /1 scene/);

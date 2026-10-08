@@ -1,0 +1,124 @@
+/*
+ * Explainery scene runtime. Load once in the host page, after GSAP, as a classic script.
+ *
+ * Browsers load runtime/scene.js, which `pnpm build:runtime` generates from runtime/scene.ts; edit the .ts file and
+ * rebuild, and a test fails while the two disagree.
+ *
+ * HyperFrames runs each sub-composition script with its own window, document, and gsap, scoped to that composition
+ * (its getVariables() returns the instance's data-variable-values, and gsap selectors match only inside it). A global
+ * function cannot see that scope, so a scene passes it in:
+ *
+ *   defineScene({ window, document, gsap }, 'registry', (tl, { beat, duration }) => {
+ *     tl.fromTo('#marker', { opacity: 0 }, { opacity: 1, duration: 0.4 }, beat('publish-setup'));
+ *   });
+ */
+
+/// <reference types="gsap" />
+
+/** The copy fields a story gives a scene; data-copy slots name these keys. */
+interface SceneCopy {
+  category?: string;
+  headline?: string;
+  support?: string;
+}
+
+/** The composition variables explainery assemble writes into a scene host's data-variable-values. */
+interface SceneVariables {
+  copy?: SceneCopy;
+  beats?: Record<string, number>;
+  duration?: number;
+}
+
+/** The composition-scoped globals HyperFrames hands each scene script. */
+interface SceneScope {
+  window: {
+    __hyperframes: { getVariables(): SceneVariables };
+    __timelines: Record<string, gsap.core.Timeline>;
+  };
+  document: Pick<Document, 'querySelector' | 'querySelectorAll'>;
+  gsap: typeof gsap;
+}
+
+interface RevealTiming {
+  at: number;
+  duration: number;
+}
+
+interface CopyEntranceTiming {
+  headline?: Partial<RevealTiming>;
+  support?: Partial<RevealTiming>;
+}
+
+interface SceneTools {
+  beat(name: string): number;
+  duration: number;
+  copy: SceneCopy;
+  enterCopy(at: number, timing?: CopyEntranceTiming): void;
+}
+
+type DefineScene = (scope: SceneScope, id: string, build: (timeline: gsap.core.Timeline, tools: SceneTools) => void) => gsap.core.Timeline;
+
+declare var defineScene: DefineScene;
+
+(function () {
+  // Timing values come from float arithmetic; a microsecond is far below one frame.
+  const EPSILON = 1e-6;
+  const seconds = (value: number) => Number(value.toFixed(6)) + 's';
+
+  function fillCopy(document: SceneScope['document'], copy: SceneCopy) {
+    document.querySelectorAll<HTMLElement>('[data-copy]').forEach(function (element) {
+      const text = copy[element.dataset.copy as keyof SceneCopy];
+      if (typeof text === 'string') element.textContent = text;
+      else element.remove();
+    });
+  }
+
+  // The theme's copy entrance: accent rule, category, a left-to-right headline wipe, then the supporting line.
+  const COPY_ENTRANCE = { headline: { at: .1, duration: .75 }, support: { at: .65, duration: .5 } };
+
+  function copyEntrance(document: SceneScope['document'], timeline: gsap.core.Timeline) {
+    const reveal = function (selector: string, from: gsap.TweenVars, to: gsap.TweenVars, at: number) {
+      const element = document.querySelector('.copy ' + selector);
+      if (element) timeline.fromTo(element, from, to, at);
+    };
+    return function (at: number, timing?: CopyEntranceTiming) {
+      const headline: RevealTiming = Object.assign({}, COPY_ENTRANCE.headline, timing && timing.headline);
+      const support: RevealTiming = Object.assign({}, COPY_ENTRANCE.support, timing && timing.support);
+      reveal('.accent-rule', { opacity: 0 }, { opacity: 1, duration: .3 }, at);
+      reveal('[data-copy="category"]', { opacity: 0 }, { opacity: 1, duration: .3 }, at + .05);
+      reveal('[data-copy="headline"]', { clipPath: 'inset(0 100% 0 0)', opacity: 0 }, { clipPath: 'inset(0 0% 0 0)', opacity: 1, duration: headline.duration, ease: 'power1.out' }, at + headline.at);
+      reveal('[data-copy="support"]', { opacity: 0 }, { opacity: 1, duration: support.duration }, at + support.at);
+    };
+  }
+
+  /**
+   * Builds and registers a scene's paused timeline from its composition variables (copy, beats, duration).
+   *
+   * Elements marked data-copy="<key>" receive the story's copy, or are removed when the story has none for that key.
+   * The build anchors tweens to beat('<id>') so a new voiceover only changes timing, never the composition.
+   * enterCopy(at, { headline: { at, duration }, support: { at, duration } }) reveals the copy block from second `at`;
+   * the nested offsets are relative to it, default to the theme's entrance, and slots without copy are skipped. A missing
+   * beat, or a timeline that runs past the scene, throws instead of registering, so HyperFrames reports a script error.
+   */
+  const defineScene: DefineScene = function (scope, id, build) {
+    const variables = scope.window.__hyperframes.getVariables();
+    const duration = variables.duration;
+    const beats = variables.beats || {};
+    const copy = variables.copy || {};
+    if (typeof duration !== 'number') throw new Error('scene "' + id + '" received no duration variable; its host needs data-variable-values');
+    fillCopy(scope.document, copy);
+    const beat = function (name: string) {
+      if (!Object.prototype.hasOwnProperty.call(beats, name)) throw new Error('scene "' + id + '" has no beat "' + name + '"');
+      return beats[name];
+    };
+    const timeline = scope.gsap.timeline({ paused: true });
+    build(timeline, { beat: beat, duration: duration, copy: copy, enterCopy: copyEntrance(scope.document, timeline) });
+    if (timeline.duration() > duration + EPSILON) {
+      throw new Error('scene "' + id + '" timeline ends at ' + seconds(timeline.duration()) + ', after its ' + seconds(duration));
+    }
+    scope.window.__timelines[id] = timeline;
+    return timeline;
+  };
+
+  globalThis.defineScene = defineScene;
+})();

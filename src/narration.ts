@@ -8,9 +8,9 @@ const BEAT_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
  * each one a second. A marker that is not a kebab-case id, or an id marked twice, is reported rather than skipped,
  * because a silently dropped beat would leave its tweens anchored to nothing.
  */
-export function narrationBeats(narration) {
-  const beats = [];
-  const errors = [];
+export function narrationBeats(narration: string): { beats: string[]; errors: string[] } {
+  const beats: string[] = [];
+  const errors: string[] = [];
   for (const [marker, id] of narration.matchAll(MARKER)) {
     if (!BEAT_ID.test(id)) errors.push(`malformed beat marker "${marker}"`);
     else if (beats.includes(id)) errors.push(`beat "${id}" is marked twice`);

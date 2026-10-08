@@ -4,7 +4,7 @@ Open-source visual storytelling on HyperFrames, with themes.
 
 A story is written once in `story.yaml`: on-screen copy and narration per scene, with beat markers in the narration. Scenes are HyperFrames compositions whose tweens are anchored to those beats rather than to absolute seconds, so replacing the voiceover never requires editing a composition. The same story feeds the rendered video and, later, a static explainer page.
 
-The design and its contracts are recorded in [ADR 0001](docs/adr/0001-explainery-architecture.md).
+The design and its contracts are recorded in [ADR 0001](docs/adr/0001-explainery-architecture.md); [ADR 0002](docs/adr/0002-typescript.md) explains why the code is TypeScript without a build step.
 
 ## How it fits together
 
@@ -17,8 +17,8 @@ The design and its contracts are recorded in [ADR 0001](docs/adr/0001-explainery
 | Path | Contents |
 | --- | --- |
 | [`schemas/`](schemas/) | JSON Schemas for `story.yaml` and `timing.json`, also usable for editor validation. |
-| [`src/`](src/), [`bin/explainery.mjs`](bin/explainery.mjs) | The validator, the assembler, the explainer export, and the `explainery` command. |
-| [`runtime/scene.js`](runtime/scene.js) | `defineScene`, the browser runtime that scenes call. |
+| [`src/`](src/), [`bin/explainery.ts`](bin/explainery.ts) | The validator, the assembler, the explainer export, and the `explainery` command, in TypeScript that Node runs directly. |
+| [`runtime/scene.ts`](runtime/scene.ts) | `defineScene`, the browser runtime that scenes call. Browsers load the generated [`runtime/scene.js`](runtime/scene.js). |
 | [`themes/dark/`](themes/dark/) | The default theme: tokens, Roboto, texture, and the brand-frame slot. |
 | [`components/`](components/) | Shared SVG components that take colour only from tokens. |
 | [`tests/`](tests/) | `node:test` suites, plus HyperFrames fixture projects that prove rendering behaviour. |
@@ -114,7 +114,7 @@ Load a theme before the project's own styles, then override its tokens. The casc
 </style>
 ```
 
-[`themes/dark`](themes/dark/theme.css) is the default theme. It provides a black canvas with a sparse square texture (`.background`), a generic hue palette (`--hue-pale-blue`, `--hue-lime`, `--hue-gold`, `--hue-cyan`), text colours, and a type scale set in bundled Roboto 2.137 (© 2011 Google Inc., Apache-2.0). It also provides the low-left copy block (`.copy`, `.accent-rule`, `.category`, `h1`, `.support`), diagram labels, and an empty [brand-frame slot](themes/dark/brand-frame.html). A project brands the video by pointing its `brand-frame` host at its own composition. [`scripts/build-texture.mjs`](scripts/build-texture.mjs) regenerates the texture.
+[`themes/dark`](themes/dark/theme.css) is the default theme. It provides a black canvas with a sparse square texture (`.background`), a generic hue palette (`--hue-pale-blue`, `--hue-lime`, `--hue-gold`, `--hue-cyan`), text colours, and a type scale set in bundled Roboto 2.137 (© 2011 Google Inc., Apache-2.0). It also provides the low-left copy block (`.copy`, `.accent-rule`, `.category`, `h1`, `.support`), diagram labels, and an empty [brand-frame slot](themes/dark/brand-frame.html). A project brands the video by pointing its `brand-frame` host at its own composition. [`scripts/build-texture.ts`](scripts/build-texture.ts) regenerates the texture.
 
 Components such as the [isometric cube](components/isometric.svg) take colour only from tokens (`--cube-top`, `--cube-left`, `--cube-right`, `--cube-edge`). Recolour a single cube by overriding the tokens on its element. Keep every SVG well-formed XML: Chrome silently draws nothing from a malformed sprite or texture, and a `--` inside an XML comment is already enough.
 
@@ -122,10 +122,11 @@ Components such as the [isometric cube](components/isometric.svg) take colour on
 
 ```bash
 pnpm install
-pnpm test
+pnpm test             # type-checks, then runs the tests
+pnpm build:runtime    # after editing runtime/scene.ts
 ```
 
-The tests include real HyperFrames snapshots and checks of fixture projects, so they need FFmpeg; HyperFrames manages its own headless browser. The SVG well-formedness test needs `xmllint`. Changes follow red/green TDD: a contract change starts with a failing test.
+Node 22.18 or later runs the TypeScript sources directly by stripping their types, so only the browser runtime has a build step; a test fails while `runtime/scene.js` differs from a fresh build. The tests include real HyperFrames snapshots and checks of fixture projects, so they need FFmpeg; HyperFrames manages its own headless browser. The SVG well-formedness test needs `xmllint`. Changes follow red/green TDD: a contract change starts with a failing test.
 
 ## Licence
 
