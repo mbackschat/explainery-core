@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { assembleIndex, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, loadStory, validateProject, validateStoryTiming } from '../src/index.ts';
+import { alignTiming, assembleIndex, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, loadStory, transcribe, validateProject, validateStoryTiming, type Timing, type TranscriptWord } from '../src/index.ts';
 
-const USAGE = 'Usage: explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>]';
+const USAGE = 'Usage: explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>]';
 const args = process.argv.slice(2);
 const option = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const optionValues = ['--out', '--wps'].map(option);
+const optionValues = ['--out', '--wps', '--audio', '--transcript'].map(option);
 const [command, dir = '.'] = args.filter(arg => !arg.startsWith('--') && !optionValues.includes(arg));
 const project = resolve(dir);
 
@@ -19,8 +19,8 @@ function report(message: string) {
   console.log(message);
 }
 
-// Only an earlier estimate may be overwritten: aligned or imported timing comes from a real voice and cannot be redone.
-async function replaceableTiming(file: string): Promise<string | undefined> {
+// The project's current timing.json as written, undefined when there is none and null when it cannot be parsed.
+async function currentTiming(file: string): Promise<Partial<Timing> | null | undefined> {
   let text: string;
   try {
     text = await readFile(file, 'utf8');
@@ -28,13 +28,21 @@ async function replaceableTiming(file: string): Promise<string | undefined> {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
     throw error;
   }
-  let source: unknown;
   try {
-    source = JSON.parse(text).source;
+    return JSON.parse(text);
   } catch {
-    return 'timing.json is unreadable; pass --force to replace it with an estimate';
+    return null;
   }
-  return source === 'estimate' ? undefined : `timing.json is ${source}; pass --force to replace it with an estimate`;
+}
+
+// Timing from a source the command cannot regenerate, such as imported film timing, is only replaced with --force.
+function refusal(current: Partial<Timing> | null | undefined, replaceable: string[], replacement: string): string | undefined {
+  if (current === undefined || (current && replaceable.includes(current.source ?? ''))) return undefined;
+  return `timing.json is ${current ? current.source : 'unreadable'}; pass --force to replace it with ${replacement}`;
+}
+
+async function writeTiming(file: string, timing: Timing) {
+  await writeFile(file, `${JSON.stringify(timing, null, 2)}\n`);
 }
 
 async function estimate({ wps, force }: { wps: string | undefined; force: boolean }) {
@@ -43,8 +51,8 @@ async function estimate({ wps, force }: { wps: string | undefined; force: boolea
   const wordsPerSecond = wps === undefined ? DEFAULT_WORDS_PER_SECOND : Number(wps);
   if (!(wordsPerSecond > 0)) return fail([`--wps must be a positive number, not "${wps}"`]);
   const file = join(project, 'timing.json');
-  const refusal = force ? undefined : await replaceableTiming(file);
-  if (refusal) return fail([refusal]);
+  const refused = force ? undefined : refusal(await currentTiming(file), ['estimate'], 'an estimate');
+  if (refused) return fail([refused]);
   let timing;
   try {
     timing = estimateTiming(story.value, { wordsPerSecond });
@@ -53,9 +61,32 @@ async function estimate({ wps, force }: { wps: string | undefined; force: boolea
   }
   const errors = validateStoryTiming(story.value, timing);
   if (errors.length) return fail(errors);
-  await writeFile(file, `${JSON.stringify(timing, null, 2)}\n`);
+  await writeTiming(file, timing);
   const count = story.value.scenes.length;
   return report(`Estimated ${count} ${count === 1 ? 'scene' : 'scenes'}, ${timing.duration}s at ${wordsPerSecond} words per second, into timing.json; run explainery assemble`);
+}
+
+async function align({ audio, transcript, force }: { audio: string | undefined; transcript: string | undefined; force: boolean }) {
+  const story = await loadStory(project);
+  if (!story.value) return fail(story.errors);
+  const file = join(project, 'timing.json');
+  const current = await currentTiming(file);
+  const refused = force ? undefined : refusal(current, ['estimate', 'aligned'], 'aligned timing');
+  if (refused) return fail([refused]);
+  const track = audio ?? current?.audio;
+  if (!track) return fail(['timing.json names no audio; pass --audio <file>']);
+  let timing;
+  try {
+    const words: TranscriptWord[] = transcript ? JSON.parse(await readFile(resolve(transcript), 'utf8')) : await transcribe(project, track);
+    timing = alignTiming(story.value, words, { audio: track });
+  } catch (error) {
+    return fail([(error as Error).message]);
+  }
+  const errors = validateStoryTiming(story.value, timing);
+  if (errors.length) return fail(errors);
+  await writeTiming(file, timing);
+  const count = story.value.scenes.length;
+  return report(`Aligned ${count} ${count === 1 ? 'scene' : 'scenes'} to ${track}, ${timing.duration}s, into timing.json; run explainery assemble`);
 }
 
 async function validate() {
@@ -92,6 +123,9 @@ async function exportPage(out: string | undefined) {
 switch (command) {
   case 'estimate':
     await estimate({ wps: option('--wps'), force: args.includes('--force') });
+    break;
+  case 'align':
+    await align({ audio: option('--audio'), transcript: option('--transcript'), force: args.includes('--force') });
     break;
   case 'validate':
     await validate();

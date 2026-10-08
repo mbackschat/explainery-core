@@ -42,6 +42,15 @@ pnpm exec explainery estimate --wps 2.2  # a slower narrator
 
 `estimate` gives each scene the length of its spoken words plus its `hold`, and puts each beat after the words spoken before its marker. Scenes follow in story order, and a scene's `overlap` starts the next one that much earlier. It writes `timing.json` with `source: estimate`, so scenes can be animated and previewed before any narration is recorded; run `explainery assemble` afterwards. It replaces an earlier estimate, but refuses to replace `aligned` or `imported` timing unless you pass `--force`, because those come from a real voice.
 
+## Align timing to a recorded voice
+
+```bash
+pnpm exec explainery align --audio assets/narration.wav    # transcribe locally, then align
+pnpm exec explainery align --transcript transcript.json    # align a transcript you made yourself
+```
+
+`align` transcribes the narration with the project's `hyperframes transcribe` (local whisper, English by default), matches the story's narration words to the transcript in order, and writes `timing.json` with `source: aligned` and the audio as `audio`. A beat falls where the word after its marker starts, or where the scene's last word ends when the marker closes the narration. The first scene starts at 0; a scene ends its `hold` after its last word, and the next scene starts its `overlap` earlier. Misheard words are tolerated, and a missed word gets a share of the gap between its neighbours, but the command fails when fewer than three quarters of the narration words are found, or when a `hold` is longer than the pause before the next scene's narration. For another language or whisper model, run `hyperframes transcribe <audio> --model … --language …` yourself and pass its `transcript.json`. Beats land on the spoken word, so anticipate a word in the scene's timeline with `beat('…') - 0.3` rather than by editing `timing.json`. `align` replaces an estimate or an earlier alignment, but refuses `imported` timing unless you pass `--force`.
+
 ## Validate a project
 
 ```bash

@@ -1,12 +1,9 @@
+import { spokenWords } from './narration.ts';
+import { toMillisecond as round } from './time.ts';
 import type { SceneTiming, Story, Timing } from './types.ts';
-
-const MARKER = /\{([^{}]*)\}/g;
 
 // The pilot project's recorded narration runs at 2.4–2.5 words per second (measured on its subtitle cues, 2026-10-09).
 export const DEFAULT_WORDS_PER_SECOND = 2.5;
-
-const words = (text: string) => text.replace(MARKER, ' ').split(/\s+/).filter(Boolean).length;
-const round = (seconds: number) => Math.round(seconds * 1000) / 1000;
 
 /**
  * Estimates timing from the narration alone, for animating before any voice exists.
@@ -21,9 +18,9 @@ export function estimateTiming(story: Story, { wordsPerSecond = DEFAULT_WORDS_PE
   let start = 0;
   let end = 0;
   story.scenes.forEach((scene, index) => {
-    const duration = round(words(scene.narration) / wordsPerSecond + (scene.hold ?? 0));
-    const beats: Record<string, number> = {};
-    for (const marker of scene.narration.matchAll(MARKER)) beats[marker[1]] = round(words(scene.narration.slice(0, marker.index)) / wordsPerSecond);
+    const { words, markers } = spokenWords(scene.narration);
+    const duration = round(words.length / wordsPerSecond + (scene.hold ?? 0));
+    const beats = Object.fromEntries(markers.map(({ beat, before }) => [beat, round(before / wordsPerSecond)]));
     scenes[scene.id] = { start, duration, beats };
     end = round(start + duration);
     const overlap = index < story.scenes.length - 1 ? scene.overlap ?? 0 : 0;

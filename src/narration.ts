@@ -18,3 +18,22 @@ export function narrationBeats(narration: string): { beats: string[]; errors: st
   }
   return { beats, errors };
 }
+
+/**
+ * Splits a narration into its spoken words and, per {beat} marker, the number of words spoken before it.
+ *
+ * Both timing sources build on this: an estimate counts the words, and an alignment finds them in a transcript. Words
+ * are whitespace-separated and keep their punctuation.
+ */
+export function spokenWords(narration: string): { words: string[]; markers: { beat: string; before: number }[] } {
+  const words: string[] = [];
+  const markers: { beat: string; before: number }[] = [];
+  let last = 0;
+  for (const marker of narration.matchAll(MARKER)) {
+    words.push(...narration.slice(last, marker.index).split(/\s+/).filter(Boolean));
+    markers.push({ beat: marker[1], before: words.length });
+    last = marker.index + marker[0].length;
+  }
+  words.push(...narration.slice(last).split(/\s+/).filter(Boolean));
+  return { words, markers };
+}

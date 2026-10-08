@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { filmFiles } from './film-files.ts';
+import { hyperframesDist } from './hyperframes.ts';
 import type { Scene, SceneTiming, Story, Timing } from './types.ts';
 import { validateProject } from './validate.ts';
 
@@ -124,7 +124,7 @@ export async function exportExplainer(projectDir: string, outDir: string): Promi
     await mkdir(dirname(join(outDir, 'film', file)), { recursive: true });
     await copyFile(join(projectDir, file), join(outDir, 'film', file));
   }
-  const hyperframes = join(dirname(createRequire(join(projectDir, 'package.json')).resolve('hyperframes/package.json')), 'dist');
+  const hyperframes = hyperframesDist(projectDir);
   await mkdir(join(outDir, 'player'));
   await copyFile(join(hyperframes, 'hyperframes-player.global.js'), join(outDir, 'player/hyperframes-player.js'));
   await copyFile(join(hyperframes, 'hyperframe.runtime.iife.js'), join(outDir, 'player/hyperframe.runtime.js'));
