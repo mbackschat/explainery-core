@@ -9,7 +9,7 @@ The design and its contracts are recorded in [ADR 0001](docs/adr/0001-explainery
 ## How it fits together
 
 1. **Script.** `story.yaml` lists the scenes with their copy and narration. Markers such as `{publish-setup}` name the beats the animation reacts to.
-2. **Time.** `timing.json` gives each scene its start and length and each beat its second. Its `source` records where the seconds came from: `estimate`, `aligned` to a recorded voiceover, or `imported` from an existing film.
+2. **Time.** `timing.json` gives each scene its start and length and each beat its second. Its `source` records where the seconds came from: `estimate` (written by `explainery estimate` from word counts), `aligned` to a recorded voiceover, or `imported` from an existing film.
 3. **Assemble.** `explainery assemble` writes that timing and copy into the project's hand-authored `index.html` as HyperFrames composition variables.
 4. **Animate.** Each scene in `compositions/<id>.html` builds its timeline with `defineScene` and anchors tweens to `beat('…')`.
 5. **Verify and publish.** `explainery validate` and `hyperframes check` guard the contracts, `hyperframes render` produces the MP4, and `explainery export` produces the explainer page.
@@ -32,6 +32,15 @@ Nothing is published yet. Check this repository out next to your project and lin
 ```
 
 Run `pnpm install` in this checkout as well, because a linked package resolves its own dependencies from its own `node_modules`.
+
+## Estimate timing before a voice exists
+
+```bash
+pnpm exec explainery estimate            # write timing.json from the narration, at 2.5 words per second
+pnpm exec explainery estimate --wps 2.2  # a slower narrator
+```
+
+`estimate` gives each scene the length of its spoken words plus its `hold`, and puts each beat after the words spoken before its marker. Scenes follow in story order, and a scene's `overlap` starts the next one that much earlier. It writes `timing.json` with `source: estimate`, so scenes can be animated and previewed before any narration is recorded; run `explainery assemble` afterwards. It replaces an earlier estimate, but refuses to replace `aligned` or `imported` timing unless you pass `--force`, because those come from a real voice.
 
 ## Validate a project
 

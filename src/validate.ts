@@ -89,6 +89,9 @@ async function checkCompositions(dir: string, story: Story): Promise<string[]> {
   return errors;
 }
 
+/** Reads a project's story.yaml; the story is present only when it parses and passes its schema. */
+export const loadStory = (dir: string) => load<Story>(dir, 'story.yaml', parseYaml, checkStory);
+
 /**
  * The outcome of validateProject. `valid` is true exactly when there are no errors; story and timing are present
  * whenever their file parsed and passed its schema, even if the project is inconsistent.
@@ -104,7 +107,7 @@ export type ProjectValidation =
  * reported per file and stop the deeper checks, since those assume valid shapes.
  */
 export async function validateProject(dir: string): Promise<ProjectValidation> {
-  const story = await load<Story>(dir, 'story.yaml', parseYaml, checkStory);
+  const story = await loadStory(dir);
   const timing = await load<Timing>(dir, 'timing.json', JSON.parse, checkTiming);
   if (!story.value || !timing.value) return { valid: false, errors: [...story.errors, ...timing.errors], story: story.value, timing: timing.value };
   const errors = [...validateStoryTiming(story.value, timing.value), ...(await checkCompositions(dir, story.value))];
