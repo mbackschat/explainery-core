@@ -8,11 +8,39 @@ Keep this repository independent of any client or product: no client logo, brand
 
 Projects live in their own repositories next to this checkout; no pnpm workspace spans them. Change framework code here, never through a project's `node_modules/explainery-core` symlink, and start agent sessions inside the repository you are changing so its own `CLAUDE.md` and HyperFrames skills apply. GSAP stays a peer dependency and is never vendored, because its standard licence is not OSI-approved and an Apache-2.0 repository must not redistribute it. Render only locally with the HyperFrames CLI; no paid cloud rendering or generated-media services.
 
+## Find the implementation and its guard
+
+Read the [README workflow](README.md#the-workflow-at-a-glance) for authoring commands. Use the current schemas, source, and tests to verify implemented behaviour; the ADRs also record design goals and migration history.
+
+| Change | Source | Guard |
+| --- | --- | --- |
+| Story or timing contract | [schemas](schemas/), [types](src/types.ts), [validator](src/validate.ts) | [schema tests](tests/schemas.test.ts), [validation tests](tests/validate.test.ts) |
+| Narration or timing generation | [narration](src/narration.ts), [estimate](src/estimate.ts), [alignment](src/align.ts), [HyperFrames adapter](src/hyperframes.ts) | [narration tests](tests/narration.test.ts), [estimate tests](tests/estimate.test.ts), [alignment tests](tests/align.test.ts) |
+| Root composition assembly | [assembler](src/assemble.ts) | [assembly tests](tests/assemble.test.ts) |
+| Scene behaviour or theme integration | [runtime source](runtime/scene.ts), [dark theme](themes/dark/), [components](components/) | [runtime tests](tests/scene-runtime.test.ts), [build guard](tests/runtime-build.test.ts), [HyperFrames fixtures](tests/hyperframes.test.ts), [SVG guard](tests/svg.test.ts) |
+| Explainer export | [page export](src/explainer.ts), [single-file export](src/explainer-file.ts), [file traversal](src/film-files.ts) | [export tests](tests/explainer.test.ts), [browser tests](tests/explainer-browser.test.ts), [file tests](tests/film-files.test.ts) |
+
+Beat anchoring is an authoring convention, not a runtime restriction: scenes also use numeric starts, offsets, and tween durations. The runtime rejects missing beats and timelines longer than their scene; it does not automatically retime tweens or reflow changed copy. Do not describe replacing narration or wording as a guarantee that no composition edits are needed.
+
 ## Build, Test, and Development Commands
 
 - `pnpm install`: install the pinned dependencies. Projects resolve this package's dependencies through the `link:` symlink, so this checkout needs its own install.
 - `pnpm test`: type-check with `tsc` (both the Node project and `runtime/`), then run all tests with `node --test`. The HyperFrames fixture tests need FFmpeg and use the browser HyperFrames manages; the SVG guard needs `xmllint`.
 - `pnpm build:runtime`: regenerate `runtime/scene.js` from `runtime/scene.ts`; commit both. A test fails while they disagree.
+- `pnpm typecheck`: check Node and browser TypeScript without running the browser fixtures.
+
+The development dependency pins HyperFrames 0.8.124. Check commands against its local `pnpm exec hyperframes <command> --help` before changing examples; a peer dependency range is not evidence that every later version has been verified. Run story commands from the story directory:
+
+```bash
+pnpm exec explainery validate
+pnpm exec explainery assemble --check
+pnpm exec hyperframes preview --background --no-open
+pnpm exec hyperframes check --no-contrast --no-browser-gpu
+pnpm exec hyperframes render --no-browser-gpu -o renders/film.mp4
+pnpm exec hyperframes preview --stop
+```
+
+Preview defaults to automatic browser GPU selection. Checks, fixture captures, and the render example force software browser capture for comparable output; this is separate from the optional `--gpu` video encoder. Local execution can still involve browser/model downloads and HyperFrames update or telemetry traffic; it does not imply an offline setup.
 
 ## Scope
 

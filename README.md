@@ -4,6 +4,15 @@ Explainery turns a few plain text files into a narrated explainer film: animated
 
 This repository, `explainery-core`, is the framework. Each film lives in its own *story* repository next to it and uses the framework from there.
 
+## Find what you need
+
+- Start a story: [project setup](#use-in-a-project).
+- Time narration: [estimate](#estimate-timing-before-a-voice-exists), [draft a voice](#draft-a-voice), or [align a recording](#align-timing-to-a-recorded-voice).
+- Author visuals: [write a scene](#write-a-scene) and [themes and components](#themes-and-components).
+- Check and watch the film: [validate](#validate-a-project), [assemble](#assemble-the-root-composition), and [preview and render](#preview-and-render).
+- Share the page: [static folder](#export-the-explainer-page) or [single file](#export-a-single-file-to-send).
+- Change the framework: [development](#develop), [repository guidelines](CLAUDE.md), and [architecture decisions](docs/adr/0001-explainery-architecture.md).
+
 ## Why Explainery?
 
 Explainer videos are usually made in animation tools, where the wording, the voice, and the movement are welded together. Changing one sentence or recording a better voice means retiming the animation by hand, and the text is locked inside a binary project file that nobody can review.
@@ -12,9 +21,9 @@ Explainery keeps those three things apart:
 
 - **The words** live in one text file, `story.yaml`: each scene's headline, support line, and narration.
 - **The timing** lives in `timing.json`. It can be estimated from the narration before any voice exists, and aligned automatically to a recorded or synthetic voice afterwards.
-- **The animation** never uses fixed seconds. Each movement starts at a named moment in the narration, a *beat*, so it follows the voice wherever the voice puts that moment.
+- **The animation** can anchor movements to named moments in the narration, called *beats*, so their starts follow the voice. Tween durations and offsets still use seconds.
 
-As a result, correcting a claim, rewording a headline, or replacing the draft voice with a real recording changes text files only; no animation needs editing. Everything is plain text in git, so every change can be reviewed as a diff, by a person or an AI agent. And one story produces both the video and an explainer web page.
+Copy changes belong in `story.yaml`, and a new voice normally changes `timing.json` through alignment. Beat anchors reduce manual retiming, but longer copy can need a layout adjustment and shorter narration can leave too little room for a tween. Recheck scenes after either change; the runtime rejects timelines that overrun their scene. Everything is plain text in git, so changes can be reviewed as diffs. One story produces both the video and an explainer web page.
 
 ## Key ideas
 
@@ -22,7 +31,7 @@ As a result, correcting a claim, rewording a headline, or replacing the draft vo
 | --- | --- |
 | **Story** | `story.yaml`: the scenes in order, each with its on-screen copy and narration. |
 | **Scene** | One part of the film with one idea, drawn by one HTML file in `compositions/`. |
-| **Beat** | A named moment in the narration, written as a marker such as `{publish-setup}`. Animations start at beats. |
+| **Beat** | A named moment in the narration, written as a marker such as `{publish-setup}`. Scene code can use it as an animation start or add a seconds-based offset. |
 | **Timing** | `timing.json`: when each scene starts, how long it lasts, and the second of every beat. |
 | **Composition** | HyperFrames' name for an HTML page that becomes video. The root composition, `index.html`, places the scenes on one timeline. |
 | **Theme** | Colours, fonts, background, and the layout of the text block, shared by every scene. A story adds its own colours on top. |
@@ -31,20 +40,20 @@ As a result, correcting a claim, rewording a headline, or replacing the draft vo
 ## The workflow at a glance
 
 ```bash
-# 1. Write the scenes, their copy, and their narration in story.yaml.
+# 1. Write story.yaml and create index.html plus compositions/<scene-id>.html shells.
 pnpm exec explainery estimate        # 2. Estimate timing from the narration's word counts.
 pnpm exec explainery assemble        #    Write copy and timing into index.html.
-pnpm exec hyperframes preview        # 3. Draw and animate each scene, watching it in Studio.
+pnpm exec hyperframes preview --background --no-open  # 3. Open the printed Studio URL to author scenes.
 # 4. Voice the narration (a draft voice or a recording), then time the beats to it:
 pnpm exec explainery align --audio assets/narration.wav
 pnpm exec explainery assemble
 pnpm exec explainery validate        # 5. Check that story, timing, and scenes agree,
-pnpm exec hyperframes check          #    and audit layout and motion.
-pnpm exec hyperframes render         # 6. Render the MP4 when you need the file,
+pnpm exec hyperframes check --no-contrast --no-browser-gpu  # audit layout, motion, and runtime errors.
+pnpm exec hyperframes render --no-browser-gpu -o renders/film.mp4  # 6. Render the MP4,
 pnpm exec explainery export          #    or the explainer page when you need the page (--single-file to send it).
 ```
 
-Every step runs locally, with no cloud services. Rendering draws every frame on the CPU, so it takes minutes; work in Studio and render when you need the file.
+Rendering, synthesis, and transcription in this workflow run on your computer. Dependency, browser, and speech-model setup can require downloads; HyperFrames can also contact its update and telemetry services. The render command above selects software browser capture explicitly: HyperFrames otherwise auto-detects browser GPU support, and its separate `--gpu` flag enables GPU encoding. Work in Studio and render when you need the file.
 
 The rest of this README explains each step in detail. The design decisions behind it are recorded in [ADR 0001](docs/adr/0001-explainery-architecture.md), and [ADR 0002](docs/adr/0002-typescript.md) explains why the code is TypeScript without a build step.
 
@@ -61,13 +70,21 @@ The rest of this README explains each step in detail. The design decisions behin
 
 ## Use in a project
 
-You need Node 22.18 or later, pnpm, and FFmpeg. Nothing is published to npm yet, so check this repository out next to your story project and link it:
+You need Node 22.18 or later, pnpm, and FFmpeg (including `ffprobe`). Nothing is published to npm yet, so check this repository out next to your story project and link it. Install GSAP and HyperFrames in the story too; these are the versions this checkout tests:
 
 ```json
-{ "dependencies": { "explainery-core": "link:../explainery-core" } }
+{
+  "dependencies": {
+    "explainery-core": "link:../explainery-core",
+    "gsap": "3.14.2",
+    "hyperframes": "0.8.124"
+  }
+}
 ```
 
 Run `pnpm install` in this checkout as well, because a linked package resolves its own dependencies from its own `node_modules`. The quickest way to start a new story is to copy the layout of an existing story project: `story.yaml`, `timing.json`, `index.html`, `compositions/`, and a theme overlay.
+
+Run the workflow commands from the story's root directory. Each `explainery` command also accepts a project directory after its subcommand, such as `pnpm exec explainery validate ../example-story`. Scenes and the root composition are hand-authored; Explainery does not generate animation from narration. See the [story schema](schemas/story.schema.json), [timing schema](schemas/timing.schema.json), and [runtime fixture](tests/fixtures/scene-runtime/index.html) for the implemented file shapes and scene wiring.
 
 ## Estimate timing before a voice exists
 
@@ -80,7 +97,7 @@ pnpm exec explainery estimate --wps 2.2  # a slower narrator
 
 ## Draft a voice
 
-A recorded voiceover is the goal, but a local synthetic voice lets you hear and time a story first. `hyperframes tts` speaks with Kokoro, an English-only local model; it has no German voice. One-time setup on macOS, with the Python packages in their own uv environment:
+A recorded voiceover is the goal, but a local synthetic voice lets you hear and time a story first. `hyperframes tts` uses the local Kokoro model. HyperFrames 0.8.124 supports several languages and has no German option; `pnpm exec hyperframes tts --help` lists the voices and languages. The example below uses an American English voice. One-time setup on macOS with Homebrew under `/opt/homebrew`, and the Python packages in their own uv environment:
 
 ```bash
 brew install espeak-ng
@@ -109,16 +126,20 @@ pronunciations:
 
 To check a spelling without listening, compare the phonemes eSpeak NG gives Kokoro: `espeak-ng -q --ipa -v en-us "the DG S-P-I"`.
 
-The first run downloads the Kokoro model, and the first `align` downloads the whisper model, into `~/.cache/hyperframes`. If HyperFrames' model download stalls, fetch `ggml-small.en.bin` from `huggingface.co/ggerganov/whisper.cpp` into `~/.cache/hyperframes/whisper/models/` yourself.
+The first TTS run downloads the Kokoro model into `~/.cache/hyperframes`. Transcription uses an installed compatible Parakeet engine when available, otherwise Whisper with the default `small.en` model, which is downloaded on first use. If that Whisper download stalls, fetch `ggml-small.en.bin` from `huggingface.co/ggerganov/whisper.cpp` into `~/.cache/hyperframes/whisper/models/` yourself.
 
 ## Align timing to a recorded voice
 
 ```bash
 pnpm exec explainery align --audio assets/narration.wav    # transcribe locally, then align
-pnpm exec explainery align --transcript transcript.json    # align a transcript you made yourself
+pnpm exec explainery align --audio assets/narration.wav --transcript transcript.json  # use an existing transcript
 ```
 
-`align` transcribes the narration with the project's `hyperframes transcribe` (local whisper, English by default), matches the story's narration words to the transcript in order, and writes `timing.json` with `source: aligned`, the audio as `audio`, and its length, read with FFmpeg's `ffprobe`, as `audioDuration`. A beat falls where the word after its marker starts, or where the scene's last word ends when the marker closes the narration. The first scene starts at 0; a scene ends its `hold` after its last word, and the next scene starts its `overlap` earlier. Misheard words are tolerated, and a missed word gets a share of the gap between its neighbours. Whisper often drifts the words before a pause into the pause, so `align` also finds the pauses in the audio (FFmpeg's `silencedetect`: below -40 dB for at least 0.5 s) and fits the words that reach into one back to end where the pause begins. This keeps a scene's `hold` honest when the voice pauses between scenes. The command fails when fewer than three quarters of the narration words are found, or when a `hold` is longer than the pause before the next scene's narration. For another language or whisper model, run `hyperframes transcribe <audio> --model … --language …` yourself and pass its `transcript.json`. Beats land on the spoken word, so anticipate a word in the scene's timeline with `beat('…') - 0.3` rather than by editing `timing.json`. `align` replaces an estimate or an earlier alignment, but refuses `imported` timing unless you pass `--force`.
+`align` transcribes the narration with the project's `hyperframes transcribe` and its default engine selection, matches the story's narration words to the transcript in order, and writes `timing.json` with `source: aligned`, the audio as `audio`, and its length, read with FFmpeg's `ffprobe`, as `audioDuration`. With `--transcript`, it reads that JSON instead; the audio is still required for its duration and pauses. You can omit `--audio` only when the existing `timing.json` already names it.
+
+A beat falls where the word after its marker starts, or where the scene's last word ends when the marker closes the narration. The first scene starts at 0; a scene ends its `hold` after its last word, and the next scene starts its `overlap` earlier. Misheard words are tolerated, and a missed word gets a share of the gap between its neighbours. Whisper often drifts the words before a pause into the pause, so `align` also finds the pauses in the audio (FFmpeg's `silencedetect`: below -40 dB for at least 0.5 s) and fits the words that reach into one back to end where the pause begins. The command fails when fewer than three quarters of the narration words are found, or when a `hold` is longer than the pause before the next scene's narration.
+
+For another language or Whisper model, run `pnpm exec hyperframes transcribe assets/narration.wav --engine whisper --model large-v3 --language de` yourself and pass its `transcript.json`. The explicit engine makes the Whisper model choice take effect even when Parakeet is installed. Beats land on the spoken word, so anticipate a word in the scene's timeline with `beat('…') - 0.3` rather than by editing `timing.json`. `align` replaces an estimate or an earlier alignment, but refuses `imported` timing unless you pass `--force`.
 
 ## Validate a project
 
@@ -141,7 +162,23 @@ pnpm exec explainery assemble --check  # exit 1 when index.html is out of date
 - **Story duration:** the root composition and every element marked `data-story-span` get the story duration.
 - **Narration track:** the element marked `data-story-audio` gets `timing.audio` as its `src`, and ends at `timing.audioDuration` when the audio is shorter than the film, as it is when the last scene holds after the final word.
 
-Everything else in the file is left byte for byte, so `story.yaml` and `timing.json` remain the only place to change copy and timing.
+Everything else in the file is left byte for byte. `story.yaml` and `timing.json` remain the authoritative inputs for scene copy, beat times, and scene duration.
+
+## Preview and render
+
+Run these from the story directory after assembly:
+
+```bash
+pnpm exec hyperframes preview --background --no-open
+pnpm exec hyperframes preview --status
+pnpm exec hyperframes check --no-contrast --no-browser-gpu
+pnpm exec hyperframes render --no-browser-gpu -o renders/film.mp4
+pnpm exec hyperframes preview --stop
+```
+
+Open the Studio URL printed by `preview`; its default starting port is 3002. `--background` keeps it running after the command exits, and `--no-open` leaves opening a browser to you. Preview uses automatic browser GPU selection; add `--no-browser-gpu` when comparing it with the software capture used by the render command and framework fixtures.
+
+`validate` checks project files without executing scenes. `check` also runs the scene scripts and samples layout and motion; it catches unknown beats and timeline overruns that `lint` cannot. Use `--no-contrast` because accessibility auditing of produced animations is outside this project's scope. Browser capture and video encoding are separate: `--no-browser-gpu` forces software capture, while GPU encoding requires `--gpu`.
 
 ## Export the explainer page
 
@@ -158,7 +195,7 @@ The export writes a static folder with three parts:
 - **`player/`:** HyperFrames' player and runtime (Apache-2.0).
 - **`film/`:** every file the root composition references, copied as real files.
 
-Each scene player is the whole film limited to the scene's window with `range-start` and `range-end`, so no per-scene build is needed. It opens on the scene's middle frame, and a scrubber below it steps frame by frame within the scene. The page links the film's own stylesheets, so it inherits the theme. Serve the folder over http(s), for example with `npx serve explainer`. Opened as a `file://` page, the player ignores the bundled runtime and fetches one from a CDN.
+Each scene player is the whole film limited to the scene's window with `range-start` and `range-end`, so no per-scene build is needed. It opens on the scene's middle frame, and a scrubber below it steps frame by frame within the scene. The page links the film's own stylesheets, so it inherits the theme. Serve the folder over http(s), for example with `pnpm dlx serve explainer`, which may download `serve`. Opened as a `file://` page, the player ignores the bundled runtime and fetches one from a CDN.
 
 ## Export a single file to send
 
@@ -201,9 +238,11 @@ Inside the scene, mark copy slots with `data-copy` and anchor tweens to beats:
 </script>
 ```
 
-The scene passes `{ window, document, gsap }` because HyperFrames scopes those per sub-composition, and a function loaded globally could otherwise read neither the instance's variables nor its own elements. `enterCopy(at, timing)` reveals the theme's copy block from second `at`: the accent rule, the category, a left-to-right headline wipe, then the support line. Pass `{ headline: { at, duration }, support: { at, duration } }` to retime one scene; the offsets are relative to `at`, and slots without copy are skipped.
+The scene passes `{ window, document, gsap }` because HyperFrames scopes those per sub-composition, and a function loaded globally could otherwise read neither the instance's variables nor its own elements. `beat(name)` returns scene-local seconds; beat anchoring is an authoring convention, not a restriction enforced by the runtime. Numeric starts, offsets, and durations are supported.
 
-`defineScene` fills each `data-copy` slot from the story and removes slots whose copy the story leaves out. It then registers the paused timeline under the scene id. An unknown beat, or a timeline that runs past the scene's duration, throws instead. `hyperframes check` reports that as a runtime error and fails, so run it together with `explainery validate`.
+`enterCopy(at, timing)` reveals the theme's copy block from second `at`: the accent rule, the category, a left-to-right headline wipe, then the support line. Pass `{ headline: { at, duration }, support: { at, duration } }` to retime one scene; the offsets are relative to `at`, and slots without copy are skipped.
+
+`defineScene` fills each `data-copy` slot from the story and removes slots whose copy the story leaves out. It then registers the paused timeline under the scene id. An unknown beat, or a timeline that runs past the scene's duration, throws instead. The [preview and render checks](#preview-and-render) execute this guard after narration or copy changes.
 
 ## Themes and components
 
