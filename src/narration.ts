@@ -28,7 +28,7 @@ const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * The narration as a synthetic draft voice should speak it: the spoken text with each whole word that has a
  * pronunciation replaced by it.
  *
- * Words match case-sensitively and only where no letter or digit adjoins them, so "SPI" changes but "SPIs" and "ESPI"
+ * Words match case-sensitively and only where no letter or digit adjoins them, so "SQL" changes but "SQLs" and "MSSQL"
  * do not. Only the draft voice gets these spellings; readers, transcripts and alignment keep the written words.
  */
 export function voicedText(narration: string, pronunciations: Record<string, string> = {}): string {

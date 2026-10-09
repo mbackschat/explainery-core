@@ -36,10 +36,10 @@ const variables = (): Variables => ({ copy: { headline: 'Hello' }, beats: { publ
 test('a scene registers a paused timeline whose tweens start at their beat', () => {
   const { defineScene, scope } = sceneScope(variables());
   const marker = { opacity: 0 };
-  defineScene(scope, 'registry', (tl, { beat }) => {
+  defineScene(scope, 'library', (tl, { beat }) => {
     tl.to(marker, { opacity: 1, duration: 0.4 }, beat('publish') + 0.4);
   });
-  const timeline = scope.window.__timelines.registry;
+  const timeline = scope.window.__timelines.library;
   assert.equal(timeline.paused(), true);
   timeline.seek(2.85);
   assert.equal(marker.opacity, 0);
@@ -50,36 +50,36 @@ test('a scene registers a paused timeline whose tweens start at their beat', () 
 test('the build receives the scene duration for tweens that span the whole scene', () => {
   const { defineScene, scope } = sceneScope(variables());
   let received: number | undefined;
-  defineScene(scope, 'registry', (tl, { duration }) => { received = duration; });
+  defineScene(scope, 'library', (tl, { duration }) => { received = duration; });
   assert.equal(received, 8.9);
 });
 
 test('an unknown beat fails naming the scene and the beat', () => {
   const { defineScene, scope } = sceneScope(variables());
-  assert.throws(() => defineScene(scope, 'registry', (tl, { beat }) => beat('pull')), /scene "registry" has no beat "pull"/);
+  assert.throws(() => defineScene(scope, 'library', (tl, { beat }) => beat('pull')), /scene "library" has no beat "pull"/);
 });
 
 test('a timeline that overruns its scene fails and is not registered', () => {
   const { defineScene, scope } = sceneScope(variables());
   assert.throws(
-    () => defineScene(scope, 'registry', (tl, { beat }) => tl.to({ x: 0 }, { x: 1, duration: 7 }, beat('publish'))),
-    /scene "registry" timeline ends at 9.45s, after its 8.9s/,
+    () => defineScene(scope, 'library', (tl, { beat }) => tl.to({ x: 0 }, { x: 1, duration: 7 }, beat('publish'))),
+    /scene "library" timeline ends at 9.45s, after its 8.9s/,
   );
-  assert.equal(scope.window.__timelines.registry, undefined);
+  assert.equal(scope.window.__timelines.library, undefined);
 });
 
 test('copy fills its elements, and elements for absent copy are removed', () => {
   const headline = copyElement('headline');
   const category = copyElement('category');
   const { defineScene, scope } = sceneScope(variables(), [headline, category]);
-  defineScene(scope, 'registry', () => {});
+  defineScene(scope, 'library', () => {});
   assert.equal(headline.textContent, 'Hello');
   assert.equal(category.removed, true);
 });
 
 test('a scene without a duration variable fails before building', () => {
   const { defineScene, scope } = sceneScope({ copy: {}, beats: {} });
-  assert.throws(() => defineScene(scope, 'registry', () => assert.fail('built without a duration')), /scene "registry" received no duration/);
+  assert.throws(() => defineScene(scope, 'library', () => assert.fail('built without a duration')), /scene "library" received no duration/);
 });
 
 const copyBlock = (): Record<string, { name: string }> => ({
@@ -95,7 +95,7 @@ function entrance(timeline: gsap.core.Timeline) {
 
 test('enterCopy reveals the copy block in reading order from its start', () => {
   const { defineScene, scope } = sceneScope(variables(), [], copyBlock());
-  const timeline = defineScene(scope, 'registry', (tl, { enterCopy }) => enterCopy(0.4));
+  const timeline = defineScene(scope, 'library', (tl, { enterCopy }) => enterCopy(0.4));
   assert.deepEqual(entrance(timeline), {
     accent: { start: 0.4, duration: 0.3, ease: undefined },
     category: { start: 0.45, duration: 0.3, ease: undefined },
@@ -106,7 +106,7 @@ test('enterCopy reveals the copy block in reading order from its start', () => {
 
 test('enterCopy takes per-scene headline and support timing', () => {
   const { defineScene, scope } = sceneScope(variables(), [], copyBlock());
-  const timeline = defineScene(scope, 'scopes', (tl, { enterCopy }) => enterCopy(1, { headline: { at: 0.2, duration: 0.9 }, support: { at: 0.8, duration: 0.4 } }));
+  const timeline = defineScene(scope, 'branches', (tl, { enterCopy }) => enterCopy(1, { headline: { at: 0.2, duration: 0.9 }, support: { at: 0.8, duration: 0.4 } }));
   const { headline, support } = entrance(timeline);
   assert.deepEqual([headline.start, headline.duration, support.start, support.duration], [1.2, 0.9, 1.8, 0.4]);
 });
@@ -115,6 +115,6 @@ test('enterCopy skips slots the story left out', () => {
   const blocks = copyBlock();
   delete blocks['.copy [data-copy="category"]'];
   const { defineScene, scope } = sceneScope(variables(), [], blocks);
-  const timeline = defineScene(scope, 'registry', (tl, { enterCopy }) => enterCopy(0.4));
+  const timeline = defineScene(scope, 'library', (tl, { enterCopy }) => enterCopy(0.4));
   assert.deepEqual(Object.keys(entrance(timeline)), ['accent', 'headline', 'support']);
 });

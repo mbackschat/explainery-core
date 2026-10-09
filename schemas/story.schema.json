@@ -21,7 +21,7 @@
     },
     "pronunciations": {
       "type": "object",
-      "description": "Spellings a synthetic draft voice speaks in place of a written word, for example \"SPI\": \"S-P-I\". Whole, case-sensitive words; on-screen text, transcripts and recordings keep the written word.",
+      "description": "Spellings a synthetic draft voice speaks in place of a written word, for example \"SQL\": \"S-Q-L\". Whole, case-sensitive words; on-screen text, transcripts and recordings keep the written word.",
       "additionalProperties": { "type": "string", "minLength": 1 }
     },
     "scenes": {

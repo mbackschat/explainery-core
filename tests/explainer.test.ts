@@ -10,13 +10,13 @@ import { core, fixtureProject } from './support/fixture.ts';
 const story: Story = {
   id: 'demo', title: 'Demo & Co', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 },
   scenes: [
-    { id: 'registry', copy: { category: 'SHARE', headline: 'Team Registry', support: 'Publish once.' }, narration: 'Publish it {publish} and   pull it {pull}.' },
-    { id: 'scopes', copy: { headline: "It's <yours> & ours" }, narration: '{grow} Grow.' },
+    { id: 'library', copy: { category: 'SHARE', headline: 'Town Library', support: 'Publish once.' }, narration: 'Publish it {publish} and   pull it {pull}.' },
+    { id: 'branches', copy: { headline: "It's <yours> & ours" }, narration: '{grow} Grow.' },
   ],
 };
 const timing: Timing = {
   source: 'imported', duration: 16,
-  scenes: { registry: { start: 0, duration: 8.9, beats: { publish: 2.45, pull: 4.5 } }, scopes: { start: 8.2, duration: 7.8, beats: { grow: 2.2 } } },
+  scenes: { library: { start: 0, duration: 8.9, beats: { publish: 2.45, pull: 4.5 } }, branches: { start: 8.2, duration: 7.8, beats: { grow: 2.2 } } },
 };
 const page = explainerPage(story, timing, { stylesheets: ['node_modules/explainery-core/themes/dark/theme.css', 'theme/brand.css'] });
 const section = (id: string) => page.match(new RegExp(`<section class="explainer-scene" id="${id}">[\\s\\S]*?</section>`))![0];
@@ -31,20 +31,20 @@ test('the whole film plays at the top with its audio', () => {
 });
 
 test('each scene gets a silent player limited to its window and a scrubber over that window', () => {
-  const scopes = section('scopes');
-  assert.match(scopes, /<hyperframes-player id="scopes-player" class="explainer-stage-player" src="film\/index.html" runtime-src="player\/hyperframe.runtime.js" range-start="8.2" range-end="16" muted><\/hyperframes-player>/);
+  const branches = section('branches');
+  assert.match(branches, /<hyperframes-player id="branches-player" class="explainer-stage-player" src="film\/index.html" runtime-src="player\/hyperframe.runtime.js" range-start="8.2" range-end="16" muted><\/hyperframes-player>/);
   // The scrubber counts whole frames, so a seek lands exactly on a frame instead of a rounded fraction of a second.
-  assert.match(scopes, /<input class="explainer-scrub" type="range" data-player="scopes-player" data-fps="30" min="246" max="480" step="1" value="363">/);
+  assert.match(branches, /<input class="explainer-scrub" type="range" data-player="branches-player" data-fps="30" min="246" max="480" step="1" value="363">/);
 });
 
 test('scene copy and narration sit beside the player, escaped and without beat markers', () => {
-  const registry = section('registry');
-  assert.match(registry, /<p class="explainer-category">SHARE<\/p>\s*<h2>Team Registry<\/h2>\s*<p class="explainer-support">Publish once.<\/p>/);
-  assert.match(registry, /<p class="explainer-narration">Publish it and pull it.<\/p>/);
-  const scopes = section('scopes');
-  assert.match(scopes, /<h2>It&#39;s &lt;yours&gt; &amp; ours<\/h2>/);
-  assert.doesNotMatch(scopes, /explainer-category|explainer-support/);
-  assert.match(scopes, /<p class="explainer-narration">Grow.<\/p>/);
+  const library = section('library');
+  assert.match(library, /<p class="explainer-category">SHARE<\/p>\s*<h2>Town Library<\/h2>\s*<p class="explainer-support">Publish once.<\/p>/);
+  assert.match(library, /<p class="explainer-narration">Publish it and pull it.<\/p>/);
+  const branches = section('branches');
+  assert.match(branches, /<h2>It&#39;s &lt;yours&gt; &amp; ours<\/h2>/);
+  assert.doesNotMatch(branches, /explainer-category|explainer-support/);
+  assert.match(branches, /<p class="explainer-narration">Grow.<\/p>/);
 });
 
 test('export writes the page, the HyperFrames player, and the film as real files', async () => {

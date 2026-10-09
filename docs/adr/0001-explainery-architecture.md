@@ -22,7 +22,7 @@ Agreed on 8 October 2026 before the split and moved here from the pilot project'
 
 `explainery-core/themes/dark` is the default theme and contains nothing client-specific: black canvas, square texture, glow, a generic hue palette (`--hue-cyan`, `--hue-lime`, `--hue-gold`, …), type scale with bundled Roboto (Apache-2.0), copy-block layout, motion defaults, and an empty brand-frame slot.
 
-The pilot project overlays it with its client's logo, an eight-colour brand strip, and role mappings such as `--sandbox: var(--hue-lime)`. This exercises both override kinds: tokens through the CSS cascade (core → theme → project) and structure by replacing the brand-frame composition. Components live in core and take colour only from tokens. Step 1 moved the cube symbol, which already used custom properties, and the texture generator into core. Step 2 converted the pilot project's role colours, inline styles, and brand strip to tokens. Tokens cannot reach everything, as measured on 8 October 2026 with HyperFrames 0.8.124 and CPU capture. Page custom properties do reach flat fills in an external `<use>` sprite, but not the gradient stops inside it, and an SVG loaded through `<image>` is an isolated document. The pilot project's gradient platforms and its generated illustrations therefore keep literal colours as project artwork. Making them themeable would mean inlining them, which is not worth it for a single-brand project. Glow stays in scene code, because each glow filter is tuned to its source scene. The motion default is `enterCopy`, the runtime's copy-block entrance, since every scene reveals the theme's copy block the same way.
+The pilot project overlays it with its client's logo, brand colours, and role mappings such as `--harvest: var(--hue-lime)`. This exercises both override kinds: tokens through the CSS cascade (core → theme → project) and structure by replacing the brand-frame composition. Components live in core and take colour only from tokens. Step 1 moved the cube symbol, which already used custom properties, and the texture generator into core. Step 2 converted the pilot project's role colours, inline styles, and brand strip to tokens. Tokens cannot reach everything, as measured on 8 October 2026 with HyperFrames 0.8.124 and CPU capture. Page custom properties do reach flat fills in an external `<use>` sprite, but not the gradient stops inside it, and an SVG loaded through `<image>` is an isolated document. The pilot project's gradient platforms and its generated illustrations therefore keep literal colours as project artwork. Making them themeable would mean inlining them, which is not worth it for a single-brand project. Glow stays in scene code, because each glow filter is tuned to its source scene. The motion default is `enterCopy`, the runtime's copy-block entrance, since every scene reveals the theme's copy block the same way.
 
 ## Contracts
 
@@ -35,7 +35,7 @@ type Story = {
   scenes: Array<{
     id: SceneId;                                          // → compositions/<id>.html
     copy: { category?: string; headline: string; support?: string };
-    narration: string;  // "Publish it {publish-setup} and sandboxes pull it in {pull-setups}."
+    narration: string;  // "Publish it {publish-book} and readers borrow it {borrow-books}."
     hold?: number;      // seconds after the narration ends
     overlap?: number;   // crossfade into the next scene
   }>;
@@ -52,8 +52,8 @@ type Timing = {
 Scenes receive copy, beats, and duration as HyperFrames composition variables (`data-variable-values`) and anchor narration-driven actions to scene-local beats. Offsets and tween durations remain authored seconds:
 
 ```js
-defineScene({ window, document, gsap }, 'registry', (tl, { beat, duration }) => {
-  tl.fromTo('#publish-marker', { opacity: 0 }, { opacity: 1, duration: 0.4 }, beat('publish-setup'));
+defineScene({ window, document, gsap }, 'library', (tl, { beat, duration }) => {
+  tl.fromTo('#publish-marker', { opacity: 0 }, { opacity: 1, duration: 0.4 }, beat('publish-book'));
 });
 ```
 

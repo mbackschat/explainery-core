@@ -59,7 +59,7 @@ test('timing rejects an unknown source and a negative beat', () => {
 });
 
 test('pronunciations map written words to non-empty spellings for the draft voice', () => {
-  assert.deepEqual(checkStory({ ...story(), pronunciations: { SPI: 'S-P-I' } }), []);
+  assert.deepEqual(checkStory({ ...story(), pronunciations: { SQL: 'S-Q-L' } }), []);
   assert.notDeepEqual(checkStory({ ...story(), pronunciations: { SPI: '' } }), []);
 });
 

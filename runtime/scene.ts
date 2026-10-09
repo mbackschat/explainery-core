@@ -8,8 +8,8 @@
  * (its getVariables() returns the instance's data-variable-values, and gsap selectors match only inside it). A global
  * function cannot see that scope, so a scene passes it in:
  *
- *   defineScene({ window, document, gsap }, 'registry', (tl, { beat, duration }) => {
- *     tl.fromTo('#marker', { opacity: 0 }, { opacity: 1, duration: 0.4 }, beat('publish-setup'));
+ *   defineScene({ window, document, gsap }, 'library', (tl, { beat, duration }) => {
+ *     tl.fromTo('#marker', { opacity: 0 }, { opacity: 1, duration: 0.4 }, beat('publish-book'));
  *   });
  */
 

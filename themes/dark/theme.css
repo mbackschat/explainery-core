@@ -8,7 +8,7 @@
 @font-face { font-family: Roboto; src: url('fonts/roboto-black.ttf'); font-weight: 900; }
 
 :root {
-  /* Generic hue palette. Projects map roles onto it, for example --sandbox: var(--hue-lime). */
+  /* Generic hue palette. Projects map roles onto it, for example --harvest: var(--hue-lime). */
   --hue-pale-blue: #a9bfdc;
   --hue-lime: #b4df40;
   --hue-gold: #f3cd36;

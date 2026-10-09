@@ -34,7 +34,7 @@ Copy changes belong in `story.yaml`, and a new voice normally changes `timing.js
 | --- | --- |
 | **Story** | `story.yaml`: editorial scenes in order, with on-screen copy and narration in their compositions. |
 | **Scene** | A named editorial unit explaining one idea, containing one or more compositions. This is the unit you select for editing, preview, and rendering. |
-| **Beat** | A named moment in the narration, written as a marker such as `{publish-setup}`. Composition code can use it as an animation start or add a seconds-based offset. |
+| **Beat** | A named moment in the narration, written as a marker such as `{publish-book}`. Composition code can use it as an animation start or add a seconds-based offset. |
 | **Timing** | `timing.json`: composition start, duration, and local beat seconds. Its legacy `scenes` keys remain composition IDs. |
 | **Composition** | An executable HTML module containing text, graphics, media elements, and animation. The root composition places these modules and shared layers on the film timeline. |
 | **Theme** | Colours, fonts, background, and the layout of the text block, shared by every scene. A story adds its own colours on top. |
@@ -165,11 +165,11 @@ A synthetic voice mispronounces some terms, such as reading an acronym as a word
 
 ```yaml
 pronunciations:
-  SPI: S-P-I        # not "spy"
-  GraalJS: Graal J-S
+  SQL: S-Q-L        # not "sequel"
+  JSON: Jason
 ```
 
-To check a spelling without listening, compare the phonemes eSpeak NG gives Kokoro: `espeak-ng -q --ipa -v en-us "the DG S-P-I"`.
+To check a spelling without listening, compare the phonemes eSpeak NG gives Kokoro: `espeak-ng -q --ipa -v en-us "the S-Q-L layer"`.
 
 The first TTS run downloads the Kokoro model into `~/.cache/hyperframes`. Transcription uses an installed compatible Parakeet engine when available, otherwise Whisper with the default `small.en` model, which is downloaded on first use. If that Whisper download stalls, fetch `ggml-small.en.bin` from `huggingface.co/ggerganov/whisper.cpp` into `~/.cache/hyperframes/whisper/models/` yourself.
 
@@ -267,18 +267,18 @@ Load GSAP and the runtime once in the project's `index.html`:
 Each HTML module is a composition within an editorial scene. Its host passes copy, beats, and duration as HyperFrames composition variables:
 
 ```html
-<div id="registry" data-composition-id="registry" data-composition-src="compositions/registry.html" data-start="0" data-duration="8.9"
-  data-variable-values='{"copy":{"headline":"Team Registry"},"beats":{"publish-setup":2.45},"duration":8.9}' …></div>
+<div id="library" data-composition-id="library" data-composition-src="compositions/library.html" data-start="0" data-duration="8.9"
+  data-variable-values='{"copy":{"headline":"Town Library"},"beats":{"publish-book":2.45},"duration":8.9}' …></div>
 ```
 
 Inside the composition, mark copy slots with `data-copy` and anchor tweens to beats:
 
 ```html
-<h1 data-copy="headline">Team Registry</h1>
+<h1 data-copy="headline">Town Library</h1>
 <script>
-  defineScene({ window, document, gsap }, 'registry', (tl, { beat, duration, enterCopy }) => {
+  defineScene({ window, document, gsap }, 'library', (tl, { beat, duration, enterCopy }) => {
     enterCopy(0.4);
-    tl.fromTo('#publish-marker', { opacity: 0 }, { opacity: 1, duration: 0.4 }, beat('publish-setup'));
+    tl.fromTo('#publish-marker', { opacity: 0 }, { opacity: 1, duration: 0.4 }, beat('publish-book'));
   });
 </script>
 ```
@@ -296,7 +296,7 @@ Load a theme before the project's own styles, then override its tokens. The casc
 ```html
 <link rel="stylesheet" href="node_modules/explainery-core/themes/dark/theme.css">
 <style>
-  :root { --sandbox: var(--hue-lime); }
+  :root { --harvest: var(--hue-lime); }
 </style>
 ```
 

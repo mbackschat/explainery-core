@@ -22,7 +22,7 @@ const consistent = (): { story: Story; timing: Timing } => ({
 });
 
 test('narration markers yield beat ids in spoken order', () => {
-  assert.deepEqual(narrationBeats('Publish it {publish-setup} and pull it in {pull-setups}.'), { beats: ['publish-setup', 'pull-setups'], errors: [] });
+  assert.deepEqual(narrationBeats('Publish it {publish-book} and borrow it {borrow-books}.'), { beats: ['publish-book', 'borrow-books'], errors: [] });
 });
 
 test('malformed and repeated markers are reported', () => {
