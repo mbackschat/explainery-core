@@ -1,4 +1,4 @@
 allowBuilds:
   esbuild: true
 minimumReleaseAgeExclude:
-  - hyperframes@0.8.124
+  - hyperframes@0.8.142

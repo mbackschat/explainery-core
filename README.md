@@ -77,7 +77,7 @@ You need Node 22.18 or later, pnpm, and FFmpeg (including `ffprobe`). Nothing is
   "dependencies": {
     "explainery-core": "link:../explainery-core",
     "gsap": "3.14.2",
-    "hyperframes": "0.8.124"
+    "hyperframes": "0.8.142"
   }
 }
 ```
@@ -97,7 +97,7 @@ pnpm exec explainery estimate --wps 2.2  # a slower narrator
 
 ## Draft a voice
 
-A recorded voiceover is the goal, but a local synthetic voice lets you hear and time a story first. `hyperframes tts` uses the local Kokoro model. HyperFrames 0.8.124 supports several languages and has no German option; `pnpm exec hyperframes tts --help` lists the voices and languages. The example below uses an American English voice. One-time setup on macOS with Homebrew under `/opt/homebrew`, and the Python packages in their own uv environment:
+A recorded voiceover is the goal, but a local synthetic voice lets you hear and time a story first. `hyperframes tts` uses the local Kokoro model. HyperFrames 0.8.142 supports several languages and has no German option; `pnpm exec hyperframes tts --help` lists the voices and languages. The example below uses an American English voice. One-time setup on macOS with Homebrew under `/opt/homebrew`, and the Python packages in their own uv environment:
 
 ```bash
 brew install espeak-ng

@@ -29,7 +29,7 @@ Beat anchoring is an authoring convention, not a runtime restriction: scenes als
 - `pnpm build:runtime`: regenerate `runtime/scene.js` from `runtime/scene.ts`; commit both. A test fails while they disagree.
 - `pnpm typecheck`: check Node and browser TypeScript without running the browser fixtures.
 
-The development dependency pins HyperFrames 0.8.124. Check commands against its local `pnpm exec hyperframes <command> --help` before changing examples; a peer dependency range is not evidence that every later version has been verified. Run story commands from the story directory:
+The development dependency pins HyperFrames 0.8.142. Check commands against its local `pnpm exec hyperframes <command> --help` before changing examples; a peer dependency range is not evidence that every later version has been verified. Run story commands from the story directory:
 
 ```bash
 pnpm exec explainery validate

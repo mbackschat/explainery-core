@@ -34,7 +34,7 @@ async function outsideScripts(html: string, edit: (markup: string) => Promise<st
 
 const scriptText = (code: string) => code.replaceAll('</script', '<\\/script');
 
-/** HyperFrames' bundler, which 0.8.124 ships only inside its CLI's hashed dist modules, with no public export. */
+/** HyperFrames' bundler, which 0.8.142 ships only inside its CLI's hashed dist modules, with no public export. */
 async function bundler(projectDir: string): Promise<(projectDir: string) => Promise<string>> {
   const dist = hyperframesDist(projectDir);
   const file = (await readdir(dist)).find(name => /^compiler-[\w-]+\.js$/.test(name));
