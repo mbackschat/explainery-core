@@ -1,7 +1,6 @@
 import { access, readFile } from 'node:fs/promises';
 import { join, posix } from 'node:path';
 import { parseHTML } from 'linkedom';
-import type { HTMLTemplateElement } from 'linkedom';
 
 const MARKUP_ATTRIBUTES = ['src', 'href', 'xlink:href', 'data-composition-src'];
 const CSS_REFERENCE = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"'\s]*))\s*\)|@import\s+(?:"([^"]*)"|'([^']*)')/g;
@@ -12,7 +11,7 @@ function references(text: string, pattern: RegExp): string[] {
 }
 
 function markupReferences(markup: string): string[] {
-  const { document } = parseHTML(markup);
+  const { document, HTMLTemplateElement } = parseHTML(markup);
   const elements = [...document.querySelectorAll('*')];
   const found: string[] = [];
   for (let i = 0; i < elements.length; i++) {
@@ -21,7 +20,7 @@ function markupReferences(markup: string): string[] {
       const value = element.getAttribute(name);
       if (value) found.push(value);
     }
-    if (element.localName === 'template') elements.push(...(element as HTMLTemplateElement).content.querySelectorAll('*'));
+    if (element instanceof HTMLTemplateElement) elements.push(...element.content.querySelectorAll('*'));
   }
   return found;
 }

@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build:runtime": "tsc -p runtime",
-    "typecheck": "tsc -p . && tsc -p runtime --noEmit",
+    "typecheck": "tsc -p . && tsc -p tsconfig.dom.json && tsc -p runtime --noEmit",
     "test": "pnpm typecheck && node --test tests/*.test.ts"
   },
   "dependencies": {

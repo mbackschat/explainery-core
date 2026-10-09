@@ -1,0 +1,7 @@
+{
+  // Stories import the TypeScript sources through src/index.ts and type-check them under their own lib, which
+  // includes dom; core must therefore also compile there (a cast that only held without dom broke every story).
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "lib": ["es2024", "dom"] },
+  "include": ["src/index.ts"]
+}
