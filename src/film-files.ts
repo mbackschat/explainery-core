@@ -1,12 +1,29 @@
 import { access, readFile } from 'node:fs/promises';
 import { join, posix } from 'node:path';
+import { parseHTML } from 'linkedom';
+import type { HTMLTemplateElement } from 'linkedom';
 
-const HTML_REFERENCE = /\s(?:src|href|xlink:href|data-composition-src)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+const MARKUP_ATTRIBUTES = ['src', 'href', 'xlink:href', 'data-composition-src'];
 const CSS_REFERENCE = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"'\s]*))\s*\)|@import\s+(?:"([^"]*)"|'([^']*)')/g;
 const EXTERNAL = /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i;
 
 function references(text: string, pattern: RegExp): string[] {
   return [...text.matchAll(pattern)].map(match => match.slice(1).find(value => value !== undefined)).filter((value): value is string => Boolean(value));
+}
+
+function markupReferences(markup: string): string[] {
+  const { document } = parseHTML(markup);
+  const elements = [...document.querySelectorAll('*')];
+  const found: string[] = [];
+  for (let i = 0; i < elements.length; i++) {
+    const element = elements[i];
+    for (const name of MARKUP_ATTRIBUTES) {
+      const value = element.getAttribute(name);
+      if (value) found.push(value);
+    }
+    if (element.localName === 'template') elements.push(...(element as HTMLTemplateElement).content.querySelectorAll('*'));
+  }
+  return found;
 }
 
 /**
@@ -37,7 +54,7 @@ export async function filmFiles(projectDir: string): Promise<string[]> {
     if (!['.html', '.css', '.svg'].includes(extension)) return;
     const text = await readFile(join(projectDir, path), 'utf8');
     const base = extension === '.html' ? '' : posix.dirname(path);
-    const refs = references(text, extension === '.css' ? CSS_REFERENCE : HTML_REFERENCE).filter(ref => !EXTERNAL.test(ref));
+    const refs = (extension === '.css' ? references(text, CSS_REFERENCE) : markupReferences(text)).filter(ref => !EXTERNAL.test(ref));
     for (const ref of refs) await visit(posix.normalize(posix.join(base, ref.split(/[?#]/)[0])), path);
   };
   await visit('index.html', 'the project');

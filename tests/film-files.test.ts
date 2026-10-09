@@ -65,3 +65,25 @@ test('a reference to a missing file fails, naming the file that refers to it', a
   delete broken['node_modules/theme/fonts/a.ttf'];
   await assert.rejects(filmFiles(await project(broken)), /node_modules\/theme\/fonts\/a\.ttf \(referenced by node_modules\/theme\/base\.css\)/);
 });
+
+test('commented markup does not create runtime file dependencies', async () => {
+  const html = files['index.html'].replace('</body>', '<!-- <img src="assets/comment-example.png"><div data-composition-src="comment-scene.html"></div> --></body>');
+  assert.deepEqual(await filmFiles(await project({ ...files, 'index.html': html })), await filmFiles(await project(files)));
+});
+
+test('inline script strings do not create runtime file dependencies', async () => {
+  const html = files['index.html'].replace('</head>', `<script>const example = '<img src="assets/script-example.png">'; const scene = '<div data-composition-src="script-scene.html"></div>';</script></head>`);
+  assert.deepEqual(await filmFiles(await project({ ...files, 'index.html': html })), await filmFiles(await project(files)));
+});
+
+test('real attributes inside nested templates and SVG remain dependencies', async () => {
+  const additions = {
+    'compositions/scene.html': `<template><template><svg><use xlink:href="assets/nested.svg#shape"/><image href="assets/a&amp;b.svg"/></svg><img src=assets/unquoted.png></template></template>`,
+    'assets/nested.svg': '<svg xmlns="http://www.w3.org/2000/svg"><use xlink:href="detail.svg#shape"/></svg>',
+    'assets/detail.svg': '<svg xmlns="http://www.w3.org/2000/svg"><symbol id="shape"/></svg>',
+    'assets/a&b.svg': '<svg xmlns="http://www.w3.org/2000/svg"/>',
+    'assets/unquoted.png': '',
+  };
+  const found = await filmFiles(await project({ ...files, ...additions }));
+  for (const file of ['assets/nested.svg', 'assets/detail.svg', 'assets/a&b.svg', 'assets/unquoted.png']) assert.ok(found.includes(file), `${file} is a real authored reference`);
+});
