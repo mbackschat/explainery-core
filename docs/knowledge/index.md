@@ -13,4 +13,4 @@ This bundle uses [Open Knowledge Format v0.2](https://raw.githubusercontent.com/
 - [Element](element.md) — A primitive visual or media layer controlled within a composition.
 - [Beat](beat.md) — A named cue measured in a composition’s local seconds.
 - [Timeline](timeline.md) — The placement and animation of compositions and elements in time.
-- [Authoring](authoring.md) — How to declare scene groups and work on a selected scene or consecutive range.
+- [Authoring](authoring.md) — Where scene descriptions live, how to write a visual plan, declare groups, and revise or review a selected scene.

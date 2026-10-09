@@ -7,6 +7,7 @@ This repository, `explainery-core`, is the framework. Each film lives in its own
 ## Find what you need
 
 - Start a story: [project setup](#use-in-a-project).
+- Describe or revise a scene: [scene authoring guideline](docs/knowledge/authoring.md), covering file ownership, visual beats, a story example, and review criteria.
 - Time narration: [estimate](#estimate-timing-before-a-voice-exists), [draft a voice](#draft-a-voice), or [align a recording](#align-timing-to-a-recorded-voice).
 - Author visuals: [write a scene](#write-a-scene) and [themes and components](#themes-and-components).
 - Check and watch the film: [validate](#validate-a-project), [assemble](#assemble-the-root-composition), and [preview and render](#preview-and-render).
@@ -40,6 +41,8 @@ Copy changes belong in `story.yaml`, and a new voice normally changes `timing.js
 The [domain knowledge bundle](docs/knowledge/index.md) defines film, scene, composition, element, beat, and timeline using Open Knowledge Format v0.2. [ADR 0003](docs/adr/0003-editorial-scenes.md) records the compatibility contract.
 
 ## Work on one scene
+
+For the scene's purpose and visual sequence, start with the story repository's scene map and linked descriptions. For how to write those descriptions and which files to edit, use the [scene authoring guideline](docs/knowledge/authoring.md). `story.yaml` declares grouping, copy, and narration; the visual plan lives in story documentation and the executable animation lives in composition HTML.
 
 ```bash
 pnpm exec explainery scenes film-example

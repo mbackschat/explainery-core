@@ -24,6 +24,8 @@ Beat anchoring is an authoring convention, not a runtime restriction: compositio
 
 ## Editorial scenes and session focus
 
+Use the [scene authoring guideline](docs/knowledge/authoring.md) when documenting or revising a scene. Keep visual intent and evidence in the story's scene descriptions, link them from its README, and keep executable copy and timing in their owning files.
+
 Read the [OKF domain bundle](docs/knowledge/index.md) and [editorial scene decision](docs/adr/0003-editorial-scenes.md). A scene is the human work unit; a composition is an executable HTML module within it. `defineScene` and `timing.scenes` retain their historical names but operate on compositions. Use `storyScenes(story)` for editorial operations, `storyCompositions(story)` for narration, alignment, assembly, and composition files, and `sceneRange(scene, timing)` for the derived editorial range.
 
 When a user says “work on <scene>”, resolve the ID or title, run `explainery focus <project-dir> --scene <name>`, and keep subsequent edits, previews, and renders within that scope. Read focus at session start. “Work on the full film” runs `focus --film`. Clarify ambiguous names with a recommended match; incidental mentions do not switch focus. Preview/render print and honor local focus, with `--scene`/`--film` as one-command overrides. Edit original sources, never `.explainery/scenes/` derivatives. The disposable scene view refreshes at each preview/render invocation; only dependencies are linked. Re-run preview after any source edit, including animation, assets, styles, copy, or timing. Shared assets can affect other scenes: explain that consequence when relevant. Full-project validation, timing generation, assembly, and explainer export ignore focus.
