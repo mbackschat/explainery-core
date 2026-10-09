@@ -8,7 +8,7 @@ This repository, `explainery-core`, is the framework. Each film lives in its own
 
 - Author scenes as modules: [work on one scene](#work-on-one-scene) and [integrate it into the film](docs/authoring.md#author-one-scene-at-a-time).
 - Start a story: [project setup](#use-in-a-project).
-- Use shared agent skills: [Claude Code and Codex setup](#shared-authoring-skills).
+- Use shared agent skills: [choose skills for scene work](docs/authoring.md#use-hyperframes-skills-in-scene-work) and [Claude Code and Codex setup](#shared-authoring-skills).
 - Describe or revise a scene: [scene authoring guideline](docs/authoring.md), covering file ownership, visual beats, a story example, and review criteria.
 - Time narration: [estimate](#estimate-timing-before-a-voice-exists), [draft a voice](#draft-a-voice), or [align a recording](#align-timing-to-a-recorded-voice).
 - Author visuals: [write a scene](#write-a-scene) and [themes and components](#themes-and-components).
@@ -113,7 +113,7 @@ Run the workflow commands from the story's root directory. Each `explainery` com
 
 ## Shared authoring skills
 
-HyperFrames authoring skills live once in this checkout, shared by all sibling story repositories:
+Use the [scene task-to-skill guide](docs/authoring.md#use-hyperframes-skills-in-scene-work) to choose guidance for composition structure, animation, visual design, diagnostics, media, and audio, and adapt it to Explainery's workflow. HyperFrames authoring skills live once in this checkout, shared by all sibling story repositories:
 
 ```text
 explainery-core/

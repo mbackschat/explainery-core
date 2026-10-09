@@ -3,6 +3,7 @@
 Author one editorial scene at a time, using one or more self-contained HTML compositions. The film root combines those modules through shared copy, timing, assets, and theme conventions. The [schemas](../schemas/), [types](../src/types.ts), and [CLI](../bin/explainery.ts) define the implemented contracts.
 
 - [Author one scene and integrate it](#author-one-scene-at-a-time).
+- [Choose HyperFrames skills for the current task](#use-hyperframes-skills-in-scene-work).
 - [Understand the concepts](#concepts) and [timing](#timing-and-playback).
 - [Find the owning file](#where-a-scene-is-described) and [write a scene description](#write-a-useful-scene-description).
 - [Declare a scene](#declare-the-scene), [select and preview it](#select-and-preview-a-scene), and [check a revision](#revise-and-check-a-scene).
@@ -32,6 +33,28 @@ pnpm exec explainery preview film-example --film
 Replace the example directory and scene IDs with the story's own values. The adjacent IDs must be consecutive in film order. The `--scene` and `--film` flags above override focus for one command; use `focus film-example --film` to switch subsequent work to the full film. Validation and assembly always inspect the complete project.
 
 Scenes compose through their source modules in the film root. Isolated preview uses the same sources with the selected time range, shared layers, and trimmed audio; there is no separate scene video to stitch back into the film. A scene is ready when its intended states work in isolation and its joins work in context.
+
+## Use HyperFrames skills in scene work
+
+The shared HyperFrames skills provide agent instructions, technical references, animation recipes, and helper scripts. Use their engine guidance within the scene workflow above. Start with the [entry skill](../.agents/skills/hyperframes/SKILL.md), then load the domain skills needed for the current task. The [shared setup](../README.md#shared-authoring-skills) explains discovery in Claude Code and Codex; no story-local installation is needed.
+
+| Scene task | Skills to read | Use in Explainery |
+| --- | --- | --- |
+| Define the visual idea and beats | [hyperframes-creative](../.agents/skills/hyperframes-creative/SKILL.md) | Develop visual language, typography, and choreography within the story's theme; record intent in its scene description. |
+| Build a composition and wire it into the film | [hyperframes-core](../.agents/skills/hyperframes-core/SKILL.md) | Read before writing composition HTML: structure, variables, module boundaries, media ownership, and deterministic playback. |
+| Animate a composition or design a transition | [hyperframes-animation](../.agents/skills/hyperframes-animation/SKILL.md), [hyperframes-keyframes](../.agents/skills/hyperframes-keyframes/SKILL.md) | Adapt motion recipes and seek-safe GSAP guidance into the composition's `defineScene` callback; review transitions between neighboring scenes. |
+| Inspect, diagnose, and review the scene | [hyperframes-cli](../.agents/skills/hyperframes-cli/SKILL.md), [hyperframes-studio](../.agents/skills/hyperframes-studio/SKILL.md) | Use lint, snapshots, diagnostics, and readable preview tracks while preserving Explainery's scene selection and source ownership. |
+| Add a reusable visual or media asset | [hyperframes-registry](../.agents/skills/hyperframes-registry/SKILL.md), [media-use](../.agents/skills/media-use/SKILL.md) | Load when the scene needs components, images, icons, footage, or audio assets; adapt them to the existing theme and module structure. Follow the project's local-media and service constraints. |
+| Mix audio already placed in the film | [hyperframes-audio](../.agents/skills/hyperframes-audio/SKILL.md) | Load for fades, gain, ducking, or effects. Keep narration timing and shared audio placement consistent with the film. |
+| Plan a broader production task | [hyperframes](../.agents/skills/hyperframes/SKILL.md), [general-video](../.agents/skills/general-video/SKILL.md) | Use routing and production references selectively. Explainery continues to own scene authoring and film assembly. |
+
+Apply these integration rules when borrowing examples or helper scripts:
+
+- **Use the existing composition timeline.** Add recipe tweens to the `tl` supplied by `defineScene`; the runtime creates and registers the composition's paused timeline. Preserve local beat anchors and deterministic seeking instead of copying a second timeline-registration skeleton. Follow the [HTML wiring example](../README.md#write-a-scene).
+- **Keep each value in its owning file.** Copy, narration, and beat markers belong in `story.yaml`; cue seconds belong in `timing.json`. Keep the existing root hosts and assembly structure. Generic scaffolding and Studio edits must respect the [file ownership table](#where-a-scene-is-described).
+- **Keep scene focus effective.** Use Explainery's preview and render commands above. Direct HyperFrames lint, snapshot, and check commands use the supplied project and do not consult Explainery focus; do not describe them as selected-scene checks. Review joins and run film-wide validation and assembly checks before completion.
+- **Check examples against the pinned CLI.** Use package scripts or `pnpm exec hyperframes`, and verify unfamiliar commands with its local help. The shared skill snapshot can describe capabilities beyond the pinned engine. The entry skill's automatic upgrade advice and workflow installation steps do not apply during scene work; review CLI and skill upgrades separately, with shared skill changes made in core.
+- **Resolve helpers from the shared bundle.** Read references relative to their owning skill and invoke scripts by their core path, supplying the story or film path as required. Keep project commands in the story repository; do not copy helpers or skill bundles into it.
 
 ## Concepts
 
