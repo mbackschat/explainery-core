@@ -11,9 +11,10 @@ import { toMillisecond } from './time.ts';
 export const hyperframesDist = (projectDir: string) => join(dirname(createRequire(join(projectDir, 'package.json')).resolve('hyperframes/package.json')), 'dist');
 
 /**
- * Transcribes a project's audio to word timestamps with the project's `hyperframes transcribe` and its defaults
- * (local whisper, English). For other languages or models, run `hyperframes transcribe` yourself and align its
- * transcript.json instead.
+ * Transcribes a project's audio to word timestamps with the project's `hyperframes transcribe` defaults.
+ *
+ * Engine selection belongs to that pinned CLI, because this adapter passes no engine, model, or language flags.
+ * For explicit choices, run `hyperframes transcribe` yourself and align its transcript.json instead.
  */
 export async function transcribe(projectDir: string, audio: string): Promise<TranscriptWord[]> {
   const out = await mkdtemp(join(tmpdir(), 'explainery-transcript-'));

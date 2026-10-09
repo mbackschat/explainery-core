@@ -95,7 +95,8 @@ declare var defineScene: DefineScene;
    * Builds and registers a scene's paused timeline from its composition variables (copy, beats, duration).
    *
    * Elements marked data-copy="<key>" receive the story's copy, or are removed when the story has none for that key.
-   * The build anchors tweens to beat('<id>') so a new voiceover only changes timing, never the composition.
+   * The build can anchor tweens to beat('<id>') so their starts follow narration timing. Tween durations and offsets
+   * remain authored seconds; the duration guard below rejects overruns rather than automatically retiming them.
    * enterCopy(at, { headline: { at, duration }, support: { at, duration } }) reveals the copy block from second `at`;
    * the nested offsets are relative to it, default to the theme's entrance, and slots without copy are skipped. A missing
    * beat, or a timeline that runs past the scene, throws instead of registering, so HyperFrames reports a script error.

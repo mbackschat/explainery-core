@@ -49,7 +49,7 @@ type Timing = {
 };
 ```
 
-Scenes receive copy, beats, and duration as HyperFrames composition variables (`data-variable-values`) and anchor tweens to beats, never to absolute seconds:
+Scenes receive copy, beats, and duration as HyperFrames composition variables (`data-variable-values`) and anchor narration-driven actions to scene-local beats. Offsets and tween durations remain authored seconds:
 
 ```js
 defineScene({ window, document, gsap }, 'registry', (tl, { beat, duration }) => {
@@ -59,7 +59,7 @@ defineScene({ window, document, gsap }, 'registry', (tl, { beat, duration }) => 
 
 The scene passes its `{ window, document, gsap }` because HyperFrames runs each sub-composition script with these scoped to the composition: its `getVariables()` returns the instance's values, and its selectors match only inside it. A globally loaded `defineScene` cannot reach that scope on its own. Copy reaches the scene through `data-copy="<key>"` slots, which `defineScene` fills from the story; it removes a slot when the story has no copy for it.
 
-Guarantee: replacing the voiceover never requires editing a composition. `explainery validate` fails when beats are out of order, unmarked, or outside their scene. `defineScene` throws when a scene's timeline overruns its duration, which `hyperframes check` reports as a runtime error; `hyperframes lint` does not execute scenes and cannot catch it. `story.yaml` owns all on-screen copy and narration, so the video, explainer page, and captions share one source; Studio text editing is no longer the edit path.
+Implementation clarification (9 October 2026): the original goal that replacing a voiceover never requires composition edits is not a runtime guarantee. [The runtime](../../runtime/scene.ts) resolves beat positions but does not resize tweens or reflow copy; shorter narration or longer wording can require composition changes. `explainery validate` fails when beats are out of order, unmarked, or outside their scene. `defineScene` throws when a scene's timeline overruns its duration, which `hyperframes check` reports as a runtime error; `hyperframes lint` does not execute scenes and cannot catch it. `story.yaml` owns narration and copy delivered through `data-copy` slots, so those values are shared by the video and explainer page. Labels authored directly in a composition remain that composition's responsibility; Studio text editing is not the edit path for story-owned copy.
 
 ## Stages
 
