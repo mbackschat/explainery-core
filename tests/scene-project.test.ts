@@ -155,6 +155,25 @@ test('scene selection rejects empty, unknown, duplicate, reversed, and nonconsec
   for (const ids of [[], ['missing'], ['chapter', 'chapter'], ['final', 'chapter'], ['lead', 'final']]) await assert.rejects(prepareSceneProject(dir, ids), /scene|consecutive|selection/i);
 });
 
+test('selection, timing, root, and audio-source failures name their cause', async t => {
+  const dir = await project(t);
+  const rejected: [string[], string][] = [
+    [[], 'scene selection must contain at least one scene id'],
+    [['missing'], 'unknown scene "missing"'],
+    [['chapter', 'chapter'], 'scene selection contains duplicate scene ids'],
+    [['final', 'chapter'], 'scene selection must be consecutive scenes in story order'],
+    [['lead', 'final'], 'scene selection must be consecutive scenes in story order'],
+  ];
+  for (const [ids, message] of rejected) await assert.rejects(prepareSceneProject(dir, ids), { message });
+  const invalid = await project(t, { timing: { source: 'imported' } as Timing });
+  await assert.rejects(prepareSceneProject(invalid, ['missing']), { message: /^timing\.json \/: must have required property 'duration'/ });
+  const rootless = await project(t);
+  await writeFile(join(rootless, 'index.html'), `<!DOCTYPE html><html><body>${Object.keys(timing.scenes).map(id => `<section data-composition-id="${id}" data-composition-src="compositions/${id}.html"></section>`).join('')}</body></html>`);
+  await assert.rejects(prepareSceneProject(rootless, ['chapter']), { message: 'index.html: no root composition' });
+  const remote = await project(t, { audio: '<audio src="https://example.com/narration.wav" data-start="0"></audio>' });
+  await assert.rejects(prepareSceneProject(remote, ['chapter']), { message: 'scene isolation requires local audio: https://example.com/narration.wav' });
+});
+
 test('flat stories still isolate one composition per scene', async t => {
   const flat: Story = { ...story, scenes: [{ id: 'part-a', copy: { headline: 'Flat' }, narration: 'First {move}.' }, { id: 'part-b', copy: { headline: 'Second' }, narration: 'Second {settle}.' }] };
   const slots: Timing = { ...timing, duration: 10, scenes: { 'part-a': timing.scenes['part-a'], 'part-b': timing.scenes['part-b'] } };
