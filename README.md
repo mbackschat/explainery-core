@@ -120,14 +120,17 @@ explainery-core/
   .agents/skills/                  # canonical skill bundles
   .claude/skills -> ../.agents/skills
   skills-lock.json                # shared upstream provenance
+
+<story>/
+  .claude/skills -> ../../explainery-core/.agents/skills
 ```
 
 Start a session in the repository whose files you are changing. For a story session:
 
-- **Claude Code:** launch `claude --add-dir ../explainery-core` (or use `/add-dir ../explainery-core` in an existing session), then invoke `/hyperframes`. The additional directory exposes core's `.claude/skills` through the symlink. A configured `permissions.additionalDirectories` entry alone does not load skills.
+- **Claude Code:** start normally inside the story and invoke `/hyperframes`. The story's `.claude/skills` link points at core's bundles, so they load like project skills without `--add-dir`. A configured `permissions.additionalDirectories` entry alone does not load skills, and neither does a link in the workspace folder above the story (checked with Claude Code on 9 October 2026).
 - **Codex:** start normally inside the story. Its repository instructions direct it to read the shared [HyperFrames entry skill](.agents/skills/hyperframes/SKILL.md) and the relevant domain skills by file path. Sibling repositories are not automatically scanned for the skill catalog; this is explicit instruction loading, not slash-command discovery. Sessions started in core discover `.agents/skills` normally.
 
-Keep film repositories free of skill copies, skill symlinks, and skill lock files. Bundled scripts and references resolve relative to their owning skill directory; invoke helper scripts by their shared path while keeping the story as the working directory for project commands. Explainery's [modular scene workflow](docs/authoring.md#author-one-scene-at-a-time), story/timing ownership, and assembly contract govern the film. Use its pinned CLI; generic scaffolding and upgrade advice in upstream skills do not replace that contract.
+A story holds that one relative link and nothing else: no skill copies, other skill links, or skill lock files. Create it with `ln -s ../../explainery-core/.agents/skills .claude/skills` from the story root. It resolves because a story already requires core as its sibling checkout. Bundled scripts and references resolve relative to their owning skill directory; invoke helper scripts by their shared path while keeping the story as the working directory for project commands. Explainery's [modular scene workflow](docs/authoring.md#author-one-scene-at-a-time), story/timing ownership, and assembly contract govern the film. Use its pinned CLI; generic scaffolding and upgrade advice in upstream skills do not replace that contract.
 
 The bundles are an unchanged upstream snapshot from [HeyGen HyperFrames](https://github.com/heygen-com/hyperframes), with provenance in [skills-lock.json](skills-lock.json) and the upstream [Apache-2.0 license](.agents/LICENSE). Skill updates are explicit, separate changes made in core; review their compatibility with the pinned CLI and commit the bundles and lock together. Do not install or update skills as a side effect of scene work. [ADR 0004](docs/adr/0004-shared-authoring-skills.md) records the shared ownership decision. Discovery behavior follows the [Claude Code skills documentation](https://code.claude.com/docs/en/skills#load-skills-from-a-directory-outside-the-project) and [Codex skills documentation](https://developers.openai.com/codex/skills/).
 
