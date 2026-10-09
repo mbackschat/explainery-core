@@ -15,7 +15,13 @@ Use the [modular scene authoring workflow](docs/authoring.md#author-one-scene-at
 
 Keep this repository independent of any client or product: no client logo, brand colours, artwork, narration, or copy. Those belong in a project's theme overlay or assets.
 
-Projects live in their own repositories next to this checkout; no pnpm workspace spans them. Change framework code here, never through a project's `node_modules/explainery-core` symlink, and start agent sessions inside the repository you are changing so its own `CLAUDE.md` and HyperFrames skills apply. GSAP stays a peer dependency and is never vendored, because its standard licence is not OSI-approved and an Apache-2.0 repository must not redistribute it. Render only locally with the HyperFrames CLI; no paid cloud rendering or generated-media services.
+Projects live in their own repositories next to this checkout; no pnpm workspace spans them. Change framework code here, never through a project's `node_modules/explainery-core` symlink, and start agent sessions inside the repository you are changing so its own `CLAUDE.md` applies; load the shared skills as described below. GSAP stays a peer dependency and is never vendored, because its standard licence is not OSI-approved and an Apache-2.0 repository must not redistribute it. Render only locally with the HyperFrames CLI; no paid cloud rendering or generated-media services.
+
+## Shared HyperFrames skills
+
+Before authoring compositions, read the [HyperFrames entry skill](.agents/skills/hyperframes/SKILL.md) and its relevant domain skills. This repository owns the canonical [.agents/skills](.agents/skills/) bundles and [skills-lock.json](skills-lock.json); `.claude/skills` is a directory symlink to the same bundles. Keep all skill copies, symlinks, and lock files out of story repositories. Follow the [shared skill setup](README.md#shared-authoring-skills) for discovery from a story session.
+
+Explainery's scene focus, file ownership, and assembly contracts remain authoritative. Use the project's pinned CLI; do not apply generic scaffolding or automatic upgrades during scene work. Resolve skill resources relative to the shared skill directory and run project commands from the story root. Keep upstream bundles unchanged except in a deliberate skill update, with their provenance lock updated together.
 
 ## Find the implementation and its guard
 

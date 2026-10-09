@@ -15,7 +15,7 @@ Agreed on 8 October 2026 before the split and moved here from the pilot project'
 - `explainery-core` is one plain package (one `package.json`, package name `explainery-core`); nothing is published yet and there is no internal package split. The `-core` suffix leaves room for later sibling packages such as `explainery-themes`.
 - Each project consumes it as `"explainery-core": "link:../explainery-core"`. Each repository keeps its own lockfile; no pnpm workspace spans repositories.
 - The original prototype repository becomes the pilot project, with fresh framework history extracted out and a new `<name>-story` folder and package name. Its prototype moves from a nested folder to the repository root, next to `original-material/` and `docs/`.
-- HyperFrames skills (`.agents/skills`) are installed per project and pinned by `skills-lock.json`, because agents work inside a project directory.
+- Originally, HyperFrames skills were installed per project because agents work inside a project directory. Superseded by [ADR 0004](0004-shared-authoring-skills.md): core now owns the shared bundles and provenance lock.
 - GSAP is an npm dependency, never a vendored `gsap.min.js`: its standard no-charge license is not an OSI license, so an Apache-2.0 repository must not redistribute it.
 
 ## Themes

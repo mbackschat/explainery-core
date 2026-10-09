@@ -13,7 +13,7 @@ Decided on 9 October 2026, when the JavaScript in `explainery-core` and its pilo
 ## Out of scope
 
 - Inline `<script>` blocks in HTML compositions stay JavaScript, because HyperFrames executes them as they are.
-- Vendored agent skills in projects (`.agents/skills/`) are third-party code that their installer overwrites, and stay as shipped.
+- Vendored agent skills are third-party code that their installer overwrites, and stay as shipped. Their shared location is now core's [.agents/skills/](../../.agents/skills/), as decided in [ADR 0004](0004-shared-authoring-skills.md).
 
 ## Rejected alternatives
 

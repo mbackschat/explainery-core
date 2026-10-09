@@ -8,6 +8,7 @@ This repository, `explainery-core`, is the framework. Each film lives in its own
 
 - Author scenes as modules: [work on one scene](#work-on-one-scene) and [integrate it into the film](docs/authoring.md#author-one-scene-at-a-time).
 - Start a story: [project setup](#use-in-a-project).
+- Use shared agent skills: [Claude Code and Codex setup](#shared-authoring-skills).
 - Describe or revise a scene: [scene authoring guideline](docs/authoring.md), covering file ownership, visual beats, a story example, and review criteria.
 - Time narration: [estimate](#estimate-timing-before-a-voice-exists), [draft a voice](#draft-a-voice), or [align a recording](#align-timing-to-a-recorded-voice).
 - Author visuals: [write a scene](#write-a-scene) and [themes and components](#themes-and-components).
@@ -109,6 +110,26 @@ You need Node 22.18 or later, pnpm, and FFmpeg (including `ffprobe`). Nothing is
 Run `pnpm install` in this checkout as well, because a linked package resolves its own dependencies from its own `node_modules`. The quickest way to start a new story is to copy the layout of an existing story project: `story.yaml`, `timing.json`, `index.html`, `compositions/`, and a theme overlay.
 
 Run the workflow commands from the story's root directory. Each `explainery` command also accepts a project directory after its subcommand, such as `pnpm exec explainery validate ../example-story`. Scenes and the root composition are hand-authored; Explainery does not generate animation from narration. See the [story schema](schemas/story.schema.json), [timing schema](schemas/timing.schema.json), and [runtime fixture](tests/fixtures/scene-runtime/index.html) for the implemented file shapes and scene wiring.
+
+## Shared authoring skills
+
+HyperFrames authoring skills live once in this checkout, shared by all sibling story repositories:
+
+```text
+explainery-core/
+  .agents/skills/                  # canonical skill bundles
+  .claude/skills -> ../.agents/skills
+  skills-lock.json                # shared upstream provenance
+```
+
+Start a session in the repository whose files you are changing. For a story session:
+
+- **Claude Code:** launch `claude --add-dir ../explainery-core` (or use `/add-dir ../explainery-core` in an existing session), then invoke `/hyperframes`. The additional directory exposes core's `.claude/skills` through the symlink. A configured `permissions.additionalDirectories` entry alone does not load skills.
+- **Codex:** start normally inside the story. Its repository instructions direct it to read the shared [HyperFrames entry skill](.agents/skills/hyperframes/SKILL.md) and the relevant domain skills by file path. Sibling repositories are not automatically scanned for the skill catalog; this is explicit instruction loading, not slash-command discovery. Sessions started in core discover `.agents/skills` normally.
+
+Keep film repositories free of skill copies, skill symlinks, and skill lock files. Bundled scripts and references resolve relative to their owning skill directory; invoke helper scripts by their shared path while keeping the story as the working directory for project commands. Explainery's [modular scene workflow](docs/authoring.md#author-one-scene-at-a-time), story/timing ownership, and assembly contract govern the film. Use its pinned CLI; generic scaffolding and upgrade advice in upstream skills do not replace that contract.
+
+The bundles are an unchanged upstream snapshot from [HeyGen HyperFrames](https://github.com/heygen-com/hyperframes), with provenance in [skills-lock.json](skills-lock.json) and the upstream [Apache-2.0 license](.agents/LICENSE). Skill updates are explicit, separate changes made in core; review their compatibility with the pinned CLI and commit the bundles and lock together. Do not install or update skills as a side effect of scene work. [ADR 0004](docs/adr/0004-shared-authoring-skills.md) records the shared ownership decision. Discovery behavior follows the [Claude Code skills documentation](https://code.claude.com/docs/en/skills#load-skills-from-a-directory-outside-the-project) and [Codex skills documentation](https://developers.openai.com/codex/skills/).
 
 ## Estimate timing before a voice exists
 
