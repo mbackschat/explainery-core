@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -18,8 +18,12 @@ export const hyperframesDist = (projectDir: string) => join(dirname(createRequir
  */
 export async function transcribe(projectDir: string, audio: string): Promise<TranscriptWord[]> {
   const out = await mkdtemp(join(tmpdir(), 'explainery-transcript-'));
-  await promisify(execFile)(process.execPath, [join(hyperframesDist(projectDir), 'cli.js'), 'transcribe', resolve(projectDir, audio), '--dir', out, '--json'], { maxBuffer: 16 * 1024 * 1024 });
-  return JSON.parse(await readFile(join(out, 'transcript.json'), 'utf8'));
+  try {
+    await promisify(execFile)(process.execPath, [join(hyperframesDist(projectDir), 'cli.js'), 'transcribe', resolve(projectDir, audio), '--dir', out, '--json'], { maxBuffer: 16 * 1024 * 1024 });
+    return JSON.parse(await readFile(join(out, 'transcript.json'), 'utf8'));
+  } finally {
+    await rm(out, { recursive: true, force: true });
+  }
 }
 
 /**

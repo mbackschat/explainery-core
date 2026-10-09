@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
+import { transcribe } from '../src/hyperframes.ts';
 import { core, fixtureProject } from './support/fixture.ts';
 
 // These tests prove what only HyperFrames can: per-instance variables reach a scene through its scoped
@@ -47,4 +50,11 @@ test('the dark theme styles a project through the linked package', { timeout: 15
   assert.deepEqual(await pixel(frame, 130, 788), [0xa9, 0xbf, 0xdc], 'accent rule takes --accent');
   assert.deepEqual(await pixel(frame, 626, 215), [0xc5, 0xd9, 0xf0], 'cube top face takes --cube-top from the theme');
   await hyperframes(dir, 'check', '--no-browser-gpu', '--no-contrast', '--samples', '2');
+});
+
+test('transcription removes its temporary folder, even when HyperFrames fails', { timeout: 60000 }, async () => {
+  const leftovers = async () => (await readdir(tmpdir())).filter(name => name.startsWith('explainery-transcript-')).sort();
+  const before = await leftovers();
+  await assert.rejects(transcribe(core, 'missing.wav'));
+  assert.deepEqual(await leftovers(), before);
 });
