@@ -138,6 +138,27 @@ test('bad options, stale focus, and invalid scene ranges fail before spawning Hy
   assert.equal((await run(['preview', project, '--film'])).status, 0);
 });
 
+test('conflicting scope and preview flags fail with their messages, and unknown options exit 2', async t => {
+  const { project, run } = await fixture(t);
+  const rejected: [string[], string][] = [
+    [['focus', '--scene', 'lead', '--film'], 'Use either --scene or --film, not both'],
+    [['preview', '--stop', '--status'], 'Use either --stop or --status, not both'],
+    [['render', '--stop'], '--stop and --status apply only to preview'],
+    [['render', '--status'], '--stop and --status apply only to preview'],
+    [['preview', '--quality', 'draft'], '--quality and --out apply only to render'],
+    [['preview', '--out', 'review.mp4'], '--quality and --out apply only to render'],
+    [['render', '--quality', 'high'], '--quality must be draft, looks, or delivery'],
+  ];
+  for (const [args, message] of rejected) {
+    const result = await run([args[0], project, ...args.slice(1)]);
+    assert.equal(result.status, 1, args.join(' '));
+    assert.equal(result.stderr, `${message}\n`, args.join(' '));
+  }
+  const unknown = await run(['preview', project, '--bogus']);
+  assert.equal(unknown.status, 2);
+  assert.equal(unknown.stderr, 'Unknown option --bogus\n');
+});
+
 test('HyperFrames failures preserve their exit code', async t => {
   const { project, run } = await fixture(t);
   const result = await run(['render', project, '--film'], { HF_EXIT: '7' });

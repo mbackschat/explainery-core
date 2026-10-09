@@ -2,7 +2,7 @@
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { alignTiming, assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, exportExplainerFile, loadStory, sceneRange, silences, storyCompositions, storyScenes, transcribe, validateProject, validateStoryTiming, voicedText, type Timing, type TranscriptWord } from '../src/index.ts';
+import { alignTiming, assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, exportExplainerFile, loadStory, sceneRange, silences, storyCompositions, storyScenes, transcribe, validateProject, validateStoryTiming, voicedText, type PreparedSceneProject, type Story, type Timing, type TranscriptWord } from '../src/index.ts';
 import { clearFocus, readFocus, writeFocus } from '../src/focus.ts';
 import { hyperframesDist } from '../src/hyperframes.ts';
 import { prepareSceneProject } from '../src/scene-project.ts';
@@ -12,6 +12,7 @@ const args = process.argv.slice(2);
 const valueOptions = new Set(['--out', '--wps', '--audio', '--transcript', '--scene', '--quality']);
 const flagOptions = new Set(['--force', '--check', '--single-file', '--film', '--stop', '--status']);
 const options = new Map<string, string>();
+const flags = new Set<string>();
 const positionals: string[] = [];
 const argumentErrors: string[] = [];
 for (let index = 0; index < args.length; index++) {
@@ -21,11 +22,13 @@ for (let index = 0; index < args.length; index++) {
     if (!value || value.startsWith('--')) argumentErrors.push(`${arg} requires a value`);
     else { options.set(arg, value); index++; }
   } else if (arg.startsWith('--')) {
-    if (!flagOptions.has(arg)) argumentErrors.push(`Unknown option ${arg}`);
+    if (flagOptions.has(arg)) flags.add(arg);
+    else argumentErrors.push(`Unknown option ${arg}`);
   } else positionals.push(arg);
 }
 if (positionals.length > 2) argumentErrors.push('Expected a command and at most one project directory');
 const option = (name: string) => options.get(name);
+const flag = (name: string) => flags.has(name);
 const [command, dir = '.'] = positionals;
 const project = resolve(dir);
 
@@ -125,54 +128,78 @@ async function scenes() {
 }
 
 function checkScopeFlags() {
-  if (args.includes('--film') && option('--scene') !== undefined) throw new Error('Use either --scene or --film, not both');
+  if (flag('--film') && option('--scene') !== undefined) throw new Error('Use either --scene or --film, not both');
 }
 
 async function focus() {
   checkScopeFlags();
   const loaded = await loadStory(project);
   if (!loaded.value) return fail(loaded.errors);
-  if (args.includes('--film')) await clearFocus(project);
+  if (flag('--film')) await clearFocus(project);
   const selected = option('--scene');
   const scene = selected === undefined ? await readFocus(project, loaded.value) : await writeFocus(project, loaded.value, selected);
   report(scene ? `Scope: scene ${scene.id} — ${scene.title}` : `Scope: full film — ${loaded.value.title}`);
 }
 
-async function playback(mode: 'preview' | 'render') {
+type PlaybackMode = 'preview' | 'render';
+
+// Rejects unsupported flag combinations before any project work starts, and returns the render quality.
+function checkPlaybackFlags(mode: PlaybackMode): string {
   checkScopeFlags();
-  if (args.includes('--stop') && args.includes('--status')) throw new Error('Use either --stop or --status, not both');
-  if (mode === 'render' && (args.includes('--stop') || args.includes('--status'))) throw new Error('--stop and --status apply only to preview');
+  if (flag('--stop') && flag('--status')) throw new Error('Use either --stop or --status, not both');
+  if (mode === 'render' && (flag('--stop') || flag('--status'))) throw new Error('--stop and --status apply only to preview');
   if (mode === 'preview' && (option('--quality') !== undefined || option('--out') !== undefined)) throw new Error('--quality and --out apply only to render');
   const quality = option('--quality') ?? 'draft';
   if (mode === 'render' && !['draft', 'looks', 'delivery'].includes(quality)) throw new Error('--quality must be draft, looks, or delivery');
-  const validation = await validateProject(project);
-  if (!validation.valid) return fail(validation.errors);
-  const { story, timing } = validation;
+  return quality;
+}
+
+// --scene and --film override the sticky focus for this one command and never change it.
+async function playbackSceneIds(story: Story): Promise<string[]> {
   const explicit = option('--scene');
-  const active = explicit !== undefined || args.includes('--film') ? undefined : await readFocus(project, story);
+  const active = explicit !== undefined || flag('--film') ? undefined : await readFocus(project, story);
   const sceneIds = explicit !== undefined ? explicit.split(',').map(id => id.trim()) : active ? [active.id] : [];
   if (sceneIds.some(id => !id)) throw new Error('Scene selection contains an empty ID');
-  const view = sceneIds.length ? await prepareSceneProject(project, sceneIds) : { directory: project, start: 0, duration: timing.duration, sceneIds: [] };
+  return sceneIds;
+}
+
+function reportScope(story: Story, timing: Timing, view: PreparedSceneProject) {
+  const { sceneIds } = view;
+  if (!sceneIds.length) return report(`Scope: full film — ${story.title} (0–${timing.duration}s)`);
   const titles = storyScenes(story).filter(scene => sceneIds.includes(scene.id)).map(scene => scene.title).join('; ');
-  report(sceneIds.length ? `Scope: scene${sceneIds.length === 1 ? '' : 's'} ${sceneIds.join(',')} — ${titles} (${view.start}–${view.start + view.duration}s)` : `Scope: full film — ${story.title} (0–${timing.duration}s)`);
-  let forwarded: string[];
+  return report(`Scope: scene${sceneIds.length === 1 ? '' : 's'} ${sceneIds.join(',')} — ${titles} (${view.start}–${view.start + view.duration}s)`);
+}
+
+async function forwardedArguments(mode: PlaybackMode, story: Story, view: PreparedSceneProject, quality: string): Promise<string[]> {
   switch (mode) {
     case 'preview':
-      forwarded = ['preview', view.directory, ...(args.includes('--stop') ? ['--stop'] : args.includes('--status') ? ['--status'] : ['--background', '--no-open'])];
-      break;
+      return ['preview', view.directory, ...(flag('--stop') ? ['--stop'] : flag('--status') ? ['--status'] : ['--background', '--no-open'])];
     case 'render': {
-      const out = resolve(option('--out') ?? join('renders', `${story.id}-${sceneIds.length ? sceneIds.join('--') : 'full'}.mp4`));
+      const out = resolve(option('--out') ?? join('renders', `${story.id}-${view.sceneIds.length ? view.sceneIds.join('--') : 'full'}.mp4`));
       await mkdir(dirname(out), { recursive: true });
       report(`Rendering ${quality} to ${out}`);
-      forwarded = ['render', view.directory, '--quality', quality, '--no-browser-gpu', '--workers', '1', '--fps', String(story.canvas.fps), '--output', out];
-      break;
+      return ['render', view.directory, '--quality', quality, '--no-browser-gpu', '--workers', '1', '--fps', String(story.canvas.fps), '--output', out];
     }
   }
-  process.exitCode = await new Promise<number>((resolveExit, reject) => {
+}
+
+function runHyperframes(forwarded: string[]): Promise<number> {
+  return new Promise((resolveExit, reject) => {
     const child = spawn(process.execPath, [join(hyperframesDist(project), 'cli.js'), ...forwarded], { stdio: 'inherit' });
     child.once('error', reject);
     child.once('close', code => resolveExit(code ?? 1));
   });
+}
+
+async function playback(mode: PlaybackMode) {
+  const quality = checkPlaybackFlags(mode);
+  const validation = await validateProject(project);
+  if (!validation.valid) return fail(validation.errors);
+  const { story, timing } = validation;
+  const sceneIds = await playbackSceneIds(story);
+  const view = sceneIds.length ? await prepareSceneProject(project, sceneIds) : { directory: project, start: 0, duration: timing.duration, sceneIds };
+  reportScope(story, timing, view);
+  process.exitCode = await runHyperframes(await forwardedArguments(mode, story, view, quality));
 }
 
 async function validate() {
@@ -235,19 +262,19 @@ async function main() {
       await narration();
       break;
     case 'estimate':
-      await estimate({ wps: option('--wps'), force: args.includes('--force') });
+      await estimate({ wps: option('--wps'), force: flag('--force') });
       break;
     case 'align':
-      await align({ audio: option('--audio'), transcript: option('--transcript'), force: args.includes('--force') });
+      await align({ audio: option('--audio'), transcript: option('--transcript'), force: flag('--force') });
       break;
     case 'validate':
       await validate();
       break;
     case 'assemble':
-      await assemble({ check: args.includes('--check') });
+      await assemble({ check: flag('--check') });
       break;
     case 'export':
-      await (args.includes('--single-file') ? exportFile : exportPage)(option('--out'));
+      await (flag('--single-file') ? exportFile : exportPage)(option('--out'));
       break;
     default:
       console.error(USAGE);
