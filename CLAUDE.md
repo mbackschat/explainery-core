@@ -79,7 +79,7 @@ Use red/green TDD with `node:test`. Contract changes need a test that fails befo
 
 ## Delegation
 
-Model tiers are symbolic (HIGH, MEDIUM); resolve them through the tier table in the global instructions rather than naming models here. Use MEDIUM-tier sub-agents for bounded tasks whose interface and acceptance check are already fixed: schema and validator code against failing tests, mechanical conversions guarded by pixel-identical renders, and read-only research into HyperFrames internals. Keep contract and design decisions at HIGH. Every delegated task names its oracle; at most one render runs at a time.
+Model tiers are symbolic (HIGH, MEDIUM). Resolve them through the tier table in your global instructions; without one, run HIGH on your most capable model and MEDIUM on a faster, cheaper one, and say which models you used. Contributors who want the maintainer's mapping can copy [Model tier mappings](https://github.com/mbackschat/coding-setup/blob/main/CLAUDE.md#model-tier-mappings) into their global instructions. Use MEDIUM-tier sub-agents for bounded tasks whose interface and acceptance check are already fixed: schema and validator code against failing tests, mechanical conversions guarded by pixel-identical renders, and read-only research into HyperFrames internals. Keep contract and design decisions at HIGH. Every delegated task names its oracle; at most one render runs at a time.
 
 ## Commit & Pull Request Guidelines
 
