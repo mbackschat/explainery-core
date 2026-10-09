@@ -6,8 +6,9 @@ This repository, `explainery-core`, is the framework. Each film lives in its own
 
 ## Find what you need
 
+- Author scenes as modules: [work on one scene](#work-on-one-scene) and [integrate it into the film](docs/authoring.md#author-one-scene-at-a-time).
 - Start a story: [project setup](#use-in-a-project).
-- Describe or revise a scene: [scene authoring guideline](docs/knowledge/authoring.md), covering file ownership, visual beats, a story example, and review criteria.
+- Describe or revise a scene: [scene authoring guideline](docs/authoring.md), covering file ownership, visual beats, a story example, and review criteria.
 - Time narration: [estimate](#estimate-timing-before-a-voice-exists), [draft a voice](#draft-a-voice), or [align a recording](#align-timing-to-a-recorded-voice).
 - Author visuals: [write a scene](#write-a-scene) and [themes and components](#themes-and-components).
 - Check and watch the film: [validate](#validate-a-project), [assemble](#assemble-the-root-composition), and [preview and render](#preview-and-render).
@@ -38,11 +39,13 @@ Copy changes belong in `story.yaml`, and a new voice normally changes `timing.js
 | **Theme** | Colours, fonts, background, and the layout of the text block, shared by every scene. A story adds its own colours on top. |
 | **Studio** | HyperFrames' local preview: a web page that plays the film and lets you scrub to any frame while you edit. |
 
-The [domain knowledge bundle](docs/knowledge/index.md) defines film, scene, composition, element, beat, and timeline using Open Knowledge Format v0.2. [ADR 0003](docs/adr/0003-editorial-scenes.md) records the compatibility contract.
+The [scene authoring guide](docs/authoring.md) explains film, scene, composition, element, beat, and timeline together with the authoring workflow. [ADR 0003](docs/adr/0003-editorial-scenes.md) records the compatibility contract.
 
 ## Work on one scene
 
-For the scene's purpose and visual sequence, start with the story repository's scene map and linked descriptions. For how to write those descriptions and which files to edit, use the [scene authoring guideline](docs/knowledge/authoring.md). `story.yaml` declares grouping, copy, and narration; the visual plan lives in story documentation and the executable animation lives in composition HTML.
+Author each scene through self-contained composition files with local beats and timelines. Refine it in isolation, then check its joins with adjacent scenes and its place in the full film. The [modular authoring workflow](docs/authoring.md#author-one-scene-at-a-time) covers scene boundaries, adding composition files and root hosts, assembly, and integration checks.
+
+For the scene's purpose and visual sequence, start with the story repository's scene map and linked descriptions. For how to write those descriptions and which files to edit, use the [scene authoring guideline](docs/authoring.md). `story.yaml` declares grouping, copy, and narration; the visual plan lives in story documentation and the executable animation lives in composition HTML.
 
 ```bash
 pnpm exec explainery scenes film-example
@@ -56,7 +59,7 @@ Focus is local to the film and persists in ignored `.explainery/focus.json` unti
 
 `--scene <id>` or `--film` on preview/render overrides focus for one command. Consecutive scene IDs separated by commas preview their transition; titles are resolved by `focus`. A scene preview starts at zero, retains shared layers, and trims narration to its derived range. Its disposable project view refreshes from source when preview or render runs; rerun preview after any source edit, including animation, assets, styles, copy, or timing. Edit source files, never `.explainery/scenes/`; only dependencies remain linked. Render defaults to local draft quality; use `--quality delivery` for delivery. `--out` chooses the output file. Focus does not limit validation, timing generation, assembly, or explainer export.
 
-Scenes are explicit groups in `story.scenes`; a legacy flat entry is a one-composition scene. See [the typed authoring contract](docs/knowledge/authoring.md). Add `.explainery/` to project ignores. Keep dependencies at the repository root and runtime files in one film directory when desired; commands accept that directory.
+Scenes are explicit groups in `story.scenes`; a legacy flat entry is a one-composition scene. See [the typed authoring contract](docs/authoring.md). Add `.explainery/` to project ignores. Keep dependencies at the repository root and runtime files in one film directory when desired; commands accept that directory.
 
 ## The workflow at a glance
 

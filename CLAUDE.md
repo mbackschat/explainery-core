@@ -1,5 +1,14 @@
 # Repository Guidelines
 
+## Author one scene at a time
+
+Use the [modular scene authoring workflow](docs/authoring.md#author-one-scene-at-a-time) as the default for film work. A scene is the editorial work unit; its composition HTML files are the modules the film root combines.
+
+- Resolve and persist the requested editorial scene with `focus`; keep subsequent edits, preview, and draft render within that scene until the user changes scope.
+- Keep each composition self-contained: its own elements, local beat clock, and seekable timeline, with explicit shared assets and theme dependencies. It must initialize correctly without a neighboring composition having run.
+- When adding a composition, declare it in the story and author its HTML file and matching root host. Update timing and run assembly; assembly fills existing hosts and does not create them.
+- Before completing a scene, verify it alone and with affected neighbors, then run film-wide validation and assembly checks. Review shared changes in every affected scene; use a full-film preview to check integration.
+
 ## Project Structure & Module Organization
 
 `explainery-core` is the open-source Explainery framework: visual storytelling on HyperFrames, with themes. It is one plain package (`explainery-core`, Apache-2.0) that projects consume as `"explainery-core": "link:../explainery-core"`. Read the [architecture decisions](docs/adr/0001-explainery-architecture.md) before changing contracts; record new decisions as further ADRs in `docs/adr/`.
@@ -24,9 +33,9 @@ Beat anchoring is an authoring convention, not a runtime restriction: compositio
 
 ## Editorial scenes and session focus
 
-Use the [scene authoring guideline](docs/knowledge/authoring.md) when documenting or revising a scene. Keep visual intent and evidence in the story's scene descriptions, link them from its README, and keep executable copy and timing in their owning files.
+Use the [scene authoring guideline](docs/authoring.md) when documenting or revising a scene. Keep visual intent and evidence in the story's scene descriptions, link them from its README, and keep executable copy and timing in their owning files.
 
-Read the [OKF domain bundle](docs/knowledge/index.md) and [editorial scene decision](docs/adr/0003-editorial-scenes.md). A scene is the human work unit; a composition is an executable HTML module within it. `defineScene` and `timing.scenes` retain their historical names but operate on compositions. Use `storyScenes(story)` for editorial operations, `storyCompositions(story)` for narration, alignment, assembly, and composition files, and `sceneRange(scene, timing)` for the derived editorial range.
+Read the [scene concepts](docs/authoring.md#concepts) and [editorial scene decision](docs/adr/0003-editorial-scenes.md). A scene is the human work unit; a composition is an executable HTML module within it. `defineScene` and `timing.scenes` retain their historical names but operate on compositions. Use `storyScenes(story)` for editorial operations, `storyCompositions(story)` for narration, alignment, assembly, and composition files, and `sceneRange(scene, timing)` for the derived editorial range.
 
 When a user says “work on <scene>”, resolve the ID or title, run `explainery focus <project-dir> --scene <name>`, and keep subsequent edits, previews, and renders within that scope. Read focus at session start. “Work on the full film” runs `focus --film`. Clarify ambiguous names with a recommended match; incidental mentions do not switch focus. Preview/render print and honor local focus, with `--scene`/`--film` as one-command overrides. Edit original sources, never `.explainery/scenes/` derivatives. The disposable scene view refreshes at each preview/render invocation; only dependencies are linked. Re-run preview after any source edit, including animation, assets, styles, copy, or timing. Shared assets can affect other scenes: explain that consequence when relevant. Full-project validation, timing generation, assembly, and explainer export ignore focus.
 
