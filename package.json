@@ -24,7 +24,7 @@
   },
   "peerDependencies": {
     "gsap": "^3.14.2",
-    "hyperframes": ">=0.8.124"
+    "hyperframes": "0.8.142"
   },
   "devDependencies": {
     "@types/node": "24.19.0",
