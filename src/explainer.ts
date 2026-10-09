@@ -11,7 +11,17 @@ const seconds = (value: number) => String(Number(value.toFixed(6)));
 
 const PLAYER = 'src="film/index.html" runtime-src="player/hyperframe.runtime.js"';
 
-function sceneSection(scene: Scene, slot: SceneTiming, fps: number): string {
+/** How a page brings in its theme and player, and how its players reach the film. */
+export interface PageSource {
+  /** Markup for <head>: the film's stylesheets and the player element's script. */
+  head: string;
+  /** Attributes that point a player at the film; empty when `boot` hands the film over instead. */
+  film: string;
+  /** Script that runs before the scrubbers are wired. */
+  boot: string;
+}
+
+function sceneSection(scene: Scene, slot: SceneTiming, fps: number, film: string): string {
   // The scrubber counts whole frames: a fractional step such as 1/30 s rounds, and the player then floors the rounded
   // time to the previous frame.
   const frame = (time: number) => Math.round(time * fps);
@@ -21,7 +31,7 @@ function sceneSection(scene: Scene, slot: SceneTiming, fps: number): string {
   const player = `${scene.id}-player`;
   return `    <section class="explainer-scene" id="${scene.id}">
       <div class="explainer-stage">
-        <hyperframes-player id="${player}" class="explainer-stage-player" ${PLAYER} range-start="${start}" range-end="${end}" muted></hyperframes-player>
+        <hyperframes-player id="${player}" class="explainer-stage-player"${film ? ` ${film}` : ''} range-start="${start}" range-end="${end}" muted></hyperframes-player>
         <input class="explainer-scrub" type="range" data-player="${player}" data-fps="${fps}" min="${frame(slot.start)}" max="${frame(slot.start + slot.duration)}" step="1" value="${frame(slot.start + slot.duration / 2)}">
       </div>
       <div class="explainer-text">
@@ -35,22 +45,20 @@ ${support === undefined ? '' : `        <p class="explainer-support">${escape(su
  * Renders the explainer page: the whole film with audio at the top, then per scene a silent player limited to the
  * scene's window, a scrubber over that window, and the scene's copy and narration beside it.
  *
- * The page links the film's own stylesheets (paths relative to the project, served under film/), so it inherits the
- * theme's tokens and fonts; its own classes are prefixed explainer- to stay clear of theme classes. Each scene opens
- * on its middle frame, and its scrubber moves frame by frame within the scene.
+ * The page uses the film's own stylesheets, so it inherits the theme's tokens and fonts; its own classes are prefixed
+ * explainer- to stay clear of theme classes. Each scene opens on its middle frame, and its scrubber moves frame by
+ * frame within the scene.
  */
-export function explainerPage(story: Story, timing: Timing, { stylesheets }: { stylesheets: string[] }): string {
+export function renderExplainerPage(story: Story, timing: Timing, { head, film, boot }: PageSource): string {
   const { width, height, fps } = story.canvas;
-  const links = stylesheets.map(href => `    <link rel="stylesheet" href="film/${escape(href)}">`).join('\n');
-  const sections = story.scenes.map(scene => sceneSection(scene, timing.scenes[scene.id], fps)).join('\n');
+  const sections = story.scenes.map(scene => sceneSection(scene, timing.scenes[scene.id], fps, film)).join('\n');
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escape(story.title)}</title>
-${links}
-    <script src="player/hyperframes-player.js"></script>
+${head}
     <style>
       body.explainer { margin: 0; padding: 48px clamp(16px, 5vw, 96px); line-height: 1.5; }
       .explainer-header h1 { margin: 0 0 24px; font-size: 40px; font-weight: 900; line-height: 1.1; }
@@ -67,12 +75,13 @@ ${links}
   <body class="explainer">
     <header class="explainer-header">
       <h1>${escape(story.title)}</h1>
-      <hyperframes-player class="explainer-film" ${PLAYER} controls></hyperframes-player>
+      <hyperframes-player class="explainer-film"${film ? ` ${film}` : ''} controls></hyperframes-player>
     </header>
     <main>
 ${sections}
     </main>
     <script>
+${boot}
       for (const scrub of document.querySelectorAll('.explainer-scrub')) {
         const player = document.getElementById(scrub.dataset.player);
         const show = () => player.seek(Number(scrub.value) / Number(scrub.dataset.fps));
@@ -86,7 +95,13 @@ ${sections}
 `;
 }
 
-function stylesheetsOf(html: string): string[] {
+/** The page of the folder export, which links the film's stylesheets and player from film/ and player/. */
+export function explainerPage(story: Story, timing: Timing, { stylesheets }: { stylesheets: string[] }): string {
+  const links = stylesheets.map(href => `    <link rel="stylesheet" href="film/${escape(href)}">`);
+  return renderExplainerPage(story, timing, { head: [...links, '    <script src="player/hyperframes-player.js"></script>'].join('\n'), film: PLAYER, boot: '' });
+}
+
+export function stylesheetsOf(html: string): string[] {
   return [...html.matchAll(/<link\b[^>]*>/g)]
     .map(([tag]) => tag)
     .filter(tag => /\srel=["']stylesheet["']/.test(tag))

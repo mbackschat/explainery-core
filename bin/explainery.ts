@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { alignTiming, assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, loadStory, silences, transcribe, validateProject, validateStoryTiming, voicedText, type Timing, type TranscriptWord } from '../src/index.ts';
+import { alignTiming, assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, exportExplainerFile, loadStory, silences, transcribe, validateProject, validateStoryTiming, voicedText, type Timing, type TranscriptWord } from '../src/index.ts';
 
-const USAGE = 'Usage: explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>]';
+const USAGE = 'Usage: explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>]\n       explainery export [project-dir] --single-file [--out <file.html>]';
 const args = process.argv.slice(2);
 const option = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const optionValues = ['--out', '--wps', '--audio', '--transcript'].map(option);
@@ -117,6 +117,16 @@ async function assemble({ check }: { check: boolean }) {
   return report(`Assembled ${story.scenes.length} scenes into index.html`);
 }
 
+async function exportFile(out: string | undefined) {
+  const target = resolve(out ?? join(project, 'explainer.html'));
+  try {
+    const { scenes, bytes } = await exportExplainerFile(project, target);
+    return report(`Exported ${scenes} ${scenes === 1 ? 'scene' : 'scenes'} into ${target} (${(bytes / 1024 / 1024).toFixed(1)} MB); open it by double-click`);
+  } catch (error) {
+    return fail([(error as Error).message]);
+  }
+}
+
 async function exportPage(out: string | undefined) {
   const target = resolve(out ?? join(project, 'explainer'));
   try {
@@ -144,7 +154,7 @@ switch (command) {
     await assemble({ check: args.includes('--check') });
     break;
   case 'export':
-    await exportPage(option('--out'));
+    await (args.includes('--single-file') ? exportFile : exportPage)(option('--out'));
     break;
   default:
     console.error(USAGE);

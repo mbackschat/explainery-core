@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { lstat, readFile, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
-import { explainerPage, exportExplainer, type Story, type Timing } from '../src/index.ts';
+import { explainerPage, exportExplainer, exportExplainerFile, type Story, type Timing } from '../src/index.ts';
 import { core, fixtureProject } from './support/fixture.ts';
 
 const story: Story = {
@@ -78,4 +78,57 @@ test('the export command writes the folder and reports what it shipped', async (
   const { stdout } = await promisify(execFile)(process.execPath, [cli, 'export', project, '--out', join(project, 'site')]);
   assert.match(stdout, /Exported 1 scene and 4 film files to .*site; serve it over http/);
   assert.ok((await lstat(join(project, 'site/index.html'))).isFile());
+});
+
+// A film that needs everything the single-file export must embed: a sprite symbol, audio over HyperFrames' 2 MB
+// inline limit, and the framework files behind the node_modules/explainery-core symlink.
+async function filmWithAssets(): Promise<string> {
+  const project = await fixtureProject('scene-runtime', html => html.replace('<div id="probe"', [
+    '<svg width="10" height="10"><use href="assets/sprite.svg#dot"/></svg>',
+    '      <audio id="narration" src="assets/narration.wav" data-start="0" data-duration="2" data-track-index="2"></audio>',
+    '      <div id="probe"',
+  ].join('\n')));
+  await mkdir(join(project, 'assets'));
+  await writeFile(join(project, 'assets/sprite.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><symbol id="dot" viewBox="0 0 2 2"><circle cx="1" cy="1" r="1"/></symbol></svg>');
+  await promisify(execFile)('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=mono', '-t', '36', join(project, 'assets/narration.wav')]);
+  return project;
+}
+
+const embeddedFilm = (page: string) => JSON.parse(page.match(/^\s*const film = (".*");$/m)![1]) as string;
+
+// Relative file references left in the film's markup and styles; inline script bodies are skipped, since their
+// template strings are not references.
+const fileReferences = (html: string) => [...html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '').matchAll(/\s(?:src|href|poster|xlink:href)="([^"]*)"|url\(\s*["']?([^"')]*)/g)]
+  .map(match => match[1] ?? match[2])
+  .filter(ref => ref && !/^(?:data:|#|[a-z][a-z0-9+.-]*:|\/\/)/i.test(ref));
+
+test('the single-file export embeds the whole film once, with every file it needs inlined', async () => {
+  const project = await filmWithAssets();
+  const out = join(project, 'explainer.html');
+  assert.deepEqual(await exportExplainerFile(project, out).then(({ scenes }) => scenes), 1);
+  const page = await readFile(out, 'utf8');
+  assert.equal(page.match(/const film = /g)?.length, 1, 'the film is embedded once');
+  assert.doesNotMatch(page, /<hyperframes-player[^>]*\ssrc=/, 'no player loads a file');
+  const tags = page.replace(/(<script\b[^>]*>)[\s\S]*?<\/script>/g, '$1</script>');
+  assert.doesNotMatch(tags, /<(?:script|link)\b[^>]*\s(?:src|href)="(?!data:)/, 'the page loads no file');
+  const film = embeddedFilm(page);
+  assert.deepEqual(fileReferences(film), []);
+  assert.match(film, /<symbol id="dot"/);
+  assert.match(film, /<use href="#dot"/);
+  assert.match(film, /src="data:audio\/mp4;base64,/);
+  assert.match(film, /__hyperframes\s*=|hyperframe\.runtime\.iife\.js/, 'the HyperFrames runtime is inside, so the player fetches none');
+  assert.match(film, /defineScene/, 'the framework runtime is inlined');
+});
+
+test('the single-file export refuses a reference it cannot embed', async () => {
+  const project = await fixtureProject('scene-runtime', html => html.replace('<div id="probe"', '<img src="assets/missing.png">\n      <div id="probe"'));
+  await assert.rejects(exportExplainerFile(project, join(project, 'explainer.html')), /assets\/missing\.png/);
+});
+
+test('the export command writes the single file next to the project by default', async () => {
+  const project = await fixtureProject('scene-runtime');
+  const cli = join(core, 'bin/explainery.ts');
+  const { stdout } = await promisify(execFile)(process.execPath, [cli, 'export', project, '--single-file']);
+  assert.match(stdout, /Exported 1 scene into .*explainer\.html \([0-9.]+ MB\); open it by double-click/);
+  assert.ok((await lstat(join(project, 'explainer.html'))).isFile());
 });

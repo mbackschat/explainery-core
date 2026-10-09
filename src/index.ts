@@ -2,6 +2,7 @@ export { alignTiming, type Silence, type TranscriptWord } from './align.ts';
 export { assembleIndex } from './assemble.ts';
 export { DEFAULT_WORDS_PER_SECOND, estimateTiming } from './estimate.ts';
 export { explainerPage, exportExplainer } from './explainer.ts';
+export { exportExplainerFile } from './explainer-file.ts';
 export { filmFiles } from './film-files.ts';
 export { narrationBeats, spokenText, spokenWords, voicedText } from './narration.ts';
 export { audioDuration, silences, transcribe } from './hyperframes.ts';

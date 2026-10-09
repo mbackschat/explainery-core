@@ -41,7 +41,7 @@ pnpm exec explainery assemble
 pnpm exec explainery validate        # 5. Check that story, timing, and scenes agree,
 pnpm exec hyperframes check          #    and audit layout and motion.
 pnpm exec hyperframes render         # 6. Render the MP4 when you need the file,
-pnpm exec explainery export          #    or the explainer page when you need the page.
+pnpm exec explainery export          #    or the explainer page when you need the page (--single-file to send it).
 ```
 
 Every step runs locally, with no cloud services. Rendering draws every frame on the CPU, so it takes minutes; work in Studio and render when you need the file.
@@ -159,6 +159,19 @@ The export writes a static folder with three parts:
 - **`film/`:** every file the root composition references, copied as real files.
 
 Each scene player is the whole film limited to the scene's window with `range-start` and `range-end`, so no per-scene build is needed. It opens on the scene's middle frame, and a scrubber below it steps frame by frame within the scene. The page links the film's own stylesheets, so it inherits the theme. Serve the folder over http(s), for example with `npx serve explainer`. Opened as a `file://` page, the player ignores the bundled runtime and fetches one from a CDN.
+
+## Export a single file to send
+
+```bash
+pnpm exec explainery export --single-file                  # writes ./explainer.html
+pnpm exec explainery export --single-file --out film.html  # or any .html path
+```
+
+This writes the same page as one HTML file that anyone can open by double-click, offline, with no web server and no developer tools. Send it by mail, chat, or a shared drive. The file embeds everything: the theme and its fonts, the HyperFrames player and runtime, and the film itself, bundled by HyperFrames into one document. The narration is the project's recorded audio file, converted to AAC (128 kbit/s) and embedded; nothing is synthesised in the browser. A film of about two minutes comes to roughly 7 MB.
+
+How it works: the film is embedded once, as a string each player receives as inline HTML (`srcdoc`). Because that HTML already contains the HyperFrames runtime, the player loads none from its CDN. Scene players receive the film only when they scroll into view. HyperFrames' bundler leaves a few things as file references, which the export embeds itself: the symbols of `<use href="sprite.svg#id">`, files behind symlinks such as `node_modules/explainery-core`, and files over the bundler's 2 MB limit. If any reference cannot be embedded, the export fails and names it, rather than writing a page that breaks later.
+
+The bundler is not part of HyperFrames' public interface: it lives in `dist/compiler-*.js`, and the export fails with a clear message if a HyperFrames upgrade moves it.
 
 ## Write a scene
 

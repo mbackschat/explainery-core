@@ -4,10 +4,11 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { extname, join, normalize } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import test from 'node:test';
 import { chromium } from 'playwright-core';
-import { exportExplainer } from '../src/index.ts';
+import { exportExplainer, exportExplainerFile } from '../src/index.ts';
 import { core, fixtureProject } from './support/fixture.ts';
 
 // Proves the exported folder works where it must: served over http and played by HyperFrames' own player in
@@ -40,18 +41,20 @@ async function centrePixel(png: Buffer, dir: string) {
   return [...stdout];
 }
 
-test('the exported page shows a scene through its own player, scrubbed within the scene', { timeout: 120000 }, async () => {
-  const project = await fixtureProject('scene-runtime');
-  const out = join(project, 'explainer');
-  await exportExplainer(project, out);
-  const server = await serve(out);
+/**
+ * Opens a page in HyperFrames' managed headless Chrome and checks that a scene player shows and scrubs its scene.
+ * `offline` blocks and records every http(s) request, which must then be none.
+ */
+async function checkScenePlayer(url: string, project: string, { offline = false } = {}) {
   const executablePath = (await run(process.execPath, [join(core, 'node_modules/hyperframes/dist/cli.js'), 'browser', 'path'])).stdout.trim().split('\n').pop();
   const browser = await chromium.launch({ executablePath });
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 1600 } });
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
-    await page.goto(`http://127.0.0.1:${(server.address() as AddressInfo).port}/index.html`);
+    const requests: string[] = [];
+    if (offline) await page.context().route(/^https?:/, route => (requests.push(route.request().url()), route.abort()));
+    await page.goto(url);
     await page.waitForFunction(() => [...document.querySelectorAll('hyperframes-player')].every(player => (player as Player).ready), null, { timeout: 60000 });
     const player = page.locator('#probe-player');
     assert.equal(await page.evaluate(() => (document.getElementById('probe-player') as Player).currentTime), 1, 'opens on the middle frame');
@@ -68,8 +71,28 @@ test('the exported page shows a scene through its own player, scrubbed within th
     await scrubTo(1.5);
     assert.deepEqual(await centrePixel(await player.screenshot(), project), [255, 0, 0], 'after the beat');
     assert.deepEqual(errors, []);
+    assert.deepEqual(requests, [], 'no network requests');
   } finally {
     await browser.close();
+  }
+}
+
+test('the exported page shows a scene through its own player, scrubbed within the scene', { timeout: 120000 }, async () => {
+  const project = await fixtureProject('scene-runtime');
+  const out = join(project, 'explainer');
+  await exportExplainer(project, out);
+  const server = await serve(out);
+  try {
+    await checkScenePlayer(`http://127.0.0.1:${(server.address() as AddressInfo).port}/index.html`, project);
+  } finally {
     server.close();
   }
+});
+
+// The double-click case: a file:// page with no server, which must not fall back to the player's CDN runtime.
+test('the single-file page plays from file:// without a server', { timeout: 120000 }, async () => {
+  const project = await fixtureProject('scene-runtime');
+  const out = join(project, 'explainer.html');
+  await exportExplainerFile(project, out);
+  await checkScenePlayer(pathToFileURL(out).href, project, { offline: true });
 });
