@@ -29,28 +29,44 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "copy", "narration"],
-        "additionalProperties": false,
-        "properties": {
-          "id": { "$ref": "#/definitions/slug", "description": "Names the composition file compositions/<id>.html." },
-          "copy": {
-            "type": "object",
-            "required": ["headline"],
-            "additionalProperties": false,
-            "properties": {
-              "category": { "type": "string" },
-              "headline": { "type": "string" },
-              "support": { "type": "string" }
-            }
-          },
-          "narration": { "type": "string", "description": "Spoken text; {beat-id} markers name the beats that scene tweens anchor to." },
-          "hold": { "type": "number", "minimum": 0, "description": "Seconds the scene stays after its narration ends." },
-          "overlap": { "type": "number", "minimum": 0, "description": "Seconds of crossfade into the next scene." }
-        }
+        "if": { "required": ["compositions"] },
+        "then": { "$ref": "#/definitions/scene" },
+        "else": { "$ref": "#/definitions/composition" }
       }
     }
   },
   "definitions": {
-    "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "composition": {
+      "type": "object",
+      "required": ["id", "copy", "narration"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/slug", "description": "Names the composition file compositions/<id>.html." },
+        "copy": {
+          "type": "object",
+          "required": ["headline"],
+          "additionalProperties": false,
+          "properties": {
+            "category": { "type": "string" },
+            "headline": { "type": "string" },
+            "support": { "type": "string" }
+          }
+        },
+        "narration": { "type": "string", "description": "Spoken text; {beat-id} markers name the beats that composition tweens anchor to." },
+        "hold": { "type": "number", "minimum": 0, "description": "Seconds the composition stays after its narration ends." },
+        "overlap": { "type": "number", "minimum": 0, "description": "Seconds of crossfade into the next composition." }
+      }
+    },
+    "scene": {
+      "type": "object",
+      "required": ["id", "title", "compositions"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/slug", "description": "Identifies an editorial scene, independently of its compositions." },
+        "title": { "type": "string", "minLength": 1 },
+        "compositions": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/composition" } }
+      }
+    }
   }
 }

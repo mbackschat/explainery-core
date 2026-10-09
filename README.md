@@ -19,37 +19,55 @@ Explainer videos are usually made in animation tools, where the wording, the voi
 
 Explainery keeps those three things apart:
 
-- **The words** live in one text file, `story.yaml`: each scene's headline, support line, and narration.
+- **The words** live in one text file, `story.yaml`: each composition's headline, support line, and narration.
 - **The timing** lives in `timing.json`. It can be estimated from the narration before any voice exists, and aligned automatically to a recorded or synthetic voice afterwards.
 - **The animation** can anchor movements to named moments in the narration, called *beats*, so their starts follow the voice. Tween durations and offsets still use seconds.
 
-Copy changes belong in `story.yaml`, and a new voice normally changes `timing.json` through alignment. Beat anchors reduce manual retiming, but longer copy can need a layout adjustment and shorter narration can leave too little room for a tween. Recheck scenes after either change; the runtime rejects timelines that overrun their scene. Everything is plain text in git, so changes can be reviewed as diffs. One story produces both the video and an explainer web page.
+Copy changes belong in `story.yaml`, and a new voice normally changes `timing.json` through alignment. Beat anchors reduce manual retiming, but longer copy can need a layout adjustment and shorter narration can leave too little room for a tween. Recheck scenes after either change; the runtime rejects timelines that overrun their composition. Everything is plain text in git, so changes can be reviewed as diffs. One story produces both the video and an explainer web page.
 
 ## Key ideas
 
 | Term | Meaning |
 | --- | --- |
-| **Story** | `story.yaml`: the scenes in order, each with its on-screen copy and narration. |
-| **Scene** | One part of the film with one idea, drawn by one HTML file in `compositions/`. |
-| **Beat** | A named moment in the narration, written as a marker such as `{publish-setup}`. Scene code can use it as an animation start or add a seconds-based offset. |
-| **Timing** | `timing.json`: when each scene starts, how long it lasts, and the second of every beat. |
-| **Composition** | HyperFrames' name for an HTML page that becomes video. The root composition, `index.html`, places the scenes on one timeline. |
+| **Story** | `story.yaml`: editorial scenes in order, with on-screen copy and narration in their compositions. |
+| **Scene** | A named editorial unit explaining one idea, containing one or more compositions. This is the unit you select for editing, preview, and rendering. |
+| **Beat** | A named moment in the narration, written as a marker such as `{publish-setup}`. Composition code can use it as an animation start or add a seconds-based offset. |
+| **Timing** | `timing.json`: composition start, duration, and local beat seconds. Its legacy `scenes` keys remain composition IDs. |
+| **Composition** | An executable HTML module containing text, graphics, media elements, and animation. The root composition places these modules and shared layers on the film timeline. |
 | **Theme** | Colours, fonts, background, and the layout of the text block, shared by every scene. A story adds its own colours on top. |
 | **Studio** | HyperFrames' local preview: a web page that plays the film and lets you scrub to any frame while you edit. |
+
+The [domain knowledge bundle](docs/knowledge/index.md) defines film, scene, composition, element, beat, and timeline using Open Knowledge Format v0.2. [ADR 0003](docs/adr/0003-editorial-scenes.md) records the compatibility contract.
+
+## Work on one scene
+
+```bash
+pnpm exec explainery scenes film-example
+pnpm exec explainery focus film-example --scene "Introduction"
+pnpm exec explainery preview film-example
+pnpm exec explainery render film-example
+pnpm exec explainery focus film-example --film
+```
+
+Focus is local to the film and persists in ignored `.explainery/focus.json` until changed. Each preview or render prints its target. A conversational request such as “work on Introduction” sets this focus; subsequent edits apply to that scene’s source compositions, and previews and renders use the same selection. “Work on the full film” clears it. `focus` without options reports the current target. Exact IDs or case-insensitive scene titles are accepted; ambiguous names require clarification.
+
+`--scene <id>` or `--film` on preview/render overrides focus for one command. Consecutive scene IDs separated by commas preview their transition; titles are resolved by `focus`. A scene preview starts at zero, retains shared layers, and trims narration to its derived range. Its disposable project view refreshes from source when preview or render runs; rerun preview after any source edit, including animation, assets, styles, copy, or timing. Edit source files, never `.explainery/scenes/`; only dependencies remain linked. Render defaults to local draft quality; use `--quality delivery` for delivery. `--out` chooses the output file. Focus does not limit validation, timing generation, assembly, or explainer export.
+
+Scenes are explicit groups in `story.scenes`; a legacy flat entry is a one-composition scene. See [the typed authoring contract](docs/knowledge/authoring.md). Add `.explainery/` to project ignores. Keep dependencies at the repository root and runtime files in one film directory when desired; commands accept that directory.
 
 ## The workflow at a glance
 
 ```bash
-# 1. Write story.yaml and create index.html plus compositions/<scene-id>.html shells.
+# 1. Write story.yaml and create index.html plus compositions/<composition-id>.html shells.
 pnpm exec explainery estimate        # 2. Estimate timing from the narration's word counts.
 pnpm exec explainery assemble        #    Write copy and timing into index.html.
-pnpm exec hyperframes preview --background --no-open  # 3. Open the printed Studio URL to author scenes.
+pnpm exec explainery preview         # 3. Open the printed Studio URL for the active target.
 # 4. Voice the narration (a draft voice or a recording), then time the beats to it:
 pnpm exec explainery align --audio assets/narration.wav
 pnpm exec explainery assemble
 pnpm exec explainery validate        # 5. Check that story, timing, and scenes agree,
 pnpm exec hyperframes check --no-contrast --no-browser-gpu  # audit layout, motion, and runtime errors.
-pnpm exec hyperframes render --no-browser-gpu -o renders/film.mp4  # 6. Render the MP4,
+pnpm exec explainery render --film --quality delivery --out renders/film.mp4  # 6. Render the full MP4,
 pnpm exec explainery export          #    or the explainer page when you need the page (--single-file to send it).
 ```
 
@@ -93,7 +111,7 @@ pnpm exec explainery estimate            # write timing.json from the narration,
 pnpm exec explainery estimate --wps 2.2  # a slower narrator
 ```
 
-`estimate` gives each scene the length of its spoken words plus its `hold`, and puts each beat after the words spoken before its marker. Scenes follow in story order, and a scene's `overlap` starts the next one that much earlier. It writes `timing.json` with `source: estimate`, so scenes can be animated and previewed before any narration is recorded; run `explainery assemble` afterwards. It replaces an earlier estimate, but refuses to replace `aligned` or `imported` timing unless you pass `--force`, because those come from a real voice.
+`estimate` gives each composition the length of its spoken words plus its `hold`, and puts each beat after the words spoken before its marker. Compositions follow in story order, and a composition’s `overlap` starts the next one that much earlier. It writes `timing.json` with `source: estimate`, so scenes can be animated and previewed before any narration is recorded; run `explainery assemble` afterwards. It replaces an earlier estimate, but refuses to replace `aligned` or `imported` timing unless you pass `--force`, because those come from a real voice.
 
 ## Draft a voice
 
@@ -110,7 +128,7 @@ export PHONEMIZER_ESPEAK_LIBRARY=/opt/homebrew/lib/libespeak-ng.dylib
 The Homebrew eSpeak NG library is needed because the macOS library bundled with `espeakng-loader` 0.2.4 ignores the data path it is given and fails on `/Users/runner/…/phontab` (reproduced 2026-10-09). Then voice the story and time it to that voice:
 
 ```bash
-pnpm exec explainery narration > narration.txt     # the spoken text, one scene per paragraph
+pnpm exec explainery narration > narration.txt     # the spoken text, one composition per paragraph
 pnpm exec hyperframes tts narration.txt --voice am_michael -o assets/narration.wav
 pnpm exec explainery align --audio assets/narration.wav
 pnpm exec explainery assemble
@@ -137,9 +155,9 @@ pnpm exec explainery align --audio assets/narration.wav --transcript transcript.
 
 `align` transcribes the narration with the project's `hyperframes transcribe` and its default engine selection, matches the story's narration words to the transcript in order, and writes `timing.json` with `source: aligned`, the audio as `audio`, and its length, read with FFmpeg's `ffprobe`, as `audioDuration`. With `--transcript`, it reads that JSON instead; the audio is still required for its duration and pauses. You can omit `--audio` only when the existing `timing.json` already names it.
 
-A beat falls where the word after its marker starts, or where the scene's last word ends when the marker closes the narration. The first scene starts at 0; a scene ends its `hold` after its last word, and the next scene starts its `overlap` earlier. Misheard words are tolerated, and a missed word gets a share of the gap between its neighbours. Whisper often drifts the words before a pause into the pause, so `align` also finds the pauses in the audio (FFmpeg's `silencedetect`: below -40 dB for at least 0.5 s) and fits the words that reach into one back to end where the pause begins. The command fails when fewer than three quarters of the narration words are found, or when a `hold` is longer than the pause before the next scene's narration.
+A beat falls where the word after its marker starts, or where the composition's last word ends when the marker closes the narration. The first composition starts at 0; each ends its `hold` after its last word, and the next starts its `overlap` earlier, including across editorial scene boundaries. Misheard words are tolerated, and a missed word gets a share of the gap between its neighbours. Whisper often drifts the words before a pause into the pause, so `align` also finds the pauses in the audio (FFmpeg's `silencedetect`: below -40 dB for at least 0.5 s) and fits the words that reach into one back to end where the pause begins. The command fails when fewer than three quarters of the narration words are found, or when a `hold` is longer than the pause before the next composition's narration.
 
-For another language or Whisper model, run `pnpm exec hyperframes transcribe assets/narration.wav --engine whisper --model large-v3 --language de` yourself and pass its `transcript.json`. The explicit engine makes the Whisper model choice take effect even when Parakeet is installed. Beats land on the spoken word, so anticipate a word in the scene's timeline with `beat('…') - 0.3` rather than by editing `timing.json`. `align` replaces an estimate or an earlier alignment, but refuses `imported` timing unless you pass `--force`.
+For another language or Whisper model, run `pnpm exec hyperframes transcribe assets/narration.wav --engine whisper --model large-v3 --language de` yourself and pass its `transcript.json`. The explicit engine makes the Whisper model choice take effect even when Parakeet is installed. Beats land on the spoken word, so anticipate a word in the composition's timeline with `beat('…') - 0.3` rather than by editing `timing.json`. `align` replaces an estimate or an earlier alignment, but refuses `imported` timing unless you pass `--force`.
 
 ## Validate a project
 
@@ -147,7 +165,7 @@ For another language or Whisper model, run `pnpm exec hyperframes transcribe ass
 pnpm exec explainery validate
 ```
 
-This checks `story.yaml` and `timing.json` against [their](schemas/story.schema.json) [schemas](schemas/timing.schema.json), then checks that they agree with each other. Every scene must have timing that starts in story order and ends within the story. Every `{beat}` marked in the narration must have a time, in narration order and within its scene. Every scene must also have a `compositions/<id>.html` that declares `data-composition-id="<id>"`. The command prints each error and exits with status 1.
+This checks `story.yaml` and `timing.json` against [their](schemas/story.schema.json) [schemas](schemas/timing.schema.json), then checks that they agree with each other. Editorial scene IDs and flattened composition IDs must each be unique. Every composition must have timing that starts in story order and ends within the film. Every `{beat}` marked in its narration must have a time, in narration order and within the composition. Each composition must also have a `compositions/<id>.html` declaring `data-composition-id="<id>"`; editorial scenes need no additional HTML file or timing entry. The command prints each error and exits with status 1.
 
 ## Assemble the root composition
 
@@ -158,25 +176,25 @@ pnpm exec explainery assemble --check  # exit 1 when index.html is out of date
 
 `index.html` stays hand-authored. `assemble` validates the project and then rewrites only the attributes it manages:
 
-- **Scene hosts:** the element with `data-composition-src` and the scene's `data-composition-id` gets `data-start`, `data-duration`, and `data-variable-values` holding `{copy, beats, duration}`.
+- **Composition hosts:** the element with `data-composition-src` and the composition's `data-composition-id` gets `data-start`, `data-duration`, and `data-variable-values` holding `{copy, beats, duration}`.
 - **Story duration:** the root composition and every element marked `data-story-span` get the story duration.
-- **Narration track:** the element marked `data-story-audio` gets `timing.audio` as its `src`, and ends at `timing.audioDuration` when the audio is shorter than the film, as it is when the last scene holds after the final word.
+- **Narration track:** the element marked `data-story-audio` gets `timing.audio` as its `src`, and ends at `timing.audioDuration` when the audio is shorter than the film, as it is when the last composition holds after the final word.
 
-Everything else in the file is left byte for byte. `story.yaml` and `timing.json` remain the authoritative inputs for scene copy, beat times, and scene duration.
+Everything else in the file is left byte for byte. `story.yaml` and `timing.json` remain the authoritative inputs for composition copy, beat times, and composition duration.
 
 ## Preview and render
 
 Run these from the story directory after assembly:
 
 ```bash
-pnpm exec hyperframes preview --background --no-open
-pnpm exec hyperframes preview --status
+pnpm exec explainery preview
+pnpm exec explainery preview --status
 pnpm exec hyperframes check --no-contrast --no-browser-gpu
-pnpm exec hyperframes render --no-browser-gpu -o renders/film.mp4
-pnpm exec hyperframes preview --stop
+pnpm exec explainery render --quality delivery
+pnpm exec explainery preview --stop
 ```
 
-Open the Studio URL printed by `preview`; its default starting port is 3002. `--background` keeps it running after the command exits, and `--no-open` leaves opening a browser to you. Preview uses automatic browser GPU selection; add `--no-browser-gpu` when comparing it with the software capture used by the render command and framework fixtures.
+Open the Studio URL printed by `preview`; its default starting port is 3002. Explainery starts it in the background without opening a browser and honors the active focus. `--status` and `--stop` address that target's preview. Rendering uses one worker with software browser capture. Use `--film` to operate on the whole film regardless of focus; direct HyperFrames commands also bypass Explainery focus. The strict `check` above always audits the original full project.
 
 `validate` checks project files without executing scenes. `check` also runs the scene scripts and samples layout and motion; it catches unknown beats and timeline overruns that `lint` cannot. Use `--no-contrast` because accessibility auditing of produced animations is outside this project's scope. Browser capture and video encoding are separate: `--no-browser-gpu` forces software capture, while GPU encoding requires `--gpu`.
 
@@ -191,7 +209,7 @@ pnpm exec explainery export --out ../site      # or any folder that is empty or 
 
 The export writes a static folder with three parts:
 
-- **`index.html`:** the page. The whole film plays at the top with its audio. Below it, each scene gets a silent player beside its category, headline, support line, and narration (with the beat markers removed).
+- **`index.html`:** the page. The whole film plays at the top with its audio. Each editorial scene gets a silent player beside its title and combined composition narration, with beat markers removed. A single-composition scene also retains its category and support line.
 - **`player/`:** HyperFrames' player and runtime (Apache-2.0).
 - **`film/`:** every file the root composition references, copied as real files.
 
@@ -219,14 +237,14 @@ Load GSAP and the runtime once in the project's `index.html`:
 <script src="node_modules/explainery-core/runtime/scene.js"></script>
 ```
 
-Each scene host passes its copy, beats, and duration as HyperFrames composition variables:
+Each HTML module is a composition within an editorial scene. Its host passes copy, beats, and duration as HyperFrames composition variables:
 
 ```html
 <div id="registry" data-composition-id="registry" data-composition-src="compositions/registry.html" data-start="0" data-duration="8.9"
   data-variable-values='{"copy":{"headline":"Team Registry"},"beats":{"publish-setup":2.45},"duration":8.9}' …></div>
 ```
 
-Inside the scene, mark copy slots with `data-copy` and anchor tweens to beats:
+Inside the composition, mark copy slots with `data-copy` and anchor tweens to beats:
 
 ```html
 <h1 data-copy="headline">Team Registry</h1>
@@ -238,11 +256,11 @@ Inside the scene, mark copy slots with `data-copy` and anchor tweens to beats:
 </script>
 ```
 
-The scene passes `{ window, document, gsap }` because HyperFrames scopes those per sub-composition, and a function loaded globally could otherwise read neither the instance's variables nor its own elements. `beat(name)` returns scene-local seconds; beat anchoring is an authoring convention, not a restriction enforced by the runtime. Numeric starts, offsets, and durations are supported.
+The composition passes `{ window, document, gsap }` because HyperFrames scopes those per sub-composition, and a function loaded globally could otherwise read neither the instance's variables nor its own elements. `beat(name)` returns composition-local seconds; beat anchoring is an authoring convention, not a restriction enforced by the runtime. Numeric starts, offsets, and durations are supported.
 
-`enterCopy(at, timing)` reveals the theme's copy block from second `at`: the accent rule, the category, a left-to-right headline wipe, then the support line. Pass `{ headline: { at, duration }, support: { at, duration } }` to retime one scene; the offsets are relative to `at`, and slots without copy are skipped.
+`enterCopy(at, timing)` reveals the theme's copy block from second `at`: the accent rule, the category, a left-to-right headline wipe, then the support line. Pass `{ headline: { at, duration }, support: { at, duration } }` to retime one composition; the offsets are relative to `at`, and slots without copy are skipped.
 
-`defineScene` fills each `data-copy` slot from the story and removes slots whose copy the story leaves out. It then registers the paused timeline under the scene id. An unknown beat, or a timeline that runs past the scene's duration, throws instead. The [preview and render checks](#preview-and-render) execute this guard after narration or copy changes.
+The existing helper name `defineScene` is retained for compatibility. It fills each `data-copy` slot from the story, removes slots whose copy the story leaves out, and registers the paused timeline under the composition ID. An unknown beat, or a timeline that runs past the composition's duration, throws instead. The [preview and render checks](#preview-and-render) execute this guard after narration or copy changes.
 
 ## Themes and components
 

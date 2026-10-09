@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
-import { narrationBeats, validateProject, validateStoryTiming, type Scene, type Story, type Timing } from '../src/index.ts';
+import { narrationBeats, validateProject, validateStoryTiming, type Composition, type Story, type Timing } from '../src/index.ts';
 
-const scene = (id: string, narration: string): Scene => ({ id, copy: { headline: id }, narration });
-const story = (...scenes: Scene[]): Story => ({ id: 'demo', title: 'Demo', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 }, scenes });
+const scene = (id: string, narration: string): Composition => ({ id, copy: { headline: id }, narration });
+const story = (...scenes: Composition[]): Story => ({ id: 'demo', title: 'Demo', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 }, scenes });
 const consistent = (): { story: Story; timing: Timing } => ({
   story: story(scene('first', 'Publish {publish} then pull {pull}.'), scene('second', 'Grow {grow}.')),
   timing: {
@@ -101,6 +101,16 @@ const introHtml = '<template><div data-composition-id="intro"></div></template>'
 
 test('a project with matching files and compositions validates', async () => {
   assert.deepEqual((await validateProject(await project({ storyYaml, timingJson, compositions: { intro: introHtml } }))).errors, []);
+});
+
+test('an editorial scene validates its composition files without requiring a scene file or timing', async () => {
+  const { story: flat, timing } = consistent();
+  const grouped: Story = { ...flat, scenes: [{ id: 'chapter', title: 'A chapter', compositions: flat.scenes as Composition[] }] };
+  const dir = await project({ storyYaml: JSON.stringify(grouped), timingJson: JSON.stringify(timing), compositions: {
+    first: '<template><div data-composition-id="first"></div></template>',
+    second: '<template><div data-composition-id="second"></div></template>',
+  } });
+  assert.deepEqual((await validateProject(dir)).errors, []);
 });
 
 test('a scene whose composition is missing or mislabelled fails', async () => {

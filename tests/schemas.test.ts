@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { checkStory, checkTiming, type Copy, type Scene, type Story, type Timing } from '../src/index.ts';
+import { checkStory, checkTiming, type Composition, type Copy, type Story, type Timing } from '../src/index.ts';
 
-const story = (): Story => ({
+const story = (): Story & { scenes: Composition[] } => ({
   id: 'demo',
   title: 'Demo',
   theme: 'dark',
@@ -37,7 +37,7 @@ test('a scene without a headline is reported at its path', () => {
 
 test('a misspelt story key is rejected instead of ignored', () => {
   const value = story();
-  (value.scenes[0] as Scene & { hlod: number }).hlod = 1;
+  (value.scenes[0] as Composition & { hlod: number }).hlod = 1;
   assert.deepEqual(checkStory(value), ['/scenes/0: must NOT have additional property "hlod"']);
 });
 

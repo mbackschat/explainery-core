@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { narrationBeats } from './narration.ts';
 import { checkStory, checkTiming } from './schemas.ts';
+import { storyCompositions, storyScenes } from './story.ts';
 import type { SceneTiming, Story, Timing } from './types.ts';
 
 // Timing values come from float arithmetic (estimates, alignment offsets); a microsecond is far below one frame.
@@ -10,20 +11,23 @@ const EPSILON = 1e-6;
 const seconds = (value: number) => `${Number(value.toFixed(6))}s`;
 
 /**
- * Checks that a schema-valid story and timing describe the same scenes and beats.
+ * Checks that a schema-valid story and timing describe the same compositions and beats.
  *
- * Returns human-readable errors, empty when consistent. Scenes must start in story order and end within the story;
- * beats must exist exactly where the narration marks them, follow narration order, and lie within their scene.
+ * Editorial scene IDs and composition IDs are unique within their own namespaces. Compositions must start in story
+ * order and end within the story; beats must follow their narration markers and lie within their composition.
  */
 export function validateStoryTiming(story: Story, timing: Timing): string[] {
   const errors: string[] = [];
-  const ids = story.scenes.map(scene => scene.id);
-  for (const id of new Set(ids.filter((id, index) => ids.indexOf(id) !== index))) errors.push(`story.yaml: scene id "${id}" is used twice`);
+  const sceneIds = storyScenes(story).map(scene => scene.id);
+  for (const id of new Set(sceneIds.filter((id, index) => sceneIds.indexOf(id) !== index))) errors.push(`story.yaml: scene id "${id}" is used twice`);
+  const compositions = storyCompositions(story);
+  const ids = compositions.map(composition => composition.id);
+  for (const id of new Set(ids.filter((id, index) => ids.indexOf(id) !== index))) errors.push(`story.yaml: composition id "${id}" is used twice`);
   for (const id of ids) if (!timing.scenes[id]) errors.push(`timing.json: no timing for scene "${id}"`);
   for (const id of Object.keys(timing.scenes)) if (!ids.includes(id)) errors.push(`timing.json: scene "${id}" is not in the story`);
 
   let previous: { id: string; slot: SceneTiming } | undefined;
-  for (const scene of story.scenes) {
+  for (const scene of compositions) {
     const { beats: marked, errors: markerErrors } = narrationBeats(scene.narration);
     errors.push(...markerErrors.map(error => `story.yaml scene "${scene.id}": ${error}`));
     const slot = timing.scenes[scene.id];
@@ -73,7 +77,7 @@ async function load<T>(dir: string, file: string, parse: (text: string) => unkno
 
 async function checkCompositions(dir: string, story: Story): Promise<string[]> {
   const errors: string[] = [];
-  for (const id of new Set(story.scenes.map(scene => scene.id))) {
+  for (const id of new Set(storyCompositions(story).map(composition => composition.id))) {
     const file = `compositions/${id}.html`;
     let html;
     try {

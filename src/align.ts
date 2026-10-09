@@ -1,5 +1,6 @@
 import { spokenWords } from './narration.ts';
 import { toMillisecond as round } from './time.ts';
+import { storyCompositions } from './story.ts';
 import type { SceneTiming, Story, Timing } from './types.ts';
 
 /** One word of a `hyperframes transcribe` transcript, in seconds from the start of the audio. */
@@ -85,13 +86,15 @@ function fitBeforePauses(times: { start: number; end: number }[], silences: Sile
  * The story's narration words are matched to the transcript in order, tolerating misheard words, and a word the
  * recogniser missed gets a share of the gap between its matched neighbours. Words that reach into one of the audio's
  * `silences` are fitted back to end where that pause begins. A beat falls where the word after its
- * marker starts, or where the scene's last word ends when the marker closes the narration. The first scene starts at
- * 0; a scene ends its hold after its last word, and the next scene starts its overlap earlier. Throws when fewer than
- * three quarters of the narration words are found, or when a scene's narration would start before the scene does.
+ * marker starts, or where the composition's last word ends when the marker closes the narration. Compositions follow
+ * flattened story order, independent of editorial grouping. The first starts at 0; each ends its hold after its last
+ * word, and the next starts its overlap earlier. Throws when fewer than three quarters of the narration words are
+ * found, or when a composition's narration would start before the composition does.
  * An `audioDuration` is kept beside the audio, because the film usually holds past the audio's end.
  */
 export function alignTiming(story: Story, transcript: TranscriptWord[], { audio, audioDuration, silences = [] }: { audio: string; audioDuration?: number; silences?: Silence[] }): Timing {
-  const parts = story.scenes.map(scene => spokenWords(scene.narration));
+  const compositions = storyCompositions(story);
+  const parts = compositions.map(scene => spokenWords(scene.narration));
   const narration = parts.flatMap(part => part.words);
   const matches = matchWords(narration.map(normal), transcript.map(word => normal(word.text)));
   const matched = matches.filter(match => match >= 0).length;
@@ -104,13 +107,13 @@ export function alignTiming(story: Story, transcript: TranscriptWord[], { audio,
   let start = 0;
   let end = 0;
   let first = 0;
-  story.scenes.forEach((scene, index) => {
+  compositions.forEach((scene, index) => {
     const { words, markers } = parts[index];
     if (!words.length) throw new Error(`scene "${scene.id}" has no narration words to align`);
     const spoken = times.slice(first, first + words.length);
     first += words.length;
     if (index > 0 && round(spoken[0].start) < start) {
-      const previous = story.scenes[index - 1].id;
+      const previous = compositions[index - 1].id;
       throw new Error(`scene "${scene.id}": its narration starts at ${round(spoken[0].start)}s, before the scene starts at ${start}s; shorten the hold or overlap of "${previous}"`);
     }
     const lastWordEnd = spoken[spoken.length - 1].end;
@@ -118,7 +121,7 @@ export function alignTiming(story: Story, transcript: TranscriptWord[], { audio,
     end = round(lastWordEnd + (scene.hold ?? 0));
     const duration = round(end - start);
     scenes[scene.id] = { start, duration, beats };
-    const overlap = index < story.scenes.length - 1 ? scene.overlap ?? 0 : 0;
+    const overlap = index < compositions.length - 1 ? scene.overlap ?? 0 : 0;
     if (overlap >= duration) throw new Error(`scene "${scene.id}": overlap ${overlap}s is not shorter than its ${duration}s duration`);
     start = round(end - overlap);
   });

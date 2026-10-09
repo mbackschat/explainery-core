@@ -7,12 +7,18 @@ export interface Copy {
   support?: string;
 }
 
-export interface Scene {
+export interface Composition {
   id: string;
   copy: Copy;
   narration: string;
   hold?: number;
   overlap?: number;
+}
+
+export interface Scene {
+  id: string;
+  title: string;
+  compositions: Composition[];
 }
 
 export interface Story {
@@ -21,7 +27,7 @@ export interface Story {
   theme: string;
   canvas: { width: number; height: number; fps: number };
   pronunciations?: Record<string, string>;
-  scenes: Scene[];
+  scenes: (Composition | Scene)[];
 }
 
 export interface SceneTiming {

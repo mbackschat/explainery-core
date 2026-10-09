@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
-import { checkTiming, estimateTiming, validateStoryTiming, type Scene, type Story } from '../src/index.ts';
+import { checkTiming, estimateTiming, validateStoryTiming, type Composition, type Story } from '../src/index.ts';
 
-const scene = (id: string, narration: string, extra: Partial<Scene> = {}): Scene => ({ id, copy: { headline: id }, narration, ...extra });
-const story = (...scenes: Scene[]): Story => ({ id: 'demo', title: 'Demo', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 }, scenes });
+const scene = (id: string, narration: string, extra: Partial<Composition> = {}): Composition => ({ id, copy: { headline: id }, narration, ...extra });
+const story = (...scenes: Composition[]): Story => ({ id: 'demo', title: 'Demo', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 }, scenes });
 
 test('a beat falls after the words spoken before its marker, and the scene lasts for its words plus its hold', () => {
   const timing = estimateTiming(story(scene('intro', 'One two three {wave} four five.', { hold: 0.5 })), { wordsPerSecond: 2.5 });

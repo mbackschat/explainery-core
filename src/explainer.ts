@@ -3,7 +3,8 @@ import { dirname, join } from 'node:path';
 import { filmFiles } from './film-files.ts';
 import { hyperframesDist } from './hyperframes.ts';
 import { spokenText } from './narration.ts';
-import type { Scene, SceneTiming, Story, Timing } from './types.ts';
+import { sceneRange, storyScenes } from './story.ts';
+import type { Scene, Story, Timing } from './types.ts';
 import { validateProject } from './validate.ts';
 
 const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -21,11 +22,11 @@ export interface PageSource {
   boot: string;
 }
 
-function sceneSection(scene: Scene, slot: SceneTiming, fps: number, film: string): string {
+function sceneSection(scene: Scene, slot: { start: number; duration: number }, fps: number, film: string): string {
   // The scrubber counts whole frames: a fractional step such as 1/30 s rounds, and the player then floors the rounded
   // time to the previous frame.
   const frame = (time: number) => Math.round(time * fps);
-  const { category, headline, support } = scene.copy;
+  const { category, support } = scene.compositions.length === 1 ? scene.compositions[0].copy : {};
   const start = seconds(slot.start);
   const end = seconds(slot.start + slot.duration);
   const player = `${scene.id}-player`;
@@ -35,15 +36,17 @@ function sceneSection(scene: Scene, slot: SceneTiming, fps: number, film: string
         <input class="explainer-scrub" type="range" data-player="${player}" data-fps="${fps}" min="${frame(slot.start)}" max="${frame(slot.start + slot.duration)}" step="1" value="${frame(slot.start + slot.duration / 2)}">
       </div>
       <div class="explainer-text">
-${category === undefined ? '' : `        <p class="explainer-category">${escape(category)}</p>\n`}        <h2>${escape(headline)}</h2>
-${support === undefined ? '' : `        <p class="explainer-support">${escape(support)}</p>\n`}        <p class="explainer-narration">${escape(spokenText(scene.narration))}</p>
+${category === undefined ? '' : `        <p class="explainer-category">${escape(category)}</p>\n`}        <h2>${escape(scene.title)}</h2>
+${support === undefined ? '' : `        <p class="explainer-support">${escape(support)}</p>\n`}        <p class="explainer-narration">${escape(spokenText(scene.compositions.map(composition => composition.narration).join(' ')))}</p>
       </div>
     </section>`;
 }
 
 /**
- * Renders the explainer page: the whole film with audio at the top, then per scene a silent player limited to the
- * scene's window, a scrubber over that window, and the scene's copy and narration beside it.
+ * Renders the explainer page with the full film, then a silent player for each editorial scene's enclosing range.
+ *
+ * Each section has a scrubber, the editorial title, and combined composition narration. A single-composition scene
+ * also retains its category and support copy, preserving the existing flat-story page.
  *
  * The page uses the film's own stylesheets, so it inherits the theme's tokens and fonts; its own classes are prefixed
  * explainer- to stay clear of theme classes. Each scene opens on its middle frame, and its scrubber moves frame by
@@ -51,7 +54,7 @@ ${support === undefined ? '' : `        <p class="explainer-support">${escape(su
  */
 export function renderExplainerPage(story: Story, timing: Timing, { head, film, boot }: PageSource): string {
   const { width, height, fps } = story.canvas;
-  const sections = story.scenes.map(scene => sceneSection(scene, timing.scenes[scene.id], fps, film)).join('\n');
+  const sections = storyScenes(story).map(scene => sceneSection(scene, sceneRange(scene, timing), fps, film)).join('\n');
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -145,5 +148,5 @@ export async function exportExplainer(projectDir: string, outDir: string): Promi
   await copyFile(join(hyperframes, 'hyperframe.runtime.iife.js'), join(outDir, 'player/hyperframe.runtime.js'));
   const stylesheets = stylesheetsOf(await readFile(join(projectDir, 'index.html'), 'utf8'));
   await writeFile(join(outDir, 'index.html'), explainerPage(story, timing, { stylesheets }));
-  return { files: files.length, scenes: story.scenes.length };
+  return { files: files.length, scenes: storyScenes(story).length };
 }

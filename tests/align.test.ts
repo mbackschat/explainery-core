@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
-import { alignTiming, checkTiming, validateStoryTiming, type Scene, type Story, type TranscriptWord } from '../src/index.ts';
+import { alignTiming, checkTiming, validateStoryTiming, type Composition, type Story, type TranscriptWord } from '../src/index.ts';
 
-const scene = (id: string, narration: string, extra: Partial<Scene> = {}): Scene => ({ id, copy: { headline: id }, narration, ...extra });
-const story = (...scenes: Scene[]): Story => ({ id: 'demo', title: 'Demo', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 }, scenes });
+const scene = (id: string, narration: string, extra: Partial<Composition> = {}): Composition => ({ id, copy: { headline: id }, narration, ...extra });
+const story = (...scenes: Composition[]): Story => ({ id: 'demo', title: 'Demo', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 }, scenes });
 
 // One word every half second, each spoken for 0.4 s, starting at `from`.
 const spoken = (text: string, from: number): TranscriptWord[] => text.split(' ').map((word, index) => ({ text: word, start: from + index * 0.5, end: from + index * 0.5 + 0.4 }));

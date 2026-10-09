@@ -1,4 +1,5 @@
 import type { Story, Timing } from './types.ts';
+import { storyCompositions } from './story.ts';
 
 interface Attribute {
   raw: string;
@@ -27,14 +28,14 @@ function setAttribute(attributes: Attribute[], name: string, value: string) {
 /**
  * Writes the story's timing and copy into a project's index.html and returns the new HTML with any errors.
  *
- * Only managed attributes change: each scene host (data-composition-src plus the scene's data-composition-id) gets
+ * Only managed attributes change: each composition host (data-composition-src plus its data-composition-id) gets
  * data-start, data-duration, and data-variable-values {copy, beats, duration}; the root composition and every
  * element marked data-story-span get the story duration; an element marked data-story-audio gets timing.audio as
  * its src and ends with timing.audioDuration when the audio is shorter than the film, because HyperFrames' strict
  * check rejects a media slot longer than its media. Everything else in the file is preserved byte for byte, so assembling twice changes nothing.
  */
 export function assembleIndex(html: string, story: Story, timing: Timing): { html: string; errors: string[] } {
-  const scenes = new Map(story.scenes.map(scene => [scene.id, scene]));
+  const scenes = new Map(storyCompositions(story).map(composition => [composition.id, composition]));
   const hosts = new Map<string, number>();
   const total = String(timing.duration);
   let rootSeen = false;

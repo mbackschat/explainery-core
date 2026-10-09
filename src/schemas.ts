@@ -13,7 +13,7 @@ function describe({ instancePath, message, params }: ErrorObject): string {
   return `${path}: ${message}`;
 }
 
-const check = (validate: ValidateFunction) => (value: unknown): string[] => (validate(value) ? [] : (validate.errors ?? []).map(describe));
+const check = (validate: ValidateFunction) => (value: unknown): string[] => (validate(value) ? [] : (validate.errors ?? []).filter(error => error.keyword !== 'if').map(describe));
 
 /** Returns the story's schema violations as "path: message" strings; empty when it conforms. */
 export const checkStory = check(validateStory);

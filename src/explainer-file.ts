@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { renderExplainerPage, stylesheetsOf } from './explainer.ts';
 import { hyperframesDist } from './hyperframes.ts';
 import { validateProject } from './validate.ts';
+import { storyScenes } from './story.ts';
 
 const MIME: Record<string, string> = {
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
@@ -156,7 +157,7 @@ export async function exportExplainerFile(projectDir: string, outFile: string): 
       for (const player of document.querySelectorAll('.explainer-stage-player')) scenes.observe(player);`;
     const page = renderExplainerPage(story, timing, { head: [...styles, `    <script>${scriptText(player)}</script>`].join('\n'), film: '', boot });
     await writeFile(outFile, page);
-    return { bytes: Buffer.byteLength(page), scenes: story.scenes.length };
+    return { bytes: Buffer.byteLength(page), scenes: storyScenes(story).length };
   } finally {
     await rm(work, { recursive: true, force: true });
   }
