@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -35,6 +35,13 @@ test('a scene ends its hold after its last word, and the next starts its overlap
       harvest: { start: 4.7, duration: 4.7, beats: { pick: 1.3 } },
     },
   });
+});
+
+test('the audio length is kept beside the audio, so the narration track can end with it', () => {
+  const timing = alignTiming(garden, gardenWords, { audio: 'assets/narration.wav', audioDuration: 8.6 });
+  assert.equal(timing.audio, 'assets/narration.wav');
+  assert.equal(timing.audioDuration, 8.6);
+  assert.equal(timing.duration, 9.4);
 });
 
 test('misheard words still align, and a beat before one falls between its recognised neighbours', () => {
@@ -80,6 +87,8 @@ test('the align command writes aligned timing from a transcript, but never repla
   const dir = await mkdtemp(join(tmpdir(), 'explainery-align-'));
   await writeFile(join(dir, 'story.yaml'), storyYaml);
   await writeFile(join(dir, 'transcript.json'), JSON.stringify(spoken('Say hello to everyone.', 0.2)));
+  await mkdir(join(dir, 'assets'));
+  await run('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono', '-t', '1.9', join(dir, 'assets/narration.wav')]);
   const imported = { source: 'imported', duration: 3, scenes: { intro: { start: 0, duration: 3, beats: { wave: 1 } } } };
   await writeFile(join(dir, 'timing.json'), JSON.stringify(imported));
   const args = [cli, 'align', dir, '--audio', 'assets/narration.wav', '--transcript', join(dir, 'transcript.json')];
@@ -87,6 +96,6 @@ test('the align command writes aligned timing from a transcript, but never repla
   const { stdout } = await run(process.execPath, [...args, '--force']);
   assert.match(stdout, /Aligned 1 scene to assets\/narration.wav, 2.1s/);
   assert.deepEqual(JSON.parse(await readFile(join(dir, 'timing.json'), 'utf8')), {
-    source: 'aligned', audio: 'assets/narration.wav', duration: 2.1, scenes: { intro: { start: 0, duration: 2.1, beats: { wave: 1.2 } } },
+    source: 'aligned', audio: 'assets/narration.wav', audioDuration: 1.9, duration: 2.1, scenes: { intro: { start: 0, duration: 2.1, beats: { wave: 1.2 } } },
   });
 });

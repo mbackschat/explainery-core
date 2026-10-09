@@ -8,6 +8,7 @@
   "properties": {
     "source": { "enum": ["estimate", "aligned", "imported"] },
     "audio": { "type": "string", "minLength": 1 },
+    "audioDuration": { "type": "number", "exclusiveMinimum": 0, "description": "Length of the audio in seconds; the narration track ends with it when the film holds after the last word." },
     "duration": { "type": "number", "exclusiveMinimum": 0 },
     "scenes": {
       "type": "object",
@@ -28,6 +29,7 @@
       }
     }
   },
+  "dependencies": { "audioDuration": ["audio"] },
   "definitions": {
     "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
   }

@@ -30,7 +30,8 @@ function setAttribute(attributes: Attribute[], name: string, value: string) {
  * Only managed attributes change: each scene host (data-composition-src plus the scene's data-composition-id) gets
  * data-start, data-duration, and data-variable-values {copy, beats, duration}; the root composition and every
  * element marked data-story-span get the story duration; an element marked data-story-audio gets timing.audio as
- * its src. Everything else in the file is preserved byte for byte, so assembling twice changes nothing.
+ * its src and ends with timing.audioDuration when the audio is shorter than the film, because HyperFrames' strict
+ * check rejects a media slot longer than its media. Everything else in the file is preserved byte for byte, so assembling twice changes nothing.
  */
 export function assembleIndex(html: string, story: Story, timing: Timing): { html: string; errors: string[] } {
   const scenes = new Map(story.scenes.map(scene => [scene.id, scene]));
@@ -59,6 +60,9 @@ export function assembleIndex(html: string, story: Story, timing: Timing): { htm
       setAttribute(attributes, 'data-duration', total);
     }
     if (has('data-story-audio') && timing.audio) setAttribute(attributes, 'src', timing.audio);
+    if (has('data-story-audio') && timing.audioDuration !== undefined && timing.audioDuration < timing.duration) {
+      setAttribute(attributes, 'data-duration', String(timing.audioDuration));
+    }
     return `<${name}${attributes.map(attribute => attribute.raw).join('')}${closing}>`;
   });
   const errors: string[] = [];

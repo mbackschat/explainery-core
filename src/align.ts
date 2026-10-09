@@ -56,8 +56,9 @@ function wordTimes(matches: number[], transcript: TranscriptWord[]): { start: nu
  * marker starts, or where the scene's last word ends when the marker closes the narration. The first scene starts at
  * 0; a scene ends its hold after its last word, and the next scene starts its overlap earlier. Throws when fewer than
  * three quarters of the narration words are found, or when a scene's narration would start before the scene does.
+ * An `audioDuration` is kept beside the audio, because the film usually holds past the audio's end.
  */
-export function alignTiming(story: Story, transcript: TranscriptWord[], { audio }: { audio: string }): Timing {
+export function alignTiming(story: Story, transcript: TranscriptWord[], { audio, audioDuration }: { audio: string; audioDuration?: number }): Timing {
   const parts = story.scenes.map(scene => spokenWords(scene.narration));
   const narration = parts.flatMap(part => part.words);
   const matches = matchWords(narration.map(normal), transcript.map(word => normal(word.text)));
@@ -89,5 +90,5 @@ export function alignTiming(story: Story, transcript: TranscriptWord[], { audio 
     if (overlap >= duration) throw new Error(`scene "${scene.id}": overlap ${overlap}s is not shorter than its ${duration}s duration`);
     start = round(end - overlap);
   });
-  return { source: 'aligned', audio, duration: end, scenes };
+  return { source: 'aligned', audio, ...(audioDuration === undefined ? {} : { audioDuration }), duration: end, scenes };
 }

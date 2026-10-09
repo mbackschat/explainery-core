@@ -22,6 +22,23 @@ export function narrationBeats(narration: string): { beats: string[]; errors: st
 /** The narration as spoken and shown to readers: beat markers removed, whitespace and punctuation tidied. */
 export const spokenText = (narration: string) => narration.replace(MARKER, '').replace(/\s+/g, ' ').replace(/\s+([.,;:!?])/g, '$1').trim();
 
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * The narration as a synthetic draft voice should speak it: the spoken text with each whole word that has a
+ * pronunciation replaced by it.
+ *
+ * Words match case-sensitively and only where no letter or digit adjoins them, so "SPI" changes but "SPIs" and "ESPI"
+ * do not. Only the draft voice gets these spellings; readers, transcripts and alignment keep the written words.
+ */
+export function voicedText(narration: string, pronunciations: Record<string, string> = {}): string {
+  const words = Object.keys(pronunciations).sort((a, b) => b.length - a.length);
+  const text = spokenText(narration);
+  if (!words.length) return text;
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?:${words.map(escape).join('|')})(?![\\p{L}\\p{N}])`, 'gu');
+  return text.replace(pattern, word => pronunciations[word]);
+}
+
 /**
  * Splits a narration into its spoken words and, per {beat} marker, the number of words spoken before it.
  *

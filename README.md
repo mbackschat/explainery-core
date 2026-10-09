@@ -63,6 +63,16 @@ pnpm exec explainery align --audio assets/narration.wav
 pnpm exec explainery assemble
 ```
 
+A synthetic voice mispronounces some terms, such as reading an acronym as a word. Give it spellings in `story.yaml`; `narration` speaks them, while the page, transcripts and alignment keep the written words. Keys match whole, case-sensitive words:
+
+```yaml
+pronunciations:
+  SPI: S-P-I        # not "spy"
+  GraalJS: Graal J-S
+```
+
+To check a spelling without listening, compare the phonemes eSpeak NG gives Kokoro: `espeak-ng -q --ipa -v en-us "the DG S-P-I"`.
+
 The first run downloads the Kokoro model, and the first `align` downloads the whisper model, into `~/.cache/hyperframes`. If HyperFrames' model download stalls, fetch `ggml-small.en.bin` from `huggingface.co/ggerganov/whisper.cpp` into `~/.cache/hyperframes/whisper/models/` yourself.
 
 ## Align timing to a recorded voice
@@ -72,7 +82,7 @@ pnpm exec explainery align --audio assets/narration.wav    # transcribe locally,
 pnpm exec explainery align --transcript transcript.json    # align a transcript you made yourself
 ```
 
-`align` transcribes the narration with the project's `hyperframes transcribe` (local whisper, English by default), matches the story's narration words to the transcript in order, and writes `timing.json` with `source: aligned` and the audio as `audio`. A beat falls where the word after its marker starts, or where the scene's last word ends when the marker closes the narration. The first scene starts at 0; a scene ends its `hold` after its last word, and the next scene starts its `overlap` earlier. Misheard words are tolerated, and a missed word gets a share of the gap between its neighbours, but the command fails when fewer than three quarters of the narration words are found, or when a `hold` is longer than the pause before the next scene's narration. For another language or whisper model, run `hyperframes transcribe <audio> --model … --language …` yourself and pass its `transcript.json`. Beats land on the spoken word, so anticipate a word in the scene's timeline with `beat('…') - 0.3` rather than by editing `timing.json`. `align` replaces an estimate or an earlier alignment, but refuses `imported` timing unless you pass `--force`.
+`align` transcribes the narration with the project's `hyperframes transcribe` (local whisper, English by default), matches the story's narration words to the transcript in order, and writes `timing.json` with `source: aligned`, the audio as `audio`, and its length, read with FFmpeg's `ffprobe`, as `audioDuration`. A beat falls where the word after its marker starts, or where the scene's last word ends when the marker closes the narration. The first scene starts at 0; a scene ends its `hold` after its last word, and the next scene starts its `overlap` earlier. Misheard words are tolerated, and a missed word gets a share of the gap between its neighbours, but the command fails when fewer than three quarters of the narration words are found, or when a `hold` is longer than the pause before the next scene's narration. For another language or whisper model, run `hyperframes transcribe <audio> --model … --language …` yourself and pass its `transcript.json`. Beats land on the spoken word, so anticipate a word in the scene's timeline with `beat('…') - 0.3` rather than by editing `timing.json`. `align` replaces an estimate or an earlier alignment, but refuses `imported` timing unless you pass `--force`.
 
 ## Validate a project
 
@@ -93,7 +103,7 @@ pnpm exec explainery assemble --check  # exit 1 when index.html is out of date
 
 - **Scene hosts:** the element with `data-composition-src` and the scene's `data-composition-id` gets `data-start`, `data-duration`, and `data-variable-values` holding `{copy, beats, duration}`.
 - **Story duration:** the root composition and every element marked `data-story-span` get the story duration.
-- **Narration track:** the element marked `data-story-audio` gets `timing.audio` as its `src`.
+- **Narration track:** the element marked `data-story-audio` gets `timing.audio` as its `src`, and ends at `timing.audioDuration` when the audio is shorter than the film, as it is when the last scene holds after the final word.
 
 Everything else in the file is left byte for byte, so `story.yaml` and `timing.json` remain the only place to change copy and timing.
 

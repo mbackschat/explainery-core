@@ -20,6 +20,7 @@ export interface Story {
   title: string;
   theme: string;
   canvas: { width: number; height: number; fps: number };
+  pronunciations?: Record<string, string>;
   scenes: Scene[];
 }
 
@@ -32,6 +33,7 @@ export interface SceneTiming {
 export interface Timing {
   source: 'estimate' | 'aligned' | 'imported';
   audio?: string;
+  audioDuration?: number;
   duration: number;
   scenes: Record<string, SceneTiming>;
 }

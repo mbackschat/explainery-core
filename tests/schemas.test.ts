@@ -57,3 +57,14 @@ test('timing rejects an unknown source and a negative beat', () => {
     '/scenes/intro/beats/wave: must be >= 0',
   ]);
 });
+
+test('pronunciations map written words to non-empty spellings for the draft voice', () => {
+  assert.deepEqual(checkStory({ ...story(), pronunciations: { SPI: 'S-P-I' } }), []);
+  assert.notDeepEqual(checkStory({ ...story(), pronunciations: { SPI: '' } }), []);
+});
+
+test('an audio length is recorded only together with its audio', () => {
+  assert.deepEqual(checkTiming({ ...timing(), audio: 'assets/narration.wav', audioDuration: 3.5 }), []);
+  assert.notDeepEqual(checkTiming({ ...timing(), audioDuration: 3.5 }), []);
+  assert.notDeepEqual(checkTiming({ ...timing(), audio: 'assets/narration.wav', audioDuration: 0 }), []);
+});

@@ -53,6 +53,12 @@ test('the root, story-spanning elements, and the narration track follow the stor
   assert.equal(attributes(html, 'narration').src, 'assets/narration.wav');
 });
 
+test('the narration track ends with its audio when the film holds after the last word', () => {
+  assert.equal(attributes(assembleIndex(index, story, { ...timing, audioDuration: 14.27 }).html, 'narration')['data-duration'], '14.27');
+  assert.equal(attributes(assembleIndex(index, story, { ...timing, audioDuration: 17 }).html, 'narration')['data-duration'], '16');
+  assert.equal(attributes(assembleIndex(index, story, { ...timing, audioDuration: 14.27 }).html, 'brand-frame')['data-duration'], '16');
+});
+
 test('everything outside the managed attributes is preserved, and assembling is idempotent', () => {
   const { html } = assembleIndex(index, story, timing);
   assert.match(html, /<div id="registry" class="clip" data-composition-id="registry" data-composition-src="compositions\/registry.html" data-start="0" data-duration="8.9" data-track-index="1" data-variable-values='/);
