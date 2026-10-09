@@ -99,3 +99,44 @@ test('the align command writes aligned timing from a transcript, but never repla
     source: 'aligned', audio: 'assets/narration.wav', audioDuration: 1.9, duration: 2.1, scenes: { intro: { start: 0, duration: 2.1, beats: { wave: 1.2 } } },
   });
 });
+
+test('a word that whisper stretches across the following pause ends where the pause begins', () => {
+  const long = story(scene('seed', 'Every garden starts small.', { hold: 2 }), scene('harvest', '{pick} Then you pick the fruit.'));
+  const words = [...spoken('Every garden starts small.', 0), ...spoken('Then you pick the fruit.', 4.5)];
+  words[3] = { ...words[3], end: 4.4 };
+  const timing = alignTiming(long, words, { audio: 'a.wav', silences: [{ start: 1.9, end: 4.5 }] });
+  assert.equal(timing.scenes.seed.duration, 3.9);
+  assert.equal(timing.scenes.harvest.start, 3.9);
+});
+
+test('the align command finds the pauses in the audio itself', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'explainery-align-'));
+  await writeFile(join(dir, 'story.yaml'), [
+    'id: pauses', 'title: Pauses', 'theme: dark', 'canvas: { width: 1920, height: 1080, fps: 30 }', 'scenes:',
+    '  - id: one', '    copy: { headline: One }', '    narration: "Say hello."', '    hold: 1',
+    '  - id: two', '    copy: { headline: Two }', '    narration: "{wave} Wave back."', '',
+  ].join('\n'));
+  // A tone for each scene's words, with 1.5 s of silence between them; whisper stretches "hello." across that silence.
+  await writeFile(join(dir, 'transcript.json'), JSON.stringify([
+    { text: 'Say', start: 0, end: 0.4 }, { text: 'hello.', start: 0.5, end: 2.4 },
+    { text: 'Wave', start: 2.5, end: 2.9 }, { text: 'back.', start: 3, end: 3.4 },
+  ]));
+  await mkdir(join(dir, 'assets'));
+  await run('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'sine=f=440:d=1', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=mono:d=1.5', '-f', 'lavfi', '-i', 'sine=f=440:d=1',
+    '-filter_complex', '[0][1][2]concat=n=3:v=0:a=1', join(dir, 'assets/narration.wav')]);
+  await run(process.execPath, [cli, 'align', dir, '--audio', 'assets/narration.wav', '--transcript', join(dir, 'transcript.json')]);
+  const timing = JSON.parse(await readFile(join(dir, 'timing.json'), 'utf8'));
+  assert.equal(timing.scenes.one.duration, 2);
+  assert.equal(timing.scenes.two.start, 2);
+});
+
+test('words that whisper drifts into a pause are fitted back before it, keeping their order', () => {
+  const long = story(scene('seed', 'Every garden starts {small} small.', { hold: 2 }), scene('harvest', '{pick} Then you pick the fruit.'));
+  const words = [...spoken('Every garden starts small.', 0), ...spoken('Then you pick the fruit.', 4.5)];
+  words[2] = { ...words[2], end: 2.4 };
+  words[3] = { ...words[3], start: 2.5, end: 4.3 };
+  const timing = alignTiming(long, words, { audio: 'a.wav', silences: [{ start: 1.9, end: 4.5 }] });
+  assert.equal(timing.scenes.seed.duration, 3.9);
+  const small = timing.scenes.seed.beats.small;
+  assert.ok(small > 1 && small < 1.9, `small starts at ${small}`);
+});

@@ -9,6 +9,12 @@ export interface TranscriptWord {
   end: number;
 }
 
+/** A pause in the audio, in seconds from its start. */
+export interface Silence {
+  start: number;
+  end: number;
+}
+
 // Speech recognition mishears some words; far fewer matches mean the audio is not this narration.
 const MIN_MATCHED = 0.75;
 
@@ -48,17 +54,43 @@ function wordTimes(matches: number[], transcript: TranscriptWord[]): { start: nu
   });
 }
 
+// Whisper drifts the words before a pause into it, sometimes several words deep (a scene's last three words reported
+// up to 2.4 s into a 2.1 s pause, measured 2026-10-09), which would end a scene's narration where the next one begins.
+// Nobody speaks during a pause, so the run of words reaching into one is scaled back to end where the pause begins.
+// A word starting within PAUSE_EDGE of a pause's end is the next speech beginning, not drift: silence detection and
+// whisper each place that boundary to within a fraction of a second.
+const PAUSE_EDGE = 0.25;
+function fitBeforePauses(times: { start: number; end: number }[], silences: Silence[]): { start: number; end: number }[] {
+  const fitted = times.map(time => ({ ...time }));
+  for (const pause of silences) {
+    let first = fitted.findIndex(time => time.end > pause.start);
+    if (first < 0 || fitted[first].start >= pause.end - PAUSE_EDGE) continue;
+    let last = first;
+    while (last + 1 < fitted.length && fitted[last + 1].start < pause.end - PAUSE_EDGE) last++;
+    while (first > 0 && fitted[first].start >= pause.start) first--;
+    const from = fitted[first].start;
+    if (from >= pause.start) continue;
+    const scale = (pause.start - from) / (fitted[last].end - from);
+    for (const time of fitted.slice(first, last + 1)) {
+      time.start = from + (time.start - from) * scale;
+      time.end = from + (time.end - from) * scale;
+    }
+  }
+  return fitted;
+}
+
 /**
  * Times the story to a recorded narration from its word-level transcript.
  *
  * The story's narration words are matched to the transcript in order, tolerating misheard words, and a word the
- * recogniser missed gets a share of the gap between its matched neighbours. A beat falls where the word after its
+ * recogniser missed gets a share of the gap between its matched neighbours. Words that reach into one of the audio's
+ * `silences` are fitted back to end where that pause begins. A beat falls where the word after its
  * marker starts, or where the scene's last word ends when the marker closes the narration. The first scene starts at
  * 0; a scene ends its hold after its last word, and the next scene starts its overlap earlier. Throws when fewer than
  * three quarters of the narration words are found, or when a scene's narration would start before the scene does.
  * An `audioDuration` is kept beside the audio, because the film usually holds past the audio's end.
  */
-export function alignTiming(story: Story, transcript: TranscriptWord[], { audio, audioDuration }: { audio: string; audioDuration?: number }): Timing {
+export function alignTiming(story: Story, transcript: TranscriptWord[], { audio, audioDuration, silences = [] }: { audio: string; audioDuration?: number; silences?: Silence[] }): Timing {
   const parts = story.scenes.map(scene => spokenWords(scene.narration));
   const narration = parts.flatMap(part => part.words);
   const matches = matchWords(narration.map(normal), transcript.map(word => normal(word.text)));
@@ -66,7 +98,7 @@ export function alignTiming(story: Story, transcript: TranscriptWord[], { audio,
   if (matched < narration.length * MIN_MATCHED) {
     throw new Error(`the transcript matches only ${matched} of ${narration.length} narration words; does the audio speak this story's narration?`);
   }
-  const times = wordTimes(matches, transcript);
+  const times = fitBeforePauses(wordTimes(matches, transcript), silences);
 
   const scenes: Record<string, SceneTiming> = {};
   let start = 0;

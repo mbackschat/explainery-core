@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import type { TranscriptWord } from './align.ts';
+import type { Silence, TranscriptWord } from './align.ts';
 import { toMillisecond } from './time.ts';
 
 /** The dist folder of the HyperFrames version the project itself depends on, so its pinned version does the work. */
@@ -30,4 +30,18 @@ export async function audioDuration(projectDir: string, audio: string): Promise<
   const seconds = Number(stdout.trim());
   if (!(seconds > 0)) throw new Error(`cannot read the length of ${audio}`);
   return toMillisecond(seconds);
+}
+
+/**
+ * The pauses in a project's audio: stretches below -40 dB lasting at least half a second, found with FFmpeg's
+ * `silencedetect`. A pause still open when the audio ends lasts to its end.
+ */
+export async function silences(projectDir: string, audio: string): Promise<Silence[]> {
+  const { stderr } = await promisify(execFile)('ffmpeg', ['-hide_banner', '-nostats', '-i', resolve(projectDir, audio), '-af', 'silencedetect=noise=-40dB:d=0.5', '-f', 'null', '-']);
+  const found: Silence[] = [];
+  for (const [, kind, seconds] of stderr.matchAll(/silence_(start|end): (-?[\d.]+)/g)) {
+    if (kind === 'start') found.push({ start: Math.max(0, Number(seconds)), end: Number.POSITIVE_INFINITY });
+    else if (found.length) found[found.length - 1].end = Number(seconds);
+  }
+  return found;
 }

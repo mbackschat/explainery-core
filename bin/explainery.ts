@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { alignTiming, assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, loadStory, transcribe, validateProject, validateStoryTiming, voicedText, type Timing, type TranscriptWord } from '../src/index.ts';
+import { alignTiming, assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, loadStory, silences, transcribe, validateProject, validateStoryTiming, voicedText, type Timing, type TranscriptWord } from '../src/index.ts';
 
 const USAGE = 'Usage: explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>]';
 const args = process.argv.slice(2);
@@ -78,7 +78,7 @@ async function align({ audio, transcript, force }: { audio: string | undefined; 
   let timing;
   try {
     const words: TranscriptWord[] = transcript ? JSON.parse(await readFile(resolve(transcript), 'utf8')) : await transcribe(project, track);
-    timing = alignTiming(story.value, words, { audio: track, audioDuration: await audioDuration(project, track) });
+    timing = alignTiming(story.value, words, { audio: track, audioDuration: await audioDuration(project, track), silences: await silences(project, track) });
   } catch (error) {
     return fail([(error as Error).message]);
   }
