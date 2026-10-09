@@ -1,18 +1,54 @@
-# explainery-core
+# Explainery
 
-Open-source visual storytelling on HyperFrames, with themes.
+Explainery turns a few plain text files into a narrated explainer film: animated diagrams, on-screen text, and a voice, rendered on your own computer to an MP4 video and to a web page. It is open source (Apache-2.0) and built on [HyperFrames](https://hyperframes.heygen.com), which renders HTML pages into video, and [GSAP](https://gsap.com), the animation library the scenes use.
 
-A story is written once in `story.yaml`: on-screen copy and narration per scene, with beat markers in the narration. Scenes are HyperFrames compositions whose tweens are anchored to those beats rather than to absolute seconds, so replacing the voiceover never requires editing a composition. The same story feeds the rendered video and, later, a static explainer page.
+This repository, `explainery-core`, is the framework. Each film lives in its own *story* repository next to it and uses the framework from there.
 
-The design and its contracts are recorded in [ADR 0001](docs/adr/0001-explainery-architecture.md); [ADR 0002](docs/adr/0002-typescript.md) explains why the code is TypeScript without a build step.
+## Why Explainery?
 
-## How it fits together
+Explainer videos are usually made in animation tools, where the wording, the voice, and the movement are welded together. Changing one sentence or recording a better voice means retiming the animation by hand, and the text is locked inside a binary project file that nobody can review.
 
-1. **Script.** `story.yaml` lists the scenes with their copy and narration. Markers such as `{publish-setup}` name the beats the animation reacts to.
-2. **Time.** `timing.json` gives each scene its start and length and each beat its second. Its `source` records where the seconds came from: `estimate` (written by `explainery estimate` from word counts), `aligned` to a recorded voiceover, or `imported` from an existing film.
-3. **Assemble.** `explainery assemble` writes that timing and copy into the project's hand-authored `index.html` as HyperFrames composition variables.
-4. **Animate.** Each scene in `compositions/<id>.html` builds its timeline with `defineScene` and anchors tweens to `beat('…')`.
-5. **Verify and publish.** `explainery validate` and `hyperframes check` guard the contracts, `hyperframes render` produces the MP4, and `explainery export` produces the explainer page.
+Explainery keeps those three things apart:
+
+- **The words** live in one text file, `story.yaml`: each scene's headline, support line, and narration.
+- **The timing** lives in `timing.json`. It can be estimated from the narration before any voice exists, and aligned automatically to a recorded or synthetic voice afterwards.
+- **The animation** never uses fixed seconds. Each movement starts at a named moment in the narration, a *beat*, so it follows the voice wherever the voice puts that moment.
+
+As a result, correcting a claim, rewording a headline, or replacing the draft voice with a real recording changes text files only; no animation needs editing. Everything is plain text in git, so every change can be reviewed as a diff, by a person or an AI agent. And one story produces both the video and an explainer web page.
+
+## Key ideas
+
+| Term | Meaning |
+| --- | --- |
+| **Story** | `story.yaml`: the scenes in order, each with its on-screen copy and narration. |
+| **Scene** | One part of the film with one idea, drawn by one HTML file in `compositions/`. |
+| **Beat** | A named moment in the narration, written as a marker such as `{publish-setup}`. Animations start at beats. |
+| **Timing** | `timing.json`: when each scene starts, how long it lasts, and the second of every beat. |
+| **Composition** | HyperFrames' name for an HTML page that becomes video. The root composition, `index.html`, places the scenes on one timeline. |
+| **Theme** | Colours, fonts, background, and the layout of the text block, shared by every scene. A story adds its own colours on top. |
+| **Studio** | HyperFrames' local preview: a web page that plays the film and lets you scrub to any frame while you edit. |
+
+## The workflow at a glance
+
+```bash
+# 1. Write the scenes, their copy, and their narration in story.yaml.
+pnpm exec explainery estimate        # 2. Estimate timing from the narration's word counts.
+pnpm exec explainery assemble        #    Write copy and timing into index.html.
+pnpm exec hyperframes preview        # 3. Draw and animate each scene, watching it in Studio.
+# 4. Voice the narration (a draft voice or a recording), then time the beats to it:
+pnpm exec explainery align --audio assets/narration.wav
+pnpm exec explainery assemble
+pnpm exec explainery validate        # 5. Check that story, timing, and scenes agree,
+pnpm exec hyperframes check          #    and audit layout and motion.
+pnpm exec hyperframes render         # 6. Render the MP4 when you need the file,
+pnpm exec explainery export          #    or the explainer page when you need the page.
+```
+
+Every step runs locally, with no cloud services. Rendering draws every frame on the CPU, so it takes minutes; work in Studio and render when you need the file.
+
+The rest of this README explains each step in detail. The design decisions behind it are recorded in [ADR 0001](docs/adr/0001-explainery-architecture.md), and [ADR 0002](docs/adr/0002-typescript.md) explains why the code is TypeScript without a build step.
+
+## What is in this repository
 
 | Path | Contents |
 | --- | --- |
@@ -25,13 +61,13 @@ The design and its contracts are recorded in [ADR 0001](docs/adr/0001-explainery
 
 ## Use in a project
 
-Nothing is published yet. Check this repository out next to your project and link it:
+You need Node 22.18 or later, pnpm, and FFmpeg. Nothing is published to npm yet, so check this repository out next to your story project and link it:
 
 ```json
 { "dependencies": { "explainery-core": "link:../explainery-core" } }
 ```
 
-Run `pnpm install` in this checkout as well, because a linked package resolves its own dependencies from its own `node_modules`.
+Run `pnpm install` in this checkout as well, because a linked package resolves its own dependencies from its own `node_modules`. The quickest way to start a new story is to copy the layout of an existing story project: `story.yaml`, `timing.json`, `index.html`, `compositions/`, and a theme overlay.
 
 ## Estimate timing before a voice exists
 
@@ -108,6 +144,8 @@ pnpm exec explainery assemble --check  # exit 1 when index.html is out of date
 Everything else in the file is left byte for byte, so `story.yaml` and `timing.json` remain the only place to change copy and timing.
 
 ## Export the explainer page
+
+The explainer page presents the film for reading rather than watching: the whole film at the top, then each scene paused on its own, beside its text. Build it only when you need the page; nothing else depends on it.
 
 ```bash
 pnpm exec explainery export                    # writes ./explainer
