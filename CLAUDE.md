@@ -79,7 +79,17 @@ Use red/green TDD with `node:test`. Contract changes need a test that fails befo
 
 ## Delegation
 
-Model tiers are symbolic (HIGH, MEDIUM). Resolve them through the tier table in your global instructions; without one, run HIGH on your most capable model and MEDIUM on a faster, cheaper one, and say which models you used. Contributors who want the maintainer's mapping can copy [Model tier mappings](https://github.com/mbackschat/coding-setup/blob/main/CLAUDE.md#model-tier-mappings) into their global instructions. Use MEDIUM-tier sub-agents for bounded tasks whose interface and acceptance check are already fixed: schema and validator code against failing tests, mechanical conversions guarded by pixel-identical renders, and read-only research into HyperFrames internals. Keep contract and design decisions at HIGH. Every delegated task names its oracle; at most one render runs at a time.
+Model tiers are symbolic (HIGH, MEDIUM, LOW). Resolve them through the tier table in your global instructions; without one, run HIGH on your most capable model, MEDIUM on a faster, cheaper one, and LOW on the smallest, and say which models you used. Contributors who want the maintainer's mapping can copy [Model tier mappings](https://github.com/mbackschat/coding-setup/blob/main/CLAUDE.md#model-tier-mappings) into their global instructions. Story repositories follow this section.
+
+Choose the tier by what decides the outcome, not by the size of the task:
+
+| Tier | Use when | Edits files | Examples |
+| --- | --- | --- | --- |
+| HIGH | The outcome is a judgment: a design, a contract, visual or editorial quality, or a root cause. | Yes | Scene design and composition authoring, schema and runtime API changes, ADRs, a fresh-context review of a design or diff, a failure that spans core and a story |
+| MEDIUM | The interface and the acceptance check are already fixed; the work executes against them. | Yes, guarded by the check | Code against failing tests, refactors and renames guarded by byte-identical snapshots, docs aligned to the file that owns the facts, read-only research into HyperFrames internals |
+| LOW | An oracle decides the outcome; the work runs it or looks something up. | No | Running tests, frame verification, validation, or assembly checks and reporting the verdict with failure output verbatim; inventorying references before a rename |
+
+When a task fits two rows, choose the higher tier. Every delegated task names its oracle; a sub-agent that meets a decision its tier does not cover stops and reports it instead of deciding. Keep in the main session what needs the user or touches shared state: resolving which scene the user means, commits and pushes, and judging whether public files stay client-neutral. Scene focus is one state per checkout, so never run parallel sub-agents that focus scenes in the same story; parallel work is fine across repositories or when read-only. At most one render runs at a time, at any tier.
 
 ## Commit & Pull Request Guidelines
 
