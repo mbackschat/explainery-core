@@ -33,7 +33,21 @@ async function fixture(t: test.TestContext) {
   await mkdir(join(fake, 'dist'), { recursive: true });
   await writeFile(join(project, 'package.json'), '{"type":"module"}');
   await writeFile(join(fake, 'package.json'), '{"name":"hyperframes","type":"module"}');
-  await writeFile(join(fake, 'dist/cli.js'), `import { writeFileSync } from 'node:fs'; writeFileSync(process.env.HF_CAPTURE, JSON.stringify(process.argv.slice(2))); console.log('Fake HyperFrames: ' + process.argv.slice(2).join(' ')); process.exit(Number(process.env.HF_EXIT ?? 0));`);
+  await writeFile(join(fake, 'dist/cli.js'), `
+    import { readFileSync, writeFileSync } from 'node:fs';
+    import { spawnSync } from 'node:child_process';
+    import { join } from 'node:path';
+    const args = process.argv.slice(2);
+    writeFileSync(process.env.HF_CAPTURE, JSON.stringify(args));
+    console.log('Fake HyperFrames: ' + args.join(' '));
+    if (Number(process.env.HF_EXIT ?? 0)) process.exit(Number(process.env.HF_EXIT));
+    if (args[0] === 'render') {
+      const duration = readFileSync(join(args[1], 'index.html'), 'utf8').match(/data-duration="([^"]+)"/)[1];
+      const output = args[args.indexOf('--output') + 1];
+      const rendered = spawnSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=s=16x16:r=24', '-t', duration, '-c:v', 'libx264', output], { encoding: 'utf8', timeout: 5000 });
+      if (rendered.status !== 0) { console.error(rendered.stderr); process.exit(1); }
+    }
+  `);
   await writeFile(join(project, 'story.yaml'), JSON.stringify(story));
   await writeFile(join(project, 'timing.json'), JSON.stringify(timing));
   for (const id of Object.keys(timing.scenes)) await writeFile(join(project, 'compositions', `${id}.html`), `<template><div data-composition-id="${id}"></div></template>`);
@@ -96,11 +110,14 @@ test('render defaults to draft and uses software capture, story fps, and reposit
   assert.equal(rendered.status, 0, rendered.stderr);
   assert.deepEqual(rendered.argv, ['render', join(project, '.explainery/scenes/demo--chapter'), '--quality', 'draft', '--no-browser-gpu', '--workers', '1', '--fps', '24', '--output', join(cwd, 'renders/demo-chapter.mp4')]);
   assert.match(rendered.stdout, /Scope:.*chapter/);
+  assert.deepEqual(chapterTitles(join(cwd, 'renders/demo-chapter.mp4')), ['The chapter']);
+  assert.equal(chapterEntries(join(cwd, 'renders/demo-chapter.mp4'))[0].start_time, '0.000000');
   const output = join(cwd, 'review/custom.mp4');
   const full = await run(['render', project, '--film', '--quality', 'delivery', '--out', output]);
   assert.equal(full.status, 0, full.stderr);
   assert.deepEqual(full.argv, ['render', project, '--quality', 'delivery', '--no-browser-gpu', '--workers', '1', '--fps', '24', '--output', output]);
   assert.match(full.stdout, /Scope:.*full film/i);
+  assert.deepEqual(chapterTitles(output), ['Lead', 'The chapter', 'Final thought']);
   assert.equal(JSON.parse(await readFile(join(project, '.explainery/focus.json'), 'utf8')).sceneId, 'chapter');
   const focused = await run(['render', project, '--quality', 'looks']);
   assert.equal(focused.argv?.[3], 'looks');
@@ -163,4 +180,34 @@ test('HyperFrames failures preserve their exit code', async t => {
   const { project, run } = await fixture(t);
   const result = await run(['render', project, '--film'], { HF_EXIT: '7' });
   assert.equal(result.status, 7, result.stderr);
+});
+
+function chapterEntries(file: string): Array<{ start_time: string; end_time: string; tags: { title: string } }> {
+  const result = spawnSync('ffprobe', ['-v', 'error', '-show_chapters', '-of', 'json', file], { encoding: 'utf8', timeout: 10000 });
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout).chapters;
+}
+const chapterTitles = (file: string) => chapterEntries(file).map(chapter => chapter.tags.title);
+
+test('chapter refresh defaults to the full film despite focus and supports an explicit selected range', async t => {
+  const { cwd, project, run } = await fixture(t);
+  await run(['focus', project, '--scene', 'lead']);
+  const file = join(cwd, 'renders/demo-full.mp4');
+  const full = await run(['render', project, '--film']);
+  assert.equal(full.status, 0, full.stderr);
+  const refreshed = await run(['chapters', project, '--video', file]);
+  assert.equal(refreshed.status, 0, refreshed.stderr);
+  assert.equal(refreshed.argv, undefined);
+  assert.deepEqual(chapterTitles(file), ['Lead', 'The chapter', 'Final thought']);
+  assert.equal(JSON.parse(await readFile(join(project, '.explainery/focus.json'), 'utf8')).sceneId, 'lead');
+  const selectedFile = join(cwd, 'renders/demo-chapter--final.mp4');
+  assert.equal((await run(['render', project, '--scene', 'chapter,final'])).status, 0);
+  assert.equal((await run(['chapters', project, '--scene', 'chapter,final', '--video', selectedFile])).status, 0);
+  assert.deepEqual(chapterEntries(selectedFile).map(chapter => [chapter.tags.title, Number(chapter.start_time)]), [['The chapter', 0], ['Final thought', 8]]);
+  const original = await readFile(file);
+  const wrong = await run(['chapters', project, '--scene', 'chapter', '--video', file]);
+  assert.notEqual(wrong.status, 0);
+  assert.match(wrong.stderr, /duration/);
+  assert.deepEqual(await readFile(file), original);
+  assert.notEqual((await run(['chapters', project])).status, 0);
 });

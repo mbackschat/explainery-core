@@ -10,6 +10,7 @@ This repository, `explainery-core`, is the framework. Each film lives in its own
 - Start a story: [project setup](#use-in-a-project).
 - Use shared agent skills: [choose skills for scene work](docs/authoring.md#use-hyperframes-skills-in-scene-work) and [Claude Code and Codex setup](#shared-authoring-skills).
 - Describe or revise a scene: [scene authoring guideline](docs/authoring.md), covering file ownership, visual beats, a story example, and review criteria.
+- Navigate MP4s with [automatic scene chapters](#mp4-scene-chapters), or refresh chapters in an existing render.
 - Generate [optional SRT and WebVTT subtitles](#generate-optional-subtitles), or review the [background sound proposal](docs/proposals/background-sound.md).
 - Time narration: [estimate](#estimate-timing-before-a-voice-exists), [draft a voice](#draft-a-voice), or [align a recording](#align-timing-to-a-recorded-voice).
 - Author visuals: [write a scene](#write-a-scene) and [themes and components](#themes-and-components).
@@ -243,6 +244,20 @@ pnpm exec explainery preview --stop
 Open the Studio URL printed by `preview`; its default starting port is 3002. Explainery starts it in the background without opening a browser and honors the active focus. `--status` and `--stop` address that target's preview. Rendering uses one worker with software browser capture. Use `--film` to operate on the whole film regardless of focus; direct HyperFrames commands also bypass Explainery focus. The strict `check` above always audits the original full project.
 
 `validate` checks project files without executing scenes. `check` also runs the scene scripts and samples layout and motion; it catches unknown beats and timeline overruns that `lint` cannot. Use `--no-contrast` because accessibility auditing of produced animations is outside this project's scope. Browser capture and video encoding are separate: `--no-browser-gpu` forces software capture, while GPU encoding requires `--gpu`.
+
+## MP4 scene chapters
+
+Every successful Explainery MP4 render automatically includes one chapter per editorial scene. Chapter titles come from the scene titles in `story.yaml`; legacy flat scenes use their headline. The first chapter begins at zero, later chapters begin at scene entrances, and each ends at the next chapter. The last ends at the media duration. Overlapping scene transitions do not create overlapping chapters. Selected-scene renders contain only their selected scenes, with timestamps rebased to zero. No chapter setting or duplicate title list is needed.
+
+Refresh chapters in an existing full-film MP4 without rendering or re-encoding:
+
+```bash
+pnpm exec explainery chapters film-dir --video renders/my-film.mp4
+```
+
+For an existing selected-scene render, supply its explicit scene IDs with `--scene first,second`. The refresh command ignores sticky focus and otherwise assumes the full film; `--film` also makes that intent explicit. `--video` is relative to the working directory and is updated in place only after the temporary remux passes chapter verification. A duration mismatch with the selected range fails and retains the original file. A matching duration alone cannot establish that the video belongs to this story revision; use its original story and timing.
+
+The operation copies compressed video, audio and subtitle streams, keeps global metadata, and regenerates chapter metadata. FFmpeg's MP4 muxer writes QuickTime and Nero chapter representations. Player support determines where chapter navigation appears; ordinary playback is unchanged. Direct HyperFrames renders bypass this Explainery step. See [ADR 0006](docs/adr/0006-mp4-scene-chapters.md).
 
 ## Export the explainer page
 

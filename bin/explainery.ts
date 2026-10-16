@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, extname, join, resolve } from 'node:path';
 import { alignTiming, assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, exportExplainerFile, loadStory, sceneRange, silences, storyCompositions, storyScenes, transcribe, validateProject, validateStoryTiming, voicedText, type PreparedSceneProject, type Story, type Timing, type TranscriptWord } from '../src/index.ts';
+import { sceneChapters, writeMp4Chapters } from '../src/chapters.ts';
 import { subtitleCues, formatSubtitles } from '../src/subtitles.ts';
 import { clearFocus, readFocus, writeFocus } from '../src/focus.ts';
 import { hyperframesDist } from '../src/hyperframes.ts';
 import { prepareSceneProject } from '../src/scene-project.ts';
 
-const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --film] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --film] [--quality draft|looks|delivery] [--out <file>]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>]\n       explainery export [project-dir] --single-file [--out <file.html>]';
+const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --film] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --film] [--quality draft|looks|delivery] [--out <file>]\n       explainery chapters [project-dir] --video <file.mp4> [--scene <id,...> | --film]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>]\n       explainery export [project-dir] --single-file [--out <file.html>]';
 const args = process.argv.slice(2);
-const valueOptions = new Set(['--out', '--wps', '--audio', '--transcript', '--scene', '--quality']);
+const valueOptions = new Set(['--video', '--out', '--wps', '--audio', '--transcript', '--scene', '--quality']);
 const flagOptions = new Set(['--force', '--check', '--single-file', '--film', '--stop', '--status']);
 const options = new Map<string, string>();
 const flags = new Set<string>();
@@ -189,12 +190,31 @@ function reportScope(story: Story, timing: Timing, view: PreparedSceneProject) {
   return report(`Scope: scene${sceneIds.length === 1 ? '' : 's'} ${sceneIds.join(',')} — ${titles} (${view.start}–${view.start + view.duration}s)`);
 }
 
+function renderOutput(story: Story, sceneIds: string[]): string {
+  return resolve(option('--out') ?? join('renders', `${story.id}-${sceneIds.length ? sceneIds.join('--') : 'full'}.mp4`));
+}
+
+async function chapters() {
+  checkScopeFlags();
+  const video = option('--video');
+  if (!video) return fail(['chapters requires --video <file.mp4>']);
+  if (option('--out') !== undefined) return fail(['chapters refreshes --video in place; omit --out']);
+  const validation = await validateProject(project);
+  if (!validation.valid) return fail(validation.errors);
+  const { story, timing } = validation;
+  const sceneIds = option('--scene')?.split(',').map(id => id.trim()) ?? [];
+  const entries = sceneChapters(story, timing, sceneIds);
+  await writeMp4Chapters(resolve(video), entries, story.canvas.fps);
+  report(`Refreshed ${entries.length} chapters in ${resolve(video)}`);
+  for (const entry of entries) report(`${entry.start.toFixed(3)}s\t${entry.title}`);
+}
+
 async function forwardedArguments(mode: PlaybackMode, story: Story, view: PreparedSceneProject, quality: string): Promise<string[]> {
   switch (mode) {
     case 'preview':
       return ['preview', view.directory, ...(flag('--stop') ? ['--stop'] : flag('--status') ? ['--status'] : ['--background', '--no-open'])];
     case 'render': {
-      const out = resolve(option('--out') ?? join('renders', `${story.id}-${view.sceneIds.length ? view.sceneIds.join('--') : 'full'}.mp4`));
+      const out = renderOutput(story, view.sceneIds);
       await mkdir(dirname(out), { recursive: true });
       report(`Rendering ${quality} to ${out}`);
       return ['render', view.directory, '--quality', quality, '--no-browser-gpu', '--workers', '1', '--fps', String(story.canvas.fps), '--output', out];
@@ -218,7 +238,15 @@ async function playback(mode: PlaybackMode) {
   const sceneIds = await playbackSceneIds(story);
   const view = sceneIds.length ? await prepareSceneProject(project, sceneIds) : { directory: project, start: 0, duration: timing.duration, sceneIds };
   reportScope(story, timing, view);
+  const entries = mode === 'render' ? sceneChapters(story, timing, sceneIds) : [];
   process.exitCode = await runHyperframes(await forwardedArguments(mode, story, view, quality));
+  if (mode === 'render' && process.exitCode === 0) {
+    const output = renderOutput(story, sceneIds);
+    if (extname(output).toLowerCase() === '.mp4') {
+      await writeMp4Chapters(output, entries, story.canvas.fps);
+      report(`Added ${entries.length} scene chapters to ${output}`);
+    }
+  }
 }
 
 async function validate() {
@@ -276,6 +304,9 @@ async function main() {
       break;
     case 'render':
       await playback('render');
+      break;
+    case 'chapters':
+      await chapters();
       break;
     case 'narration':
       await narration();

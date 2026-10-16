@@ -4,7 +4,7 @@ import { parseHTML } from 'linkedom';
 import { assembleIndex } from './assemble.ts';
 import { audioDuration } from './hyperframes.ts';
 import { checkTiming } from './schemas.ts';
-import { sceneRange, storyCompositions, storyScenes } from './story.ts';
+import { selectScenes, storyCompositions, type SceneSelection } from './story.ts';
 import { loadStory, validateStoryTiming } from './validate.ts';
 import type { Story, Timing } from './types.ts';
 
@@ -57,13 +57,6 @@ async function refreshSources(project: string, directory: string): Promise<void>
 type Page = ReturnType<typeof parseHTML>['document'];
 type PageElement = Page['documentElement'];
 
-interface SceneSelection {
-  start: number;
-  end: number;
-  duration: number;
-  compositionIds: Set<string>;
-}
-
 interface AudioClip {
   start: number;
   offset: number;
@@ -84,24 +77,6 @@ async function loadSource(project: string): Promise<{ story: Story; timing: Timi
   const errors = validateStoryTiming(story, timing);
   if (errors.length) throw new Error(errors.join('\n'));
   return { story, timing, sourceHTML };
-}
-
-function selectScenes(story: Story, timing: Timing, sceneIds: string[]): SceneSelection {
-  const scenes = storyScenes(story);
-  if (!sceneIds.length) throw new Error('scene selection must contain at least one scene id');
-  if (new Set(sceneIds).size !== sceneIds.length) throw new Error('scene selection contains duplicate scene ids');
-  const positions = sceneIds.map(id => {
-    const position = scenes.findIndex(scene => scene.id === id);
-    if (position < 0) throw new Error(`unknown scene "${id}"`);
-    return position;
-  });
-  if (positions.some((position, index) => index > 0 && position !== positions[index - 1] + 1)) throw new Error('scene selection must be consecutive scenes in story order');
-  const selected = positions.map(position => scenes[position]);
-  const ranges = selected.map(scene => sceneRange(scene, timing));
-  const start = Math.min(...ranges.map(range => range.start));
-  const end = Math.max(...ranges.map(range => range.start + range.duration));
-  const compositionIds = new Set(selected.flatMap(scene => scene.compositions.map(composition => composition.id)));
-  return { start, end, duration: end - start, compositionIds };
 }
 
 function assembledPage(sourceHTML: string, story: Story, timing: Timing): Page {
