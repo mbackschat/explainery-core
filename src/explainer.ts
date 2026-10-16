@@ -78,7 +78,11 @@ ${head}
       .explainer-tools button, .explainer-tools select { font: inherit; color: #fff; background: #202020; border: 1px solid #888; border-radius: 4px; padding: 8px; }
       .explainer-tools :focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
       .explainer-tools button[aria-pressed="true"] { background: #fff; color: #000; }
-      .explainer-caption { min-height: 2.6em; margin: 0; padding: 8px 16px; text-align: center; white-space: pre-line; font: 500 clamp(16px, 2vw, 24px)/1.3 sans-serif; }
+      .explainer-caption { display: grid; flex-shrink: 0; box-sizing: content-box; min-height: 2.6em; margin: 0; padding: 8px 16px; text-align: center; white-space: pre-line; font: 500 clamp(16px, 2vw, 24px)/1.3 sans-serif; }
+      .explainer-caption[hidden] { display: none; }
+      /* Overlapping invisible cues reserve the tallest wrapped cue at this width, preventing playback reflow. */
+      .explainer-caption > span { grid-area: 1 / 1; }
+      .explainer-caption-size { visibility: hidden; }
       .explainer-viewer:fullscreen { display: flex; flex-direction: column; justify-content: center; padding: 16px; box-sizing: border-box; }
       .explainer-viewer:fullscreen .explainer-film { flex: 1; min-height: 0; aspect-ratio: auto; }
       .explainer-status { margin: 0; padding: 0 12px; }
@@ -96,7 +100,10 @@ ${head}
       <h1>${escape(story.title)}</h1>
       <div class="explainer-viewer">
         <hyperframes-player class="explainer-film"${film ? ` ${film}` : ''} controls></hyperframes-player>
-${subtitles.length ? '        <p class="explainer-caption" hidden></p>\n' : ''}        <div class="explainer-tools">
+${subtitles.length ? `        <p class="explainer-caption" hidden>
+          <span class="explainer-caption-text"></span>
+${subtitles.map(cue => `          <span class="explainer-caption-size" aria-hidden="true">${escape(cue.text)}</span>`).join('\n')}
+        </p>\n` : ''}        <div class="explainer-tools">
           <label>Chapter <select class="explainer-chapters" aria-label="Chapters" disabled>
 ${chapters.map(chapter => `            <option value="${chapter.start}">${escape(chapter.title)}</option>`).join('\n')}
           </select></label>
@@ -116,6 +123,7 @@ ${boot}
       const subtitleCues = ${JSON.stringify(subtitles).replace(/</g, '\\u003c')};
       const cc = document.querySelector('.explainer-cc');
       const caption = document.querySelector('.explainer-caption');
+      const captionText = document.querySelector('.explainer-caption-text');
       let subtitlesEnabled = false;
       let currentChapter = -1;
       const updateControls = () => {
@@ -127,7 +135,7 @@ ${boot}
         }
         if (caption) {
           const text = subtitlesEnabled ? subtitleCues.filter(cue => cue.start <= time && time < cue.end).map(cue => cue.text).join('\\n') : '';
-          if (caption.textContent !== text) caption.textContent = text;
+          if (captionText.textContent !== text) captionText.textContent = text;
         }
       };
       const ready = () => { chapterMenu.disabled = false; updateControls(); };

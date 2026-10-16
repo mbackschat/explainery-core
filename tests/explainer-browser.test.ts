@@ -79,12 +79,25 @@ async function checkScenePlayer(url: string, project: string, { offline = false 
       await main.evaluate<void, number, Player>((player, time) => player.seek(time), time);
     };
     const captionIs = async (text: string) => {
-      await page.waitForFunction(text => (document.querySelector('.explainer-caption') as { textContent: string }).textContent === text, text, { timeout: 5000 });
+      await page.waitForFunction(text => (document.querySelector('.explainer-caption-text') as { textContent: string }).textContent === text, text, { timeout: 5000 });
     };
     await seekMain(1.5);
     await cc.focus();
     await page.keyboard.press('Space');
     await captionIs('Second <literal> & line\nContinued.');
+    const stableCaptionLayout = async () => {
+      const bounds = async () => Promise.all([main, caption, page.locator('.explainer-tools')].map(element => element.boundingBox()));
+      await seekMain(.25);
+      await captionIs('First.');
+      const oneLine = await bounds();
+      await seekMain(1.5);
+      await captionIs('Second <literal> & line\nContinued.');
+      assert.deepEqual(await bounds(), oneLine, 'two-line captions must not resize the video, caption area or controls');
+      await seekMain(.75);
+      await captionIs('');
+      assert.deepEqual(await bounds(), oneLine, 'subtitle gaps must keep the same layout');
+    };
+    await stableCaptionLayout();
     await seekMain(.75);
     await captionIs('');
     await seekMain(.25);
@@ -104,6 +117,7 @@ async function checkScenePlayer(url: string, project: string, { offline = false 
     await captionIs('First.');
     await page.getByRole('button', { name: 'Fullscreen', exact: true }).click();
     await page.waitForFunction(() => document.fullscreenElement?.className === 'explainer-viewer', null, { timeout: 5000 });
+    await stableCaptionLayout();
     assert.equal(await caption.isVisible(), true);
     assert.equal(await cc.isVisible(), true);
     assert.equal(await page.locator('.explainer-chapters').isVisible(), true);
@@ -115,6 +129,8 @@ async function checkScenePlayer(url: string, project: string, { offline = false 
     await page.setViewportSize({ width: 390, height: 844 });
     const menuBounds = await page.locator('.explainer-chapters').boundingBox();
     assert.ok(menuBounds && menuBounds.width >= 120, 'chapter titles remain readable on a narrow viewport');
+    await cc.click();
+    await stableCaptionLayout();
     assert.deepEqual(errors, []);
     assert.deepEqual(requests, [], 'no network requests');
   } finally {
@@ -123,7 +139,7 @@ async function checkScenePlayer(url: string, project: string, { offline = false 
 }
 
 test('the folder export supports scene scrubbing, chapter navigation and optional subtitles', { timeout: 120000 }, async () => {
-  const project = await fixtureProject('scene-runtime');
+  const project = await fixtureProject('scene-runtime', html => html.replace('</head>', '<link rel="stylesheet" href="node_modules/explainery-core/themes/dark/theme.css"></head>'));
   const out = join(project, 'explainer');
   const subtitles = await captionFile(project);
   await exportExplainer(project, out, { subtitles });
@@ -137,7 +153,7 @@ test('the folder export supports scene scrubbing, chapter navigation and optiona
 
 // The double-click case: a file:// page with no server, which must not fall back to the player's CDN runtime.
 test('the single-file export supports chapters and optional subtitles offline from file://', { timeout: 120000 }, async () => {
-  const project = await fixtureProject('scene-runtime');
+  const project = await fixtureProject('scene-runtime', html => html.replace('</head>', '<link rel="stylesheet" href="node_modules/explainery-core/themes/dark/theme.css"></head>'));
   const out = join(project, 'explainer.html');
   const subtitles = await captionFile(project);
   await exportExplainerFile(project, out, { subtitles });
