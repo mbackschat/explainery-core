@@ -3,11 +3,12 @@ import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { alignTiming, assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, exportExplainerFile, loadStory, sceneRange, silences, storyCompositions, storyScenes, transcribe, validateProject, validateStoryTiming, voicedText, type PreparedSceneProject, type Story, type Timing, type TranscriptWord } from '../src/index.ts';
+import { subtitleCues, formatSubtitles } from '../src/subtitles.ts';
 import { clearFocus, readFocus, writeFocus } from '../src/focus.ts';
 import { hyperframesDist } from '../src/hyperframes.ts';
 import { prepareSceneProject } from '../src/scene-project.ts';
 
-const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --film] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --film] [--quality draft|looks|delivery] [--out <file>]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>]\n       explainery export [project-dir] --single-file [--out <file.html>]';
+const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --film] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --film] [--quality draft|looks|delivery] [--out <file>]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>]\n       explainery export [project-dir] --single-file [--out <file.html>]';
 const args = process.argv.slice(2);
 const valueOptions = new Set(['--out', '--wps', '--audio', '--transcript', '--scene', '--quality']);
 const flagOptions = new Set(['--force', '--check', '--single-file', '--film', '--stop', '--status']);
@@ -109,6 +110,24 @@ async function align({ audio, transcript, force }: { audio: string | undefined; 
   await writeTiming(file, timing);
   const count = story.value.scenes.length;
   return report(`Aligned ${count} ${count === 1 ? 'scene' : 'scenes'} to ${track}, ${timing.duration}s, into timing.json; run explainery assemble`);
+}
+
+async function subtitles() {
+  if (option('--scene') !== undefined || flag('--film')) return fail(['subtitles always use the full-film clock; omit --scene and --film']);
+  const loaded = await loadStory(project);
+  if (!loaded.value) return fail(loaded.errors);
+  const timing = await currentTiming(join(project, 'timing.json'));
+  if (!timing || !Number.isFinite(timing.duration) || timing.duration! <= 0) return fail(['subtitles require timing.json with a positive film duration']);
+  const track = option('--audio') ?? timing.audio;
+  if (!track) return fail(['timing.json names no audio; pass --audio <file>']);
+  const transcript = option('--transcript');
+  const words: TranscriptWord[] = transcript ? JSON.parse(await readFile(resolve(transcript), 'utf8')) : await transcribe(project, track);
+  const cues = subtitleCues(loaded.value, words, { duration: timing.duration!, silences: await silences(project, track) });
+  const out = resolve(option('--out') ?? join('renders', `${loaded.value.id}-full`));
+  await mkdir(dirname(out), { recursive: true });
+  await writeFile(`${out}.srt`, formatSubtitles(cues, 'srt'));
+  await writeFile(`${out}.vtt`, formatSubtitles(cues, 'vtt'));
+  report(`Exported ${cues.length} subtitles to ${out}.srt and ${out}.vtt; review wording, line breaks and synchronization before delivery`);
 }
 
 async function narration() {
@@ -266,6 +285,9 @@ async function main() {
       break;
     case 'align':
       await align({ audio: option('--audio'), transcript: option('--transcript'), force: flag('--force') });
+      break;
+    case 'subtitles':
+      await subtitles();
       break;
     case 'validate':
       await validate();

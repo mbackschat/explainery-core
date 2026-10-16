@@ -10,6 +10,7 @@ This repository, `explainery-core`, is the framework. Each film lives in its own
 - Start a story: [project setup](#use-in-a-project).
 - Use shared agent skills: [choose skills for scene work](docs/authoring.md#use-hyperframes-skills-in-scene-work) and [Claude Code and Codex setup](#shared-authoring-skills).
 - Describe or revise a scene: [scene authoring guideline](docs/authoring.md), covering file ownership, visual beats, a story example, and review criteria.
+- Generate [optional SRT and WebVTT subtitles](#generate-optional-subtitles), or review the [background sound proposal](docs/proposals/background-sound.md).
 - Time narration: [estimate](#estimate-timing-before-a-voice-exists), [draft a voice](#draft-a-voice), or [align a recording](#align-timing-to-a-recorded-voice).
 - Author visuals: [write a scene](#write-a-scene) and [themes and components](#themes-and-components).
 - Check and watch the film: [validate](#validate-a-project), [assemble](#assemble-the-root-composition), and [preview and render](#preview-and-render).
@@ -188,6 +189,21 @@ pnpm exec explainery align --audio assets/narration.wav --transcript transcript.
 A beat falls where the word after its marker starts, or where the composition's last word ends when the marker closes the narration. The first composition starts at 0; each ends its `hold` after its last word, and the next starts its `overlap` earlier, including across editorial scene boundaries. Misheard words are tolerated, and a missed word gets a share of the gap between its neighbours. Whisper often drifts the words before a pause into the pause, so `align` also finds the pauses in the audio (FFmpeg's `silencedetect`: below -40 dB for at least 0.5 s) and fits the words that reach into one back to end where the pause begins. The command fails when fewer than three quarters of the narration words are found, or when a `hold` is longer than the pause before the next composition's narration.
 
 For another language or Whisper model, run `pnpm exec hyperframes transcribe assets/narration.wav --engine whisper --model large-v3 --language de` yourself and pass its `transcript.json`. The explicit engine makes the Whisper model choice take effect even when Parakeet is installed. Beats land on the spoken word, so anticipate a word in the composition's timeline with `beat('…') - 0.3` rather than by editing `timing.json`. `align` replaces an estimate or an earlier alignment, but refuses `imported` timing unless you pass `--force`.
+
+## Generate optional subtitles
+
+```bash
+pnpm exec explainery subtitles film-dir
+pnpm exec explainery subtitles film-dir --transcript transcript.json --out renders/my-film
+```
+
+This writes both `renders/<story-id>-full.srt` and `.vtt`, matching the default full-film render name. `--out` is a filename prefix, resolved from the working directory; extensions are added. SRT is a video sidecar and WebVTT is suitable for web text tracks. Both use the full-film clock regardless of scene focus. Scene-range subtitles, burned-in text, embedded MP4 tracks and subtitle controls in Studio or the explainer page are outside this command.
+
+The script supplies wording, with beat markers removed and without synthetic-voice pronunciation substitutions. Word timestamps come from the pinned local transcription tool or `--transcript` (a JSON array of `{ text, start, end }`, seconds from the start of the narration). `timing.json` must provide the film duration and normally its narration audio; `--audio` overrides the audio path relative to the project. FFmpeg detects speech pauses. The command writes only the two subtitle files, leaving timing, compositions and audio intact; it replaces existing sidecars at the chosen prefix.
+
+Cues follow composition boundaries, sentence endings and long pauses, with at most two 42-character lines and six seconds per cue. Recognition errors are matched back to the script, including split or merged words; unmatched words receive estimated positions between their neighbors. Review synchronization, reading speed and phrase breaks before delivery. Keep a reviewed transcript with the story if regeneration must be repeatable, and regenerate it after replacing the voice. Editing a sidecar is allowed, but regeneration overwrites those edits; keep SRT and WebVTT consistent.
+
+See [ADR 0005](docs/adr/0005-optional-subtitles.md) for the contract. Background music and dramatic effects are being considered separately in the [sound proposal](docs/proposals/background-sound.md).
 
 ## Validate a project
 

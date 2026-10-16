@@ -21,35 +21,66 @@ const MIN_MATCHED = 0.75;
 
 const normal = (word: string) => word.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 
-/** Pairs narration words with transcript words by longest common subsequence; unmatched entries stay -1. */
-function matchWords(narration: string[], transcript: string[]): number[] {
+interface WordMatch { start: number; end: number }
+
+/** Finds an equal lexical span even when recognition splits or merges whitespace-separated words. */
+function matchingSpan(narration: string[], transcript: string[], i: number, j: number): [number, number] | undefined {
+  let endI = i + 1;
+  let endJ = j + 1;
+  let left = narration[i];
+  let right = transcript[j];
+  if (!left || !right) return undefined;
+  while (left !== right) {
+    if (left.startsWith(right) && endJ < transcript.length) right += transcript[endJ++];
+    else if (right.startsWith(left) && endI < narration.length) left += narration[endI++];
+    else return undefined;
+  }
+  return [endI, endJ];
+}
+
+/** Pairs script words with transcript spans; lexical length supplies sub-word positions for merged tokens. */
+function matchWords(narration: string[], transcript: TranscriptWord[]): Array<WordMatch | undefined> {
+  const normalized = transcript.map(word => normal(word.text));
   const n = narration.length;
   const m = transcript.length;
   const lengths = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
-      lengths[i][j] = narration[i] === transcript[j] ? lengths[i + 1][j + 1] + 1 : Math.max(lengths[i + 1][j], lengths[i][j + 1]);
+      const span = matchingSpan(narration, normalized, i, j);
+      const score = span ? span[0] - i + lengths[span[0]][span[1]] : 0;
+      lengths[i][j] = Math.max(score, lengths[i + 1][j], lengths[i][j + 1]);
     }
   }
-  const matches = new Array<number>(n).fill(-1);
+  const matches = new Array<WordMatch | undefined>(n);
   for (let i = 0, j = 0; i < n && j < m;) {
-    if (narration[i] === transcript[j]) matches[i++] = j++;
-    else if (lengths[i + 1][j] >= lengths[i][j + 1]) i++;
+    const span = matchingSpan(narration, normalized, i, j);
+    if (span && span[0] - i + lengths[span[0]][span[1]] === lengths[i][j]) {
+      const [endI, endJ] = span;
+      const start = transcript[j].start;
+      const duration = transcript[endJ - 1].end - start;
+      const total = narration.slice(i, endI).join('').length;
+      let offset = 0;
+      for (; i < endI; i++) {
+        matches[i] = { start: start + duration * offset / total, end: start + duration * (offset + narration[i].length) / total };
+        offset += narration[i].length;
+      }
+      j = endJ;
+    } else if (lengths[i + 1][j] >= lengths[i][j + 1]) i++;
     else j++;
   }
   return matches;
 }
 
-/** Gives every narration word a time: its transcript word's, or a share of the gap between its matched neighbours. */
-function wordTimes(matches: number[], transcript: TranscriptWord[]): { start: number; end: number }[] {
-  return matches.map((match, index) => {
-    if (match >= 0) return transcript[match];
+/** Gives an unrecognized script word a share of the gap between recognized neighbours. */
+function wordTimes(matches: Array<WordMatch | undefined>): WordMatch[] {
+  return Array.from(matches, (match, index) => {
+    if (match) return match;
     let previous = index - 1;
-    while (previous >= 0 && matches[previous] < 0) previous--;
+    while (previous >= 0 && !matches[previous]) previous--;
     let next = index + 1;
-    while (next < matches.length && matches[next] < 0) next++;
-    const gapStart = previous >= 0 ? transcript[matches[previous]].end : next < matches.length ? transcript[matches[next]].start : 0;
-    const gapEnd = next < matches.length ? transcript[matches[next]].start : gapStart;
+    while (next < matches.length && !matches[next]) next++;
+    const gapStart = previous >= 0 ? matches[previous]!.end : next < matches.length ? matches[next]!.start : 0;
+    const gapEnd = next < matches.length ? matches[next]!.start : gapStart;
     const share = (gapEnd - gapStart) / (next - previous - 1);
     return { start: gapStart + share * (index - previous - 1), end: gapStart + share * (index - previous) };
   });
@@ -96,12 +127,7 @@ export function alignTiming(story: Story, transcript: TranscriptWord[], { audio,
   const compositions = storyCompositions(story);
   const parts = compositions.map(scene => spokenWords(scene.narration));
   const narration = parts.flatMap(part => part.words);
-  const matches = matchWords(narration.map(normal), transcript.map(word => normal(word.text)));
-  const matched = matches.filter(match => match >= 0).length;
-  if (matched < narration.length * MIN_MATCHED) {
-    throw new Error(`the transcript matches only ${matched} of ${narration.length} narration words; does the audio speak this story's narration?`);
-  }
-  const times = fitBeforePauses(wordTimes(matches, transcript), silences);
+  const times = alignNarrationWords(narration, transcript, silences);
 
   const scenes: Record<string, SceneTiming> = {};
   let start = 0;
@@ -126,4 +152,14 @@ export function alignTiming(story: Story, transcript: TranscriptWord[], { audio,
     start = round(end - overlap);
   });
   return { source: 'aligned', audio, ...(audioDuration === undefined ? {} : { audioDuration }), duration: end, scenes };
+}
+
+/** Shares script-word alignment between scene timing and subtitles, including pause correction. */
+export function alignNarrationWords(narration: string[], transcript: TranscriptWord[], silences: Silence[] = []): TranscriptWord[] {
+  const matches = matchWords(narration.map(normal), transcript);
+  const matched = matches.filter(Boolean).length;
+  if (matched < narration.length * MIN_MATCHED) {
+    throw new Error(`the transcript matches only ${matched} of ${narration.length} narration words; does the audio speak this story's narration?`);
+  }
+  return fitBeforePauses(wordTimes(matches), silences).map((time, index) => ({ ...time, text: narration[index] }));
 }

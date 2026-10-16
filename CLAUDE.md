@@ -31,6 +31,7 @@ Read the [README workflow](README.md#the-workflow-at-a-glance) for authoring com
 | --- | --- | --- |
 | Story or timing contract | [schemas](schemas/), [types](src/types.ts), [story model](src/story.ts), [validator](src/validate.ts) | [schema tests](tests/schemas.test.ts), [story tests](tests/story.test.ts), [validation tests](tests/validate.test.ts) |
 | Narration or timing generation | [narration](src/narration.ts), [estimate](src/estimate.ts), [alignment](src/align.ts), [HyperFrames adapter](src/hyperframes.ts) | [narration tests](tests/narration.test.ts), [estimate tests](tests/estimate.test.ts), [alignment tests](tests/align.test.ts) |
+| Optional subtitle sidecars | [subtitles](src/subtitles.ts), [shared word alignment](src/align.ts) | [subtitle tests](tests/subtitles.test.ts), [alignment tests](tests/align.test.ts) |
 | Root composition assembly | [assembler](src/assemble.ts) | [assembly tests](tests/assemble.test.ts) |
 | Composition behaviour or theme integration | [runtime source](runtime/scene.ts), [dark theme](themes/dark/), [components](components/) | [runtime tests](tests/scene-runtime.test.ts), [build guard](tests/runtime-build.test.ts), [HyperFrames fixtures](tests/hyperframes.test.ts), [SVG guard](tests/svg.test.ts) |
 | Explainer export | [page export](src/explainer.ts), [single-file export](src/explainer-file.ts), [file traversal](src/film-files.ts) | [export tests](tests/explainer.test.ts), [browser tests](tests/explainer-browser.test.ts), [file tests](tests/film-files.test.ts) |
