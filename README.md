@@ -198,7 +198,7 @@ pnpm exec explainery subtitles film-dir
 pnpm exec explainery subtitles film-dir --transcript transcript.json --out renders/my-film
 ```
 
-This writes both `renders/<story-id>-full.srt` and `.vtt`, matching the default full-film render name. `--out` is a filename prefix, resolved from the working directory; extensions are added. SRT is a video sidecar and WebVTT is suitable for web text tracks. Both use the full-film clock regardless of scene focus. Scene-range subtitles, burned-in text, embedded MP4 tracks and subtitle controls in Studio or the explainer page are outside this command.
+This writes both `renders/<story-id>-full.srt` and `.vtt`, matching the default full-film render name. `--out` is a filename prefix, resolved from the working directory; extensions are added. SRT is a video sidecar and WebVTT is suitable for web text tracks. Both use the full-film clock regardless of scene focus. Scene-range subtitles, burned-in text, embedded MP4 tracks and subtitle controls in Studio are outside this command. Supply a reviewed WebVTT file to the [HTML exporter](#html-chapters-and-subtitles) to add optional subtitles there.
 
 The script supplies wording, with beat markers removed and without synthetic-voice pronunciation substitutions. Word timestamps come from the pinned local transcription tool or `--transcript` (a JSON array of `{ text, start, end }`, seconds from the start of the narration). `timing.json` must provide the film duration and normally its narration audio; `--audio` overrides the audio path relative to the project. FFmpeg detects speech pauses. The command writes only the two subtitle files, leaving timing, compositions and audio intact; it replaces existing sidecars at the chosen prefix.
 
@@ -276,6 +276,23 @@ The export writes a static folder with three parts:
 
 Each scene player is the whole film limited to the scene's window with `range-start` and `range-end`, so no per-scene build is needed. It opens on the scene's middle frame, and a scrubber below it steps frame by frame within the scene. The page links the film's own stylesheets, so it inherits the theme. Serve the folder over http(s), for example with `pnpm dlx serve explainer`, which may download `serve`. Opened as a `file://` page, the player ignores the bundled runtime and fetches one from a CDN.
 
+## HTML chapters and subtitles
+
+Both HTML exports automatically give the main player a chapter menu derived from the same editorial titles and boundaries as [MP4 chapters](#mp4-scene-chapters). Choosing a chapter seeks to its entrance, preserving whether playback was running or paused. The menu follows the current scene during playback and scrubbing. The scene players below remain silent, with their own scrubbers and narration text.
+
+Include reviewed subtitles explicitly:
+
+```bash
+pnpm exec explainery export film-dir --out explainer --subtitles renders/my-film.vtt
+pnpm exec explainery export film-dir --single-file --out explainer.html --subtitles renders/my-film.vtt
+```
+
+`--subtitles` is a WebVTT file relative to the working directory. Its cues are embedded in the page, so the exported page needs no sidecar at playback time. Without that option there is no subtitle button. With it, **CC / Subtitles** toggles captions, initially off. Captions appear below the picture to keep diagrams unobscured and follow the player's actual clock through playback, pause, seeks and restart. The **Fullscreen** button includes the picture, chapters and subtitle controls where the browser supports fullscreen.
+
+Use the plain-text WebVTT produced by Explainery: a `WEBVTT` header, optional cue identifiers, ordered non-overlapping cue times within the film, and escaped plain text with line breaks. SRT, cue styling/positioning, markup and metadata blocks are not accepted as HTML subtitle inputs. Unsupported or malformed cues fail export before replacing its output. Subtitle generation and editorial review remain separate; export does not transcribe or guess a sidecar file.
+
+The [export APIs](src/export-subtitles.ts) accept an optional third argument `{ subtitles: "renders/my-film.vtt" }` with the same contract. See [ADR 0007](docs/adr/0007-html-playback-navigation.md) for the shared player behavior and verification.
+
 ## Export a single file to send
 
 ```bash
@@ -283,7 +300,7 @@ pnpm exec explainery export --single-file                  # writes ./explainer.
 pnpm exec explainery export --single-file --out film.html  # or any .html path
 ```
 
-This writes the same page as one HTML file that anyone can open by double-click, offline, with no web server and no developer tools. Send it by mail, chat, or a shared drive. The file embeds everything: the theme and its fonts, the HyperFrames player and runtime, and the film itself, bundled by HyperFrames into one document. The narration is the project's recorded audio file, converted to AAC (128 kbit/s) and embedded; nothing is synthesised in the browser. A film of about two minutes comes to roughly 7 MB.
+This writes the same page as one HTML file that anyone can open by double-click, offline, with no web server and no developer tools. Send it by mail, chat, or a shared drive. The file embeds everything, including chapter navigation and any supplied subtitles: the theme and its fonts, the HyperFrames player and runtime, and the film itself, bundled by HyperFrames into one document. The narration is the project's recorded audio file, converted to AAC (128 kbit/s) and embedded; nothing is synthesised in the browser. A film of about two minutes comes to roughly 7 MB.
 
 How it works: the film is embedded once, as a string each player receives as inline HTML (`srcdoc`). Because that HTML already contains the HyperFrames runtime, the player loads none from its CDN. Scene players receive the film only when they scroll into view. HyperFrames' bundler leaves a few things as file references, which the export embeds itself: the symbols of `<use href="sprite.svg#id">`, files behind symlinks such as `node_modules/explainery-core`, and files over the bundler's 2 MB limit. If any reference cannot be embedded, the export fails and names it, rather than writing a page that breaks later.
 

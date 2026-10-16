@@ -35,7 +35,7 @@ Read the [README workflow](README.md#the-workflow-at-a-glance) for authoring com
 | Optional subtitle sidecars | [subtitles](src/subtitles.ts), [shared word alignment](src/align.ts) | [subtitle tests](tests/subtitles.test.ts), [alignment tests](tests/align.test.ts) |
 | Root composition assembly | [assembler](src/assemble.ts) | [assembly tests](tests/assemble.test.ts) |
 | Composition behaviour or theme integration | [runtime source](runtime/scene.ts), [dark theme](themes/dark/), [components](components/) | [runtime tests](tests/scene-runtime.test.ts), [build guard](tests/runtime-build.test.ts), [HyperFrames fixtures](tests/hyperframes.test.ts), [SVG guard](tests/svg.test.ts) |
-| Explainer export | [page export](src/explainer.ts), [single-file export](src/explainer-file.ts), [file traversal](src/film-files.ts) | [export tests](tests/explainer.test.ts), [browser tests](tests/explainer-browser.test.ts), [file tests](tests/film-files.test.ts) |
+| Explainer export | [page export](src/explainer.ts), [single-file export](src/explainer-file.ts), [file traversal](src/film-files.ts), [HTML subtitle input](src/export-subtitles.ts) | [subtitle input tests](tests/export-subtitles.test.ts), [export tests](tests/explainer.test.ts), [browser tests](tests/explainer-browser.test.ts), [file tests](tests/film-files.test.ts) |
 
 Beat anchoring is an authoring convention, not a runtime restriction: compositions also use numeric starts, offsets, and tween durations. The runtime rejects missing beats and timelines longer than their composition; it does not automatically retime tweens or reflow changed copy. Do not describe replacing narration or wording as a guarantee that no composition edits are needed.
 

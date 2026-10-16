@@ -9,9 +9,9 @@ import { clearFocus, readFocus, writeFocus } from '../src/focus.ts';
 import { hyperframesDist } from '../src/hyperframes.ts';
 import { prepareSceneProject } from '../src/scene-project.ts';
 
-const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --film] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --film] [--quality draft|looks|delivery] [--out <file>]\n       explainery chapters [project-dir] --video <file.mp4> [--scene <id,...> | --film]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>]\n       explainery export [project-dir] --single-file [--out <file.html>]';
+const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --film] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --film] [--quality draft|looks|delivery] [--out <file>]\n       explainery chapters [project-dir] --video <file.mp4> [--scene <id,...> | --film]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>] [--subtitles <file.vtt>]\n       explainery export [project-dir] --single-file [--out <file.html>] [--subtitles <file.vtt>]';
 const args = process.argv.slice(2);
-const valueOptions = new Set(['--video', '--out', '--wps', '--audio', '--transcript', '--scene', '--quality']);
+const valueOptions = new Set(['--subtitles', '--video', '--out', '--wps', '--audio', '--transcript', '--scene', '--quality']);
 const flagOptions = new Set(['--force', '--check', '--single-file', '--film', '--stop', '--status']);
 const options = new Map<string, string>();
 const flags = new Set<string>();
@@ -273,7 +273,7 @@ async function assemble({ check }: { check: boolean }) {
 async function exportFile(out: string | undefined) {
   const target = resolve(out ?? join(project, 'explainer.html'));
   try {
-    const { scenes, bytes } = await exportExplainerFile(project, target);
+    const { scenes, bytes } = await exportExplainerFile(project, target, { subtitles: option('--subtitles') });
     return report(`Exported ${scenes} ${scenes === 1 ? 'scene' : 'scenes'} into ${target} (${(bytes / 1024 / 1024).toFixed(1)} MB); open it by double-click`);
   } catch (error) {
     return fail([(error as Error).message]);
@@ -283,7 +283,7 @@ async function exportFile(out: string | undefined) {
 async function exportPage(out: string | undefined) {
   const target = resolve(out ?? join(project, 'explainer'));
   try {
-    const { scenes, files } = await exportExplainer(project, target);
+    const { scenes, files } = await exportExplainer(project, target, { subtitles: option('--subtitles') });
     return report(`Exported ${scenes} ${scenes === 1 ? 'scene' : 'scenes'} and ${files} film files to ${target}; serve it over http, not file://`);
   } catch (error) {
     return fail([(error as Error).message]);

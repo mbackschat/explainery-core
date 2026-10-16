@@ -132,3 +132,33 @@ test('the export command writes the single file next to the project by default',
   assert.match(stdout, /Exported 1 scene into .*explainer\.html \([0-9.]+ MB\); open it by double-click/);
   assert.ok((await lstat(join(project, 'explainer.html'))).isFile());
 });
+
+test('the main player gets editorial chapter navigation and only supplied subtitles get a toggle', () => {
+  assert.match(page, /aria-label="Chapters"/);
+  assert.match(page, /<option value="0">Town Library<\/option>/);
+  assert.match(page, /<option value="8.2">It&#39;s &lt;yours&gt; &amp; ours<\/option>/);
+  assert.doesNotMatch(page, /class="explainer-cc"/);
+  const subtitled = explainerPage(story, timing, { stylesheets: [], subtitles: [{ start: 0, end: 1, text: '</script> & text' }] });
+  assert.match(subtitled, /class="explainer-cc"[^>]*aria-pressed="false"/);
+  assert.doesNotMatch(subtitled, /<\/script> & text/);
+});
+
+test('both export commands embed supplied subtitles and fail before replacing output on invalid input', async () => {
+  const project = await fixtureProject('scene-runtime');
+  const subtitles = join(project, 'captions.vtt');
+  await writeFile(subtitles, 'WEBVTT\n\n00:00.000 --> 00:01.000\nA &amp; B\n');
+  const cli = join(core, 'bin/explainery.ts');
+  for (const single of [false, true]) {
+    const out = join(project, single ? 'with-subtitles.html' : 'with-subtitles');
+    const args = [cli, 'export', project, '--out', out, '--subtitles', subtitles, ...(single ? ['--single-file'] : [])];
+    await promisify(execFile)(process.execPath, args, { timeout: 15000 });
+    const target = single ? out : join(out, 'index.html');
+    const original = await readFile(target, 'utf8');
+    assert.match(original, /class="explainer-cc"/);
+    assert.match(original, /"text":"A & B"/);
+    await writeFile(subtitles, 'broken');
+    await assert.rejects(promisify(execFile)(process.execPath, args, { timeout: 15000 }), /WebVTT/);
+    assert.equal(await readFile(target, 'utf8'), original);
+    await writeFile(subtitles, 'WEBVTT\n\n00:00.000 --> 00:01.000\nA &amp; B\n');
+  }
+});

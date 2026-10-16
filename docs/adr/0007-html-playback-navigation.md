@@ -1,0 +1,19 @@
+# 0007 HTML chapter navigation and optional subtitles
+
+Accepted 2026-10-16.
+
+## Decision
+
+The shared [explainer page](../../src/explainer.ts) supplies chapter navigation and optional subtitle playback for both the folder and single-file exports. Every film has a chapter menu derived by the same [editorial chapter function](../../src/chapters.ts) as MP4 output. Selecting a chapter preserves the playing or paused state. Existing silent scene players remain independent.
+
+Export accepts `--subtitles <file.vtt>` or the API option `{ subtitles: string }`, resolved from the caller's working directory. The [input reader](../../src/export-subtitles.ts) accepts Explainery's plain-text WebVTT subset, validates ordered non-overlapping cue ranges against the film duration, and decodes escaped text once. Invalid input fails before the output is replaced. Export does not generate subtitles or discover them implicitly: the caller chooses the reviewed file belonging to the narration.
+
+Cues are embedded as escaped JSON and displayed as text, never executable markup. This keeps folder and single-file behavior identical and allows offline playback without fetching a subtitle sidecar. The CC / Subtitles toggle appears only when cues are supplied and starts off on each page load. Captions occupy a separate area below the picture so they do not obscure diagrams. Fullscreen includes the main player, captions and controls; its button is available only when the browser supports the standard fullscreen API.
+
+The player owns time. The page reads `currentTime` on animation frames rather than maintaining a second clock. HyperFrames 0.8.142's `seek()` changes that property without always dispatching `timeupdate`, so polling also covers paused scrubs without patching the player or depending on its shadow controls. Cue intervals include their start and exclude their end; gaps clear the displayed text.
+
+## Scope and verification
+
+There is one optional subtitle track. Styled WebVTT, cue positioning, metadata blocks, SRT input, Studio controls and subtitles for the silent scene players are excluded. The existing [subtitle sidecar command](0005-optional-subtitles.md) remains independent of export.
+
+[Input tests](../../tests/export-subtitles.test.ts) and [export tests](../../tests/explainer.test.ts) cover cue fidelity, escaping, range validation, chapter markup, optional controls and CLI input handling. [Headless browser tests](../../tests/explainer-browser.test.ts) exercise the pinned player in both export formats: keyboard toggling, forward/backward paused seeks, cue gaps, playback/pause, chapter jumps, return from the end and fullscreen controls. The single-file test uses `file://` and blocks HTTP requests to prove playback needs no network.

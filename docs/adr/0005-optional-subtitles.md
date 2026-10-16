@@ -14,4 +14,6 @@ The [subtitle formatter](../../src/subtitles.ts) groups words at composition bou
 
 Stories can distribute subtitles without rerendering video or changing composition layout. Both output formats share text and cue timings. A retained, reviewed transcript permits reproducible generation; a replaced narration requires fresh alignment and review. Regeneration replaces the destination sidecars, including manual edits.
 
+The later [HTML playback decision](0007-html-playback-navigation.md) adds optional subtitle controls to both explainer exports using these WebVTT sidecars.
+
 Core owns the exporter and its tests. Stories own transcripts and subtitle deliveries. No story-specific names, pronunciation exceptions or media belong in the framework. [Tests](../../tests/subtitles.test.ts) guard text fidelity, lexical splits and merges, cue limits, pauses, serialization and CLI side effects.

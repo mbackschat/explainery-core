@@ -17,9 +17,9 @@ const run = promisify(execFile);
 const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.wav': 'audio/wav', '.png': 'image/png' };
 // The page callbacks run in the browser. The Node project has no DOM lib, so this module declares only the members
 // they use: HyperFrames' <hyperframes-player> element, the scrubber input, and document lookups.
-interface Player { ready: boolean; currentTime: number }
+interface Player { ready: boolean; currentTime: number; paused: boolean; seek(time: number): void; play(): void; pause(): void }
 interface Scrubber { value: string; dispatchEvent(event: Event): boolean }
-declare const document: { querySelectorAll(selector: string): Iterable<unknown>; getElementById(id: string): unknown };
+declare const document: { fullscreenElement: { className: string } | null; querySelector(selector: string): unknown; querySelectorAll(selector: string): Iterable<unknown>; getElementById(id: string): unknown };
 
 function serve(root: string): Promise<Server> {
   const server = createServer(async (request, response) => {
@@ -70,6 +70,51 @@ async function checkScenePlayer(url: string, project: string, { offline = false 
     assert.deepEqual(await centrePixel(await player.screenshot(), project), [0, 0, 0], 'before the beat');
     await scrubTo(1.5);
     assert.deepEqual(await centrePixel(await player.screenshot(), project), [255, 0, 0], 'after the beat');
+    const main = page.locator('.explainer-film');
+    const caption = page.locator('.explainer-caption');
+    const cc = page.getByRole('button', { name: 'Subtitles', exact: true });
+    assert.equal(await cc.getAttribute('aria-pressed'), 'false');
+    assert.equal(await caption.isVisible(), false);
+    const seekMain = async (time: number) => {
+      await main.evaluate<void, number, Player>((player, time) => player.seek(time), time);
+    };
+    const captionIs = async (text: string) => {
+      await page.waitForFunction(text => (document.querySelector('.explainer-caption') as { textContent: string }).textContent === text, text, { timeout: 5000 });
+    };
+    await seekMain(1.5);
+    await cc.focus();
+    await page.keyboard.press('Space');
+    await captionIs('Second <literal> & line\nContinued.');
+    await seekMain(.75);
+    await captionIs('');
+    await seekMain(.25);
+    await captionIs('First.');
+    await page.locator('.explainer-chapters').selectOption('0');
+    assert.equal(await main.evaluate<number, void, Player>(player => player.currentTime, undefined), 0);
+    await main.evaluate<void, void, Player>(player => player.play(), undefined);
+    await page.waitForFunction(() => (document.querySelector('.explainer-film') as Player).currentTime > 1.25, null, { timeout: 5000 });
+    await main.evaluate<void, void, Player>(player => player.pause(), undefined);
+    await captionIs('Second <literal> & line\nContinued.');
+    const paused = await main.evaluate<number, void, Player>(player => player.currentTime, undefined);
+    await page.waitForTimeout(200);
+    assert.equal(await main.evaluate<number, void, Player>(player => player.currentTime, undefined), paused);
+    await seekMain(2);
+    await captionIs('');
+    await page.locator('.explainer-chapters').selectOption('0');
+    await captionIs('First.');
+    await page.getByRole('button', { name: 'Fullscreen', exact: true }).click();
+    await page.waitForFunction(() => document.fullscreenElement?.className === 'explainer-viewer', null, { timeout: 5000 });
+    assert.equal(await caption.isVisible(), true);
+    assert.equal(await cc.isVisible(), true);
+    assert.equal(await page.locator('.explainer-chapters').isVisible(), true);
+    await cc.click();
+    assert.equal(await cc.getAttribute('aria-pressed'), 'false');
+    assert.equal(await caption.isVisible(), false);
+    await page.getByRole('button', { name: 'Exit fullscreen', exact: true }).click();
+    await page.waitForFunction(() => document.fullscreenElement === null, null, { timeout: 5000 });
+    await page.setViewportSize({ width: 390, height: 844 });
+    const menuBounds = await page.locator('.explainer-chapters').boundingBox();
+    assert.ok(menuBounds && menuBounds.width >= 120, 'chapter titles remain readable on a narrow viewport');
     assert.deepEqual(errors, []);
     assert.deepEqual(requests, [], 'no network requests');
   } finally {
@@ -77,10 +122,11 @@ async function checkScenePlayer(url: string, project: string, { offline = false 
   }
 }
 
-test('the exported page shows a scene through its own player, scrubbed within the scene', { timeout: 120000 }, async () => {
+test('the folder export supports scene scrubbing, chapter navigation and optional subtitles', { timeout: 120000 }, async () => {
   const project = await fixtureProject('scene-runtime');
   const out = join(project, 'explainer');
-  await exportExplainer(project, out);
+  const subtitles = await captionFile(project);
+  await exportExplainer(project, out, { subtitles });
   const server = await serve(out);
   try {
     await checkScenePlayer(`http://127.0.0.1:${(server.address() as AddressInfo).port}/index.html`, project);
@@ -90,9 +136,16 @@ test('the exported page shows a scene through its own player, scrubbed within th
 });
 
 // The double-click case: a file:// page with no server, which must not fall back to the player's CDN runtime.
-test('the single-file page plays from file:// without a server', { timeout: 120000 }, async () => {
+test('the single-file export supports chapters and optional subtitles offline from file://', { timeout: 120000 }, async () => {
   const project = await fixtureProject('scene-runtime');
   const out = join(project, 'explainer.html');
-  await exportExplainerFile(project, out);
+  const subtitles = await captionFile(project);
+  await exportExplainerFile(project, out, { subtitles });
   await checkScenePlayer(pathToFileURL(out).href, project, { offline: true });
 });
+
+async function captionFile(project: string): Promise<string> {
+  const file = join(project, 'captions.vtt');
+  await writeFile(file, 'WEBVTT\n\n00:00.000 --> 00:00.500\nFirst.\n\n00:01.000 --> 00:01.900\nSecond &lt;literal&gt; &amp; line\nContinued.\n');
+  return file;
+}

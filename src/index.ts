@@ -13,3 +13,4 @@ export type { Composition, Copy, Scene, SceneTiming, Story, Timing } from './typ
 export { loadStory, validateProject, validateStoryTiming, type ProjectValidation } from './validate.ts';
 export { subtitleCues, formatSubtitles, type SubtitleCue, type SubtitleFormat } from './subtitles.ts';
 export { sceneChapters, writeMp4Chapters, type Chapter } from './chapters.ts';
+export type { ExplainerExportOptions } from './export-subtitles.ts';

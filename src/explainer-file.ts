@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
+import { exportSubtitles, type ExplainerExportOptions } from './export-subtitles.ts';
 import { renderExplainerPage, stylesheetsOf } from './explainer.ts';
 import { hyperframesDist } from './hyperframes.ts';
 import { validateProject } from './validate.ts';
@@ -134,10 +135,11 @@ async function selfContainedFilm(projectDir: string, work: string): Promise<stri
  * its own). Scene players receive the film only when they scroll into view, so the browser never runs every copy at
  * once.
  */
-export async function exportExplainerFile(projectDir: string, outFile: string): Promise<{ bytes: number; scenes: number }> {
+export async function exportExplainerFile(projectDir: string, outFile: string, options: ExplainerExportOptions = {}): Promise<{ bytes: number; scenes: number }> {
   const validation = await validateProject(projectDir);
   if (!validation.valid) throw new Error(`The project does not validate:\n${validation.errors.join('\n')}`);
   const { story, timing } = validation;
+  const subtitles = await exportSubtitles(options, timing.duration);
   const work = await mkdtemp(join(tmpdir(), 'explainery-file-'));
   try {
     const film = await selfContainedFilm(projectDir, work);
@@ -155,7 +157,7 @@ export async function exportExplainerFile(projectDir: string, outFile: string): 
         for (const entry of entries) if (entry.isIntersecting) { load(entry.target); scenes.unobserve(entry.target); }
       }, { rootMargin: '200px' });
       for (const player of document.querySelectorAll('.explainer-stage-player')) scenes.observe(player);`;
-    const page = renderExplainerPage(story, timing, { head: [...styles, `    <script>${scriptText(player)}</script>`].join('\n'), film: '', boot });
+    const page = renderExplainerPage(story, timing, { head: [...styles, `    <script>${scriptText(player)}</script>`].join('\n'), film: '', boot, subtitles });
     await writeFile(outFile, page);
     return { bytes: Buffer.byteLength(page), scenes: storyScenes(story).length };
   } finally {
