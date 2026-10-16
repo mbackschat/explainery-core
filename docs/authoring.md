@@ -8,6 +8,7 @@ Author one editorial scene at a time, using one or more self-contained HTML comp
 - [Understand the concepts](#concepts) and [timing](#timing-and-playback).
 - [Find the owning file](#where-a-scene-is-described) and [write a scene description](#write-a-useful-scene-description).
 - [Declare a scene](#declare-the-scene), [select and preview it](#select-and-preview-a-scene), and [check a revision](#revise-and-check-a-scene).
+- [Prepare pronunciation and voice direction](#pronunciation-and-voice-direction), using the [glossary template](templates/pronunciation.md).
 
 ## Research and review a film proposal
 
@@ -108,6 +109,7 @@ Direct, forward, and backward seeks to the same timestamp must produce the same 
 | Composition starts, durations, and local beat seconds | The film's `timing.json`, following the [timing schema](../schemas/timing.schema.json). Scene ranges are derived from these values. |
 | Actual diagrams, diagram labels, layout, and motion | `compositions/<composition-id>.html` and its linked assets. `defineScene` operates on a composition despite its historical name. |
 | Shared visual language | The story's design guide and theme overlay. |
+| Pronunciation decisions, voice direction, and listening evidence | A glossary in the story repository, or its explicitly chosen domain owner; link it from the story README. Executable draft-voice substitutions belong in `story.yaml`'s `pronunciations`. |
 | Root placement and shared layers | The film's `index.html`; assembly refreshes its story copy and timing attributes. |
 
 The visual plan records intent; the composition determines what renders. When they disagree, inspect the implementation and evidence before deciding which to change. Link to executable copy and timing rather than maintaining duplicate transcripts or cue-second tables in the plan. Reference-video observations may retain source-global timestamps, clearly labelled as evidence rather than executable timing.
@@ -198,3 +200,24 @@ See the [composition implementation walkthrough](../README.md#write-a-scene) for
 `explainery preview <project-dir> --narration` adds script captions to the disposable preview. The overlay follows the selected scene clock and survives forward/backward seeks. Wording stays in `story.yaml`; cue timing is an approximation between beat anchors, with the authored hold excluded. The overlay identifies itself as draft narration with estimated timing, even when the scene timing was imported or voice-aligned.
 
 This mode does not change composition sources, timing, rendered video or exports. Rerun preview after script changes; render prepares a clean view without the overlay. For the whole film, use `--film --narration`, including when checking status or stopping its preview. See [the decision and limits](adr/0008-preview-narration.md).
+
+## Pronunciation and voice direction
+
+Keep a reusable glossary of spoken forms before recording or generating narration. Start from the [pronunciation template](templates/pronunciation.md) in the story repository, or link to an existing domain-owned glossary when the user chooses that owner. Keep one authoritative entry per term; record only film-specific overrides locally. Project terms, names and readings belong outside this public framework. The glossary records decisions and evidence, not another copy of the script.
+
+Record the narration language and locale, narrator or synthetic voice, and intended delivery: conversational or formal, pace, emphasis and pauses. Mark each term's reading **confirmed** when the user or a cited authoritative source settles it; otherwise mark it **proposed**, with a recommendation and its reason. Preserve who or what established the reading and when. A confirmed reading is not evidence that a particular voice pronounced it correctly; listening verification is a separate record.
+
+Keep canonical spelling in `story.yaml` narration, diagram labels, captions and exported text. Record a separate spoken form for pronunciation, including how to read letter names, numbers and punctuation where they matter. Apply these policies consistently:
+
+- **Acronyms and abbreviations:** decide whether to spell the letters, say a word, or expand the phrase. Do not infer the preferred reading from capitalization alone; letter names can depend on locale.
+- **Code identifiers:** preserve their case and separators in writing. Record how their parts are spoken; do not assume CamelCase or a hyphen reliably creates the intended pronunciation or pause. Read syntax aloud only when the explanation needs that syntax.
+- **Filenames, paths and commands:** prefer a short descriptive reference in narration when the exact spelling is already visible. If an exact string must be spoken, specify treatment of extensions, separators, flags and numbers in the glossary.
+- **Names and unfamiliar terms:** use the owner's preference or a cited pronunciation source when available. Keep an inferred reading proposed until it is settled; resolve material ambiguity with a recommendation rather than silently choosing a new convention.
+
+For the existing synthetic-draft path, put confirmed substitutions in the story's `pronunciations` mapping and generate input with `explainery narration`; see [draft a voice](../README.md#draft-a-voice). Matching is case-sensitive, with no adjacent letter or digit, and longer keys take precedence. Check the emitted input, including plurals, compounds and punctuation, rather than assuming a mapping covers every occurrence. The [narration implementation](../src/narration.ts) applies those spellings only to voice input; reader-facing text and alignment retain the canonical words. A glossary entry alone changes no audio.
+
+Use an engine's pronunciation lexicon, phoneme notation, alias or speech markup only after verifying that the selected engine and version support it. Record the mechanism and settings alongside the listening evidence. Do not put unsupported engine syntax into canonical narration or assume another voice will honor the same spelling. If the available path cannot express the intended reading, retain that limitation and choose a supported voice-input treatment or a human recording within the task's authorized scope. Voice preparation follows the project's local-media constraints.
+
+Before producing the full voice, make and listen to a short representative sample containing the difficult terms in ordinary sentences. Check pronunciation, intelligibility, pace, pauses and transitions between technical and ordinary language. Record the sample, voice/settings, date and findings; a phoneme inspection can help diagnose a problem but does not replace listening. Apply the project's existing review or approval requirements, and do not label an unheard sample verified.
+
+After the accepted reading or voice changes, regenerate or rerecord the affected audio, then [align timing to the actual recording](../README.md#align-timing-to-a-recorded-voice) and assemble the film. Inspect alignment near substituted terms: a spoken expansion may tokenize differently from its canonical identifier. Recheck beat placement, tween bounds, readable holds and adjacent joins; alignment does not resize animation or reflow text. Refresh transcripts and subtitles when the audio changes. Silent preview and estimated timing cannot verify pronunciation or final voice pacing.

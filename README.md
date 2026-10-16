@@ -13,6 +13,7 @@ This repository, `explainery-core`, is the framework. Each film lives in its own
 - Navigate MP4s with [automatic scene chapters](#mp4-scene-chapters), or refresh chapters in an existing render.
 - Generate [optional SRT and WebVTT subtitles](#generate-optional-subtitles), or review the [background sound proposal](docs/proposals/background-sound.md).
 - Time narration: [estimate](#estimate-timing-before-a-voice-exists), [draft a voice](#draft-a-voice), or [align a recording](#align-timing-to-a-recorded-voice).
+- Prepare pronunciation: [voice and glossary guidance](docs/authoring.md#pronunciation-and-voice-direction) and a [reusable glossary template](docs/templates/pronunciation.md).
 - Author visuals: [write a scene](#write-a-scene) and [themes and components](#themes-and-components).
 - Check and watch the film: [validate](#validate-a-project), [assemble](#assemble-the-root-composition), and [preview and render](#preview-and-render).
 - Share the page: [static folder](#export-the-explainer-page) or [single file](#export-a-single-file-to-send).
@@ -146,6 +147,8 @@ pnpm exec explainery estimate --wps 2.2  # a slower narrator
 `estimate` gives each composition the length of its spoken words plus its `hold`, and puts each beat after the words spoken before its marker. Compositions follow in story order, and a composition’s `overlap` starts the next one that much earlier. It writes `timing.json` with `source: estimate`, so scenes can be animated and previewed before any narration is recorded; run `explainery assemble` afterwards. It replaces an earlier estimate, but refuses to replace `aligned` or `imported` timing unless you pass `--force`, because those come from a real voice.
 
 ## Draft a voice
+
+Before generating a full voice, follow the [pronunciation and voice guidance](docs/authoring.md#pronunciation-and-voice-direction): record confirmed readings separately from proposals and listen to a representative sample. Keep project vocabulary in its own glossary; the [template](docs/templates/pronunciation.md) records decisions and listening evidence without duplicating the script.
 
 A recorded voiceover is the goal, but a local synthetic voice lets you hear and time a story first. `hyperframes tts` uses the local Kokoro model. HyperFrames 0.8.142 supports several languages and has no German option; `pnpm exec hyperframes tts --help` lists the voices and languages. The example below uses an American English voice. One-time setup on macOS with Homebrew under `/opt/homebrew`, and the Python packages in their own uv environment:
 
