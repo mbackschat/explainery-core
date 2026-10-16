@@ -1,13 +1,11 @@
 # Repository Guidelines
 
-## Author one scene at a time
+## Start with the task
 
-Use the [modular scene authoring workflow](docs/authoring.md#author-one-scene-at-a-time) as the default for film work. A scene is the editorial work unit; its composition HTML files are the modules the film root combines.
-
-- Resolve and persist the requested editorial scene with `focus`; keep subsequent edits, preview, and draft render within that scene until the user changes scope.
-- Keep each composition self-contained: its own elements, local beat clock, and seekable timeline, with explicit shared assets and theme dependencies. It must initialize correctly without a neighboring composition having run.
-- When adding a composition, declare it in the story and author its HTML file and matching root host. Update timing and run assembly; assembly fills existing hosts and does not create them.
-- Before completing a scene, verify it alone and with affected neighbors, then run film-wide validation and assembly checks. Review shared changes in every affected scene; use a full-film preview to check integration.
+- **Framework, CLI, or player:** start with the [implementation and guard map](#find-the-implementation-and-its-guard). Read design decisions when changing contracts; load composition skills or inspect scene focus only if authored scenes are involved.
+- **Scene or narration:** work in the story repository and follow [editorial scenes and session focus](#editorial-scenes-and-session-focus), then load the composition skills needed for that task.
+- **Research or proposal:** follow the [research and review guidance](docs/authoring.md#research-and-review-a-film-proposal); planning can cover the whole film.
+- **Documentation:** inspect the owning source and relevant links; code tests, scene setup, and renders are unnecessary for prose-only changes.
 
 ## Project Structure & Module Organization
 
@@ -41,13 +39,13 @@ Beat anchoring is an authoring convention, not a runtime restriction: compositio
 
 ## Editorial scenes and session focus
 
-Use the [scene authoring guideline](docs/authoring.md) when documenting or revising a scene. Keep visual intent and evidence in the story's scene descriptions, link them from its README, and keep executable copy and timing in their owning files.
+Author one editorial scene at a time using the [modular scene workflow](docs/authoring.md#author-one-scene-at-a-time): self-contained compositions, explicit shared dependencies, authored root hosts, and verification of the scene, its joins, and the full film. Assembly fills existing hosts; it does not create them. Review shared changes in every affected scene. Keep visual intent and evidence in the story's scene descriptions, link them from its README, and keep executable copy and timing in their owning files.
 
 Apply the [research and proposal guidance](docs/authoring.md#research-and-review-a-film-proposal) before implementation: preserve sources, evidence limits and editorial rationale in story-local notes, and prepare film proposals and scene briefs that an external reviewer can assess without chat context. Planning may cover the whole film; composition authoring remains one scene at a time. Keep decisions and unresolved questions resumable after context compaction.
 
 Read the [scene concepts](docs/authoring.md#concepts) and [editorial scene decision](docs/adr/0003-editorial-scenes.md). A scene is the human work unit; a composition is an executable HTML module within it. `defineScene` and `timing.scenes` retain their historical names but operate on compositions. Use `storyScenes(story)` for editorial operations, `storyCompositions(story)` for narration, alignment, assembly, and composition files, and `sceneRange(scene, timing)` for the derived editorial range.
 
-When a user says “work on <scene>”, resolve the ID or title, run `explainery focus <project-dir> --scene <name>`, and keep subsequent edits, previews, and renders within that scope. Read focus at session start. “Work on the full film” runs `focus --film`. Clarify ambiguous names with a recommended match; incidental mentions do not switch focus. Preview/render print and honor local focus, with `--scene`/`--film` as one-command overrides. Edit original sources, never `.explainery/scenes/` derivatives. The disposable scene view refreshes at each preview/render invocation; only dependencies are linked. Re-run preview after any source edit, including animation, assets, styles, copy, or timing. Shared assets can affect other scenes: explain that consequence when relevant. Full-project validation, timing generation, assembly, and explainer export ignore focus.
+When a user says “work on <scene>”, resolve the ID or title, run `explainery focus <project-dir> --scene <name>`, and keep subsequent edits, previews, and renders within that scope. Read focus when starting scene or narration work. “Work on the full film” runs `focus --film`. Clarify ambiguous names with a recommended match; incidental mentions do not switch focus. Preview/render print and honor local focus, with `--scene`/`--film` as one-command overrides. Edit original sources, never `.explainery/scenes/` derivatives. The disposable scene view refreshes at each preview/render invocation; only dependencies are linked. Re-run preview after any source edit, including animation, assets, styles, copy, or timing. Shared assets can affect other scenes: explain that consequence when relevant. Full-project validation, timing generation, assembly, and explainer export ignore focus.
 
 ## Build, Test, and Development Commands
 
@@ -83,9 +81,13 @@ Strict TypeScript ES modules (`.ts`) that Node runs by type stripping, so there 
 
 Use red/green TDD with `node:test`. Contract changes need a test that fails before the change. Behaviour that only HyperFrames can prove (variable delivery, scoping, rendering) is covered by fixture projects under `tests/fixtures/` driven through the pinned `hyperframes` CLI.
 
+Run focused regression checks while iterating, then the relevant complete suite before completing a code change. Repeat checks only after changes, failures, or unresolved evidence justify it. For browser-specific failures, reproduce and verify in the affected engine (for example WebKit for Safari), and retain a regression guard for the mechanism. Report any engine or environment that could not be verified; a passing check in another engine is not equivalent.
+
 ## Delegation
 
-Model tiers are symbolic (HIGH, MEDIUM, LOW). Resolve them through the tier table in your global instructions; without one, run HIGH on your most capable model, MEDIUM on a faster, cheaper one, and LOW on the smallest, and say which models you used. Contributors who want the maintainer's mapping can copy [Model tier mappings](https://github.com/mbackschat/coding-setup/blob/main/CLAUDE.md#model-tier-mappings) into their global instructions. Story repositories follow this section.
+Delegate independent, substantial subtasks or a fresh-context review when the benefit exceeds coordination and context-transfer costs. Keep short fixes, routine test commands, and small lookups in the main session. For a cold review, start a fresh agent without conversation history and provide the scope, files, and acceptance criteria; the reviewer should inspect the evidence independently.
+
+Model tiers are symbolic (HIGH, MEDIUM, LOW). Resolve them through the tier table in your global instructions; report missing mappings or unavailable configurations rather than silently substituting. If delegation is unavailable, continue locally where possible and report that limitation. Report the model and effort used for delegated work. Contributors who want the maintainer's mapping can copy [Model tier mappings](https://github.com/mbackschat/coding-setup/blob/main/CLAUDE.md#model-tier-mappings) into their global instructions. Story repositories follow this section.
 
 Choose the tier by what decides the outcome, not by the size of the task:
 
@@ -99,4 +101,4 @@ When a task fits two rows, choose the higher tier. Every delegated task names it
 
 ## Commit & Pull Request Guidelines
 
-Follow Conventional Commits, for example `feat(runtime): anchor scene tweens to narration beats`. Add a concise rationale when the subject and diff cannot explain a decision. Commit without asking after each completed feature and at each checkpoint once its tests or oracle pass; never commit unverified or unrelated work. Do not push without authorization. A change that also touches a project is committed separately in each repository, framework first.
+Follow Conventional Commits, for example `feat(runtime): anchor scene tweens to narration beats`. Add a concise rationale when the subject and diff cannot explain a decision. Commit without asking after each completed feature or meaningful checkpoint once its tests or oracle pass; never commit unverified or unrelated work. The global `F:` / `Fix:` rule takes precedence: leave small fixes for a grouped commit and propose that commit; commit a fix separately when it deserves its own coherent, independently reviewable change. Explicit requests to defer commits take precedence. Do not push without authorization. A change that also touches a project is committed separately in each repository, framework first.
