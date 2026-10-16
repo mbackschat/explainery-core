@@ -2,6 +2,7 @@ import { cp, lstat, mkdir, readFile, readdir, readlink, rm, stat, symlink, write
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { parseHTML } from 'linkedom';
 import { assembleIndex } from './assemble.ts';
+import { addPreviewNarration } from './preview-narration.ts';
 import { audioDuration } from './hyperframes.ts';
 import { checkTiming } from './schemas.ts';
 import { selectScenes, storyCompositions, type SceneSelection } from './story.ts';
@@ -160,18 +161,25 @@ async function retimeAudio(document: Page, project: string, selection: SceneSele
  * rewritten. Runtime files are independent copies refreshed on every invocation, including animation/style
  * edits; node_modules keeps the project's normal dependency link. Audio is intersected with both the selected
  * range and the actual media tail, preserving source offsets. Authoring stays in the source project.
+ * Optional narration adds estimated script captions only to this disposable view; an empty selection in that
+ * mode previews the full film, including leading and trailing gaps.
  */
-export async function prepareSceneProject(projectDir: string, sceneIds: string[]): Promise<PreparedSceneProject> {
+export async function prepareSceneProject(projectDir: string, sceneIds: string[], { narration = false }: { narration?: boolean } = {}): Promise<PreparedSceneProject> {
   const project = resolve(projectDir);
   const { story, timing, sourceHTML } = await loadSource(project);
-  const selection = selectScenes(story, timing, sceneIds);
+  const selection = !sceneIds.length && narration
+    ? { start: 0, end: timing.duration, duration: timing.duration, compositionIds: new Set(storyCompositions(story).map(part => part.id)) }
+    : selectScenes(story, timing, sceneIds);
   const document = assembledPage(sourceHTML, story, timing);
   retimeRoot(document, selection);
   retimeHosts(document, story, timing, selection);
   retimeSharedElements(document, selection);
   await retimeAudio(document, project, selection);
 
-  const directory = join(project, '.explainery', 'scenes', `${story.id}--${sceneIds.join('--')}`);
+  if (narration) addPreviewNarration(document, story, timing, selection);
+  const directory = sceneIds.length
+    ? join(project, '.explainery', 'scenes', `${story.id}--${sceneIds.join('--')}`)
+    : join(project, '.explainery', 'preview', `${story.id}--full`);
   await refreshSources(project, directory);
   await writeFile(join(directory, 'index.html'), document.toString());
   return { directory, start: selection.start, duration: selection.duration, sceneIds: [...sceneIds] };

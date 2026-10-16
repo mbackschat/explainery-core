@@ -192,3 +192,9 @@ These commands do not infer semantic boundaries or orchestrate separately encode
 5. Use the story's visual verification workflow to compare the result with the plan or reference evidence. Validation proves structural consistency; it does not prove visual fidelity, legibility, or claim accuracy.
 
 See the [composition implementation walkthrough](../README.md#write-a-scene) for HTML and runtime wiring, and [preview and render](../README.md#preview-and-render) for command details.
+
+## Read narration in a silent preview
+
+`explainery preview <project-dir> --narration` adds script captions to the disposable preview. The overlay follows the selected scene clock and survives forward/backward seeks. Wording stays in `story.yaml`; cue timing is an approximation between beat anchors, with the authored hold excluded. The overlay identifies itself as draft narration with estimated timing, even when the scene timing was imported or voice-aligned.
+
+This mode does not change composition sources, timing, rendered video or exports. Rerun preview after script changes; render prepares a clean view without the overlay. For the whole film, use `--film --narration`, including when checking status or stopping its preview. See [the decision and limits](adr/0008-preview-narration.md).

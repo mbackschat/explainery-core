@@ -9,10 +9,10 @@ import { clearFocus, readFocus, writeFocus } from '../src/focus.ts';
 import { hyperframesDist } from '../src/hyperframes.ts';
 import { prepareSceneProject } from '../src/scene-project.ts';
 
-const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --film] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --film] [--quality draft|looks|delivery] [--out <file>]\n       explainery chapters [project-dir] --video <file.mp4> [--scene <id,...> | --film]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>] [--subtitles <file.vtt>]\n       explainery export [project-dir] --single-file [--out <file.html>] [--subtitles <file.vtt>]';
+const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --film] [--narration] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --film] [--quality draft|looks|delivery] [--out <file>]\n       explainery chapters [project-dir] --video <file.mp4> [--scene <id,...> | --film]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>] [--subtitles <file.vtt>]\n       explainery export [project-dir] --single-file [--out <file.html>] [--subtitles <file.vtt>]';
 const args = process.argv.slice(2);
 const valueOptions = new Set(['--subtitles', '--video', '--out', '--wps', '--audio', '--transcript', '--scene', '--quality']);
-const flagOptions = new Set(['--force', '--check', '--single-file', '--film', '--stop', '--status']);
+const flagOptions = new Set(['--force', '--check', '--single-file', '--film', '--stop', '--status', '--narration']);
 const options = new Map<string, string>();
 const flags = new Set<string>();
 const positionals: string[] = [];
@@ -166,6 +166,7 @@ type PlaybackMode = 'preview' | 'render';
 // Rejects unsupported flag combinations before any project work starts, and returns the render quality.
 function checkPlaybackFlags(mode: PlaybackMode): string {
   checkScopeFlags();
+  if (mode === 'render' && flag('--narration')) throw new Error('--narration applies only to preview');
   if (flag('--stop') && flag('--status')) throw new Error('Use either --stop or --status, not both');
   if (mode === 'render' && (flag('--stop') || flag('--status'))) throw new Error('--stop and --status apply only to preview');
   if (mode === 'preview' && (option('--quality') !== undefined || option('--out') !== undefined)) throw new Error('--quality and --out apply only to render');
@@ -236,7 +237,8 @@ async function playback(mode: PlaybackMode) {
   if (!validation.valid) return fail(validation.errors);
   const { story, timing } = validation;
   const sceneIds = await playbackSceneIds(story);
-  const view = sceneIds.length ? await prepareSceneProject(project, sceneIds) : { directory: project, start: 0, duration: timing.duration, sceneIds };
+  const narration = mode === 'preview' && flag('--narration');
+  const view = sceneIds.length || narration ? await prepareSceneProject(project, sceneIds, { narration }) : { directory: project, start: 0, duration: timing.duration, sceneIds };
   reportScope(story, timing, view);
   const entries = mode === 'render' ? sceneChapters(story, timing, sceneIds) : [];
   process.exitCode = await runHyperframes(await forwardedArguments(mode, story, view, quality));

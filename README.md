@@ -243,6 +243,8 @@ pnpm exec explainery preview --stop
 
 Open the Studio URL printed by `preview`; its default starting port is 3002. Explainery starts it in the background without opening a browser and honors the active focus. `--status` and `--stop` address that target's preview. Rendering uses one worker with software browser capture. Use `--film` to operate on the whole film regardless of focus; direct HyperFrames commands also bypass Explainery focus. The strict `check` above always audits the original full project.
 
+For a silent draft, use `pnpm exec explainery preview --narration` to show what the voice would say. This optional overlay takes wording from `story.yaml` and estimates cue times between existing beat markers, leaving authored holds empty. It follows scene focus and seeking, and is labelled “Draft narration · estimated timing”. It is created only in the disposable preview; renders and exports remain unchanged. For a full-film narration preview, include `--film --narration` on start, status and stop commands. These draft cues do not replace voice-aligned [subtitle sidecars](#generate-optional-subtitles); see [ADR 0008](docs/adr/0008-preview-narration.md).
+
 `validate` checks project files without executing scenes. `check` also runs the scene scripts and samples layout and motion; it catches unknown beats and timeline overruns that `lint` cannot. Use `--no-contrast` because accessibility auditing of produced animations is outside this project's scope. Browser capture and video encoding are separate: `--no-browser-gpu` forces software capture, while GPU encoding requires `--gpu`.
 
 ## MP4 scene chapters

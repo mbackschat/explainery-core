@@ -211,3 +211,26 @@ test('chapter refresh defaults to the full film despite focus and supports an ex
   assert.deepEqual(await readFile(file), original);
   assert.notEqual((await run(['chapters', project])).status, 0);
 });
+
+test('narration preview follows focus, never edits source, and is removed before render', async t => {
+  const { project, run } = await fixture(t);
+  const source = await readFile(join(project, 'index.html'), 'utf8');
+  await run(['focus', project, '--scene', 'chapter']);
+  const preview = await run(['preview', project, '--narration']);
+  assert.equal(preview.status, 0, preview.stderr);
+  const prepared = await readFile(join(preview.argv![1], 'index.html'), 'utf8');
+  assert.match(prepared, /data-preview-narration/);
+  assert.match(prepared, /Draft narration/);
+  assert.doesNotMatch(prepared, /\{move\}/);
+  assert.equal(await readFile(join(project, 'index.html'), 'utf8'), source);
+  const rendered = await run(['render', project]);
+  assert.equal(rendered.status, 0, rendered.stderr);
+  assert.doesNotMatch(await readFile(join(rendered.argv![1], 'index.html'), 'utf8'), /data-preview-narration/);
+  const rejected = await run(['render', project, '--narration']);
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /--narration applies only to preview/);
+  const full = await run(['preview', project, '--film', '--narration']);
+  assert.equal(full.status, 0, full.stderr);
+  assert.notEqual(full.argv![1], project);
+  assert.match(await readFile(join(full.argv![1], 'index.html'), 'utf8'), /data-preview-narration/);
+});
