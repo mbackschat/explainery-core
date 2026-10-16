@@ -3,10 +3,24 @@
 Author one editorial scene at a time, using one or more self-contained HTML compositions. The film root combines those modules through shared copy, timing, assets, and theme conventions. The [schemas](../schemas/), [types](../src/types.ts), and [CLI](../bin/explainery.ts) define the implemented contracts.
 
 - [Author one scene and integrate it](#author-one-scene-at-a-time).
+- [Research content and prepare a proposal for review](#research-and-review-a-film-proposal).
 - [Choose HyperFrames skills for the current task](#use-hyperframes-skills-in-scene-work).
 - [Understand the concepts](#concepts) and [timing](#timing-and-playback).
 - [Find the owning file](#where-a-scene-is-described) and [write a scene description](#write-a-useful-scene-description).
 - [Declare a scene](#declare-the-scene), [select and preview it](#select-and-preview-a-scene), and [check a revision](#revise-and-check-a-scene).
+
+## Research and review a film proposal
+
+Plan the film's argument before implementing its scenes. Research and proposals may span the whole film; the implementation workflow below still authors one scene at a time. Keep these records in the story repository and link them from its README so work survives context compaction and can be reviewed without the conversation.
+
+- **Brief and state:** preserve the user's required topics, audience and constraints; distinguish confirmed decisions from recommendations. Record open questions and the next concrete research step.
+- **Sources and claims:** for each material factual claim and meaningful visual relationship, link the exact document heading, code symbol/test, slide or timestamp that supports it. Record repository revision or source date and inspection scope. Distinguish source inspection, test assertions read, tests actually run, historical evidence, illustrative examples and planned behavior. Respect source-selection restrictions such as named speakers or excluded material.
+- **Editorial rationale:** explain why each scene, example, order and visual mechanism serves the viewer's understanding. Separate that judgment from evidence about the subject. Record material omissions and tradeoffs with their basis; do not invent reasons or repeat the same justification in several documents.
+- **Film proposal:** state the viewer's takeaway, scene sequence and joins, required/optional/excluded content, and any provisional audience, duration or language. Estimates are planning assumptions, not measured timings. Give reviewers one entry point to the scene briefs and evidence.
+- **Scene briefs:** describe the content to communicate and the visible starting state, change and settled state per beat; attach source references and rationale. Mark composition IDs as proposed until their files and story entries exist. Include questions a reviewer can answer from the evidence, not just requests for general impressions.
+- **Review record:** when external review is requested, prepare a self-contained review brief with reading order, scope, evidence boundaries and requested finding format. Record actual findings and dispositions when received. Preparation is not review approval, and a source-backed plan is not verified rendering. Do not contact a reviewer unless instructed to send it.
+
+Prefer concise claim IDs and links when several beats share evidence. Maintain one current statement of each decision; use research notes for discovery and unresolved discrepancies, the proposal for film-wide choices, and scene descriptions for their content. Proposed content summaries may live in briefs before implementation. Once narration and copy become executable, their owner is `story.yaml`; link to them rather than maintaining a second script. Resolve source disagreements explicitly or narrow the claim before using it.
 
 ## Author one scene at a time
 
@@ -106,6 +120,7 @@ Use the story's existing scene document or proposal. Give each editorial scene a
 
 - **Purpose:** the one idea the viewer should take away, and why this scene follows the previous one.
 - **Sources:** links to the claim's evidence or reference frames; distinguish observations, intended changes, and approximations.
+- **Rationale:** why the example and visual sequence explain the intended idea; link shared decisions from the film proposal instead of repeating them.
 - **Composition mapping:** ordered composition IDs with links to their HTML files; point to `story.yaml` for spoken and on-screen copy.
 - **Visual beats:** for each composition and beat ID, describe the visible starting state, what changes, and the settled state the viewer must be able to read. Name any diagram labels that matter to understanding the claim.
 - **Transitions:** what enters from the previous composition, what persists, and what remains at the handoff to the next one. Identify shared assets when a change affects other scenes.
