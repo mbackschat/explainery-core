@@ -12,6 +12,10 @@ Cues are embedded as escaped JSON and displayed as text, never executable markup
 
 The player owns time. The page reads `currentTime` on animation frames rather than maintaining a second clock. HyperFrames 0.8.142's `seek()` changes that property without always dispatching `timeupdate`, so polling also covers paused scrubs without patching the player or depending on its shadow controls. Cue intervals include their start and exclude their end; gaps clear the displayed text.
 
+## Output location
+
+The single-file CLI defaults to `renders/<story-id>-full.html` relative to the working directory, matching the MP4 and subtitle output convention. `--out` remains an explicit override. The exporter creates missing parent directories, and story repositories ignore `renders/*.html`. Earlier root-level files are not moved or removed automatically.
+
 ## Scope and verification
 
 There is one optional subtitle track. Styled WebVTT, cue positioning, metadata blocks, SRT input, Studio controls and subtitles for the silent scene players are excluded. The existing [subtitle sidecar command](0005-optional-subtitles.md) remains independent of export.

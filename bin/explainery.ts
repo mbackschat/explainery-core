@@ -271,8 +271,10 @@ async function assemble({ check }: { check: boolean }) {
 }
 
 async function exportFile(out: string | undefined) {
-  const target = resolve(out ?? join(project, 'explainer.html'));
   try {
+    const loaded = await loadStory(project);
+    if (!loaded.value) return fail(loaded.errors);
+    const target = resolve(out ?? join('renders', `${loaded.value.id}-full.html`));
     const { scenes, bytes } = await exportExplainerFile(project, target, { subtitles: option('--subtitles') });
     return report(`Exported ${scenes} ${scenes === 1 ? 'scene' : 'scenes'} into ${target} (${(bytes / 1024 / 1024).toFixed(1)} MB); open it by double-click`);
   } catch (error) {

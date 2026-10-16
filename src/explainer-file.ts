@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -158,6 +158,7 @@ export async function exportExplainerFile(projectDir: string, outFile: string, o
       }, { rootMargin: '200px' });
       for (const player of document.querySelectorAll('.explainer-stage-player')) scenes.observe(player);`;
     const page = renderExplainerPage(story, timing, { head: [...styles, `    <script>${scriptText(player)}</script>`].join('\n'), film: '', boot, subtitles });
+    await mkdir(dirname(outFile), { recursive: true });
     await writeFile(outFile, page);
     return { bytes: Buffer.byteLength(page), scenes: storyScenes(story).length };
   } finally {

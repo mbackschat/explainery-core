@@ -284,7 +284,7 @@ Include reviewed subtitles explicitly:
 
 ```bash
 pnpm exec explainery export film-dir --out explainer --subtitles renders/my-film.vtt
-pnpm exec explainery export film-dir --single-file --out explainer.html --subtitles renders/my-film.vtt
+pnpm exec explainery export film-dir --single-file --out renders/my-film.html --subtitles renders/my-film.vtt
 ```
 
 `--subtitles` is a WebVTT file relative to the working directory. Its cues are embedded in the page, so the exported page needs no sidecar at playback time. Without that option there is no subtitle button. With it, **CC / Subtitles** toggles captions, initially off. Captions appear below the picture to keep diagrams unobscured and follow the player's actual clock through playback, pause, seeks and restart. The **Fullscreen** button includes the picture, chapters and subtitle controls where the browser supports fullscreen.
@@ -296,9 +296,11 @@ The [export APIs](src/export-subtitles.ts) accept an optional third argument `{ 
 ## Export a single file to send
 
 ```bash
-pnpm exec explainery export --single-file                  # writes ./explainer.html
-pnpm exec explainery export --single-file --out film.html  # or any .html path
+pnpm exec explainery export --single-file                              # writes renders/<story-id>-full.html
+pnpm exec explainery export --single-file --out renders/my-film.html  # choose a delivery filename
 ```
+
+Single-file exports default to `renders/<story-id>-full.html` relative to the working directory, alongside the default MP4 and subtitle outputs, even when the source project is elsewhere. `--out` overrides the path; missing parent directories are created. Add `renders/*.html` to the story repository’s `.gitignore`.
 
 This writes the same page as one HTML file that anyone can open by double-click, offline, with no web server and no developer tools. Send it by mail, chat, or a shared drive. The file embeds everything, including chapter navigation and any supplied subtitles: the theme and its fonts, the HyperFrames player and runtime, and the film itself, bundled by HyperFrames into one document. The narration is the project's recorded audio file, converted to AAC (128 kbit/s) and embedded; nothing is synthesised in the browser. A film of about two minutes comes to roughly 7 MB.
 

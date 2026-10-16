@@ -125,12 +125,15 @@ test('the single-file export refuses a reference it cannot embed', async () => {
   await assert.rejects(exportExplainerFile(project, join(project, 'explainer.html')), /assets\/missing\.png/);
 });
 
-test('the export command writes the single file next to the project by default', async () => {
+test('the single-file command creates renders in the working directory, independently of the source project', async () => {
   const project = await fixtureProject('scene-runtime');
   const cli = join(core, 'bin/explainery.ts');
-  const { stdout } = await promisify(execFile)(process.execPath, [cli, 'export', project, '--single-file']);
-  assert.match(stdout, /Exported 1 scene into .*explainer\.html \([0-9.]+ MB\); open it by double-click/);
-  assert.ok((await lstat(join(project, 'explainer.html'))).isFile());
+  const cwd = join(project, 'delivery');
+  await mkdir(cwd);
+  const { stdout } = await promisify(execFile)(process.execPath, [cli, 'export', project, '--single-file'], { cwd });
+  assert.match(stdout, /renders.*scene-runtime-fixture-full\.html/);
+  assert.ok((await lstat(join(cwd, 'renders/scene-runtime-fixture-full.html'))).isFile());
+  await assert.rejects(lstat(join(project, 'explainer.html')), { code: 'ENOENT' });
 });
 
 test('the main player gets editorial chapter navigation and only supplied subtitles get a toggle', () => {
@@ -149,7 +152,7 @@ test('both export commands embed supplied subtitles and fail before replacing ou
   await writeFile(subtitles, 'WEBVTT\n\n00:00.000 --> 00:01.000\nA &amp; B\n');
   const cli = join(core, 'bin/explainery.ts');
   for (const single of [false, true]) {
-    const out = join(project, single ? 'with-subtitles.html' : 'with-subtitles');
+    const out = join(project, single ? 'custom/nested/with-subtitles.html' : 'with-subtitles');
     const args = [cli, 'export', project, '--out', out, '--subtitles', subtitles, ...(single ? ['--single-file'] : [])];
     await promisify(execFile)(process.execPath, args, { timeout: 15000 });
     const target = single ? out : join(out, 'index.html');
