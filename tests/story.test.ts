@@ -59,8 +59,8 @@ test('the explainer renders one section per editorial scene with its title, comb
   assert.equal(page.match(/<section class="explainer-scene"/g)?.length, 2);
   const chapter = page.match(/<section class="explainer-scene" id="chapter">[\s\S]*?<\/section>/)![0];
   assert.match(chapter, /range-start="0" range-end="6.5"/);
-  assert.match(chapter, /min="0" max="195" step="1" value="98"/);
-  assert.match(chapter, /<h2>A chapter &amp; its parts<\/h2>/);
+  assert.match(chapter, /min="0" max="195" step="1" value="0"/);
+  assert.match(chapter, /<h3>A chapter &amp; its parts<\/h3>/);
   assert.match(chapter, /<p class="explainer-narration">One two. Three four.<\/p>/);
   assert.doesNotMatch(page, /id="first-player"|id="second-player"|\{enter\}/);
 });

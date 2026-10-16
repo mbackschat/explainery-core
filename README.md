@@ -274,11 +274,13 @@ The export writes a static folder with three parts:
 - **`player/`:** HyperFrames' player and runtime (Apache-2.0).
 - **`film/`:** every file the root composition references, copied as real files.
 
-Each scene player is the whole film limited to the scene's window with `range-start` and `range-end`, so no per-scene build is needed. It opens on the scene's middle frame, and a scrubber below it steps frame by frame within the scene. The page links the film's own stylesheets, so it inherits the theme. Serve the folder over http(s), for example with `pnpm dlx serve explainer`, which may download `serve`. Opened as a `file://` page, the player ignores the bundled runtime and fetches one from a CDN.
+Each scene player is the whole film limited to the scene's window with `range-start` and `range-end`, so no per-scene build is needed. It opens at the scene's entrance, and a scrubber below it steps frame by frame within the scene. The page links the film's own stylesheets, so it inherits the theme. Serve the folder over http(s), for example with `pnpm dlx serve explainer`, which may download `serve`. Opened as a `file://` page, the player ignores the bundled runtime and fetches one from a CDN.
 
 ## HTML chapters and subtitles
 
-Both HTML exports automatically give the main player a chapter menu derived from the same editorial titles and boundaries as [MP4 chapters](#mp4-scene-chapters). Choosing a chapter seeks to its entrance, preserving whether playback was running or paused. The menu follows the current scene during playback and scrubbing. The scene players below remain silent, with their own scrubbers and narration text.
+Both HTML exports automatically give the main player a chapter menu derived from the same editorial titles and boundaries as [MP4 chapters](#mp4-scene-chapters). Choosing a chapter seeks to its entrance, preserving whether playback was running or paused. The menu follows the current scene during playback and scrubbing. The chapter selector stays compact, and the page begins with the player without a repeated visible film title. While playing, the chapter, subtitle, fullscreen and native playback/volume controls fade together after three idle seconds. Pointer movement, a tap or keyboard interaction reveals them; pause and playback end also reveal them. Controls stay visible while hovered, dragged or focused for keyboard use. The cursor hides with the controls, including over the animated film, and returns when activity reveals them. Hiding them preserves the layout and leaves enabled subtitles visible.
+
+A separator and **Individual scenes** heading introduce the silent scene players below, with compact title links that jump directly to each scene. Each scene starts paused at its entrance, with the slider at the left and elapsed time at zero. **Play scene** starts playback; clicking the picture also plays or pauses. A slim position slider and elapsed/total time follow playback, and **Replay scene** appears at the end. Dragging pauses at the chosen frame so the viewer can inspect it, then resume there. Narration remains available as text alongside.
 
 Include reviewed subtitles explicitly:
 

@@ -26,23 +26,37 @@ test('the page loads the film stylesheets so it shares the film theme', () => {
   assert.ok(page.indexOf('href="film/node_modules/explainery-core/themes/dark/theme.css"') < page.indexOf('href="film/theme/brand.css"'));
 });
 
+test('the page starts with the player without a repeated visible film title', () => {
+  assert.doesNotMatch(page, /<h1\b/);
+  assert.match(page, /<title>Demo &amp; Co<\/title>/);
+});
+
 test('the whole film plays at the top with its audio', () => {
   assert.match(page, /<hyperframes-player class="explainer-film" src="film\/index.html" runtime-src="player\/hyperframe.runtime.js" controls><\/hyperframes-player>/);
 });
 
+test('a separated scene index links each editorial title to its scene section', () => {
+  const index = page.match(/<nav class="explainer-scene-index"[\s\S]*?<\/nav>/)?.[0];
+  assert.ok(index);
+  assert.match(page, /<h2>Individual scenes<\/h2>/);
+  assert.match(index, /href="#library">Town Library<\/a>/);
+  assert.match(index, /href="#branches">It&#39;s &lt;yours&gt; &amp; ours<\/a>/);
+  assert.ok(page.indexOf(index) < page.indexOf(section('library')));
+});
+
 test('each scene gets a silent player limited to its window and a scrubber over that window', () => {
   const branches = section('branches');
-  assert.match(branches, /<hyperframes-player id="branches-player" class="explainer-stage-player" src="film\/index.html" runtime-src="player\/hyperframe.runtime.js" range-start="8.2" range-end="16" muted><\/hyperframes-player>/);
+  assert.match(branches, /<hyperframes-player id="branches-player" class="explainer-stage-player" src="film\/index.html" runtime-src="player\/hyperframe.runtime.js" range-start="8.2" range-end="16" muted disable-click-to-play><\/hyperframes-player>/);
   // The scrubber counts whole frames, so a seek lands exactly on a frame instead of a rounded fraction of a second.
-  assert.match(branches, /<input class="explainer-scrub" type="range" data-player="branches-player" data-fps="30" min="246" max="480" step="1" value="363">/);
+  assert.match(branches, /<input aria-label="Scene position" title="Drag to explore this silent scene" class="explainer-scrub" type="range" data-player="branches-player" data-fps="30" min="246" max="480" step="1" value="246">/);
 });
 
 test('scene copy and narration sit beside the player, escaped and without beat markers', () => {
   const library = section('library');
-  assert.match(library, /<p class="explainer-category">SHARE<\/p>\s*<h2>Town Library<\/h2>\s*<p class="explainer-support">Publish once.<\/p>/);
+  assert.match(library, /<p class="explainer-category">SHARE<\/p>\s*<h3>Town Library<\/h3>\s*<p class="explainer-support">Publish once.<\/p>/);
   assert.match(library, /<p class="explainer-narration">Publish it and pull it.<\/p>/);
   const branches = section('branches');
-  assert.match(branches, /<h2>It&#39;s &lt;yours&gt; &amp; ours<\/h2>/);
+  assert.match(branches, /<h3>It&#39;s &lt;yours&gt; &amp; ours<\/h3>/);
   assert.doesNotMatch(branches, /explainer-category|explainer-support/);
   assert.match(branches, /<p class="explainer-narration">Grow.<\/p>/);
 });
