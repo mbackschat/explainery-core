@@ -381,3 +381,7 @@ Apache-2.0, see [LICENSE](LICENSE). GSAP is a peer dependency and is never redis
 ## Production automation
 
 The [local voice and delivery workflow](docs/production.md) adds composition voice caching, pronunciation-aware alignment, production provenance, verification receipts and a single delivery command. Start with a short sample and scene verification; `deliver` reuses a matching verified MP4 so caption and HTML refreshes do not repeat capture.
+
+## Prepare YouTube title and description
+
+Use `pnpm exec explainery youtube film-dir --metadata docs/delivery/youtube.json` to generate copy-ready text in ignored `renders/`, including chapters from the current film timing. Keep editorial wording in the story repository. See the [metadata workflow and template](docs/production.md#prepare-youtube-text). This command performs no rendering or upload.

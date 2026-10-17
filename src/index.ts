@@ -20,3 +20,4 @@ export { generateVoice, type VoiceManifest, type VoiceOptions } from './voice.ts
 export { recordProduction, productionPreflight, type ProductionRecord } from './production.ts';
 export { verifyFilm, verifyVideo, verifyHtml } from './verification.ts';
 export { deliverFilm, type DeliveryManifest } from './delivery.ts';
+export { youtubeText, exportYoutubeText, type YoutubeText } from './youtube.ts';

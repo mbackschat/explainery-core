@@ -42,3 +42,15 @@ The command produces MP4, standalone HTML with captions, SRT, VTT, checksums and
 For scene or full-film delivery rendering, `render --quality delivery --reuse` opts into verified MP4 reuse. `--workers 2` explicitly chooses two capture workers; the default remains one. A changed worker count invalidates the cache. Stage progress includes elapsed time and a stage-local ETA when counters support it. No speedup is promised for a particular machine.
 
 Keep `renders/` and `.explainery/` ignored. Render cache receipts sit beside MP4s as `.mp4.render.json`; deleting a receipt simply requires a fresh render. An existing video without a receipt cannot be safely inferred to match current sources from its duration alone.
+
+## Prepare YouTube text
+
+```bash
+pnpm exec explainery youtube film --metadata docs/delivery/youtube.json --out renders/youtube
+```
+
+This generates `renders/youtube-title.txt` and `renders/youtube-description.txt` without rendering or contacting YouTube. Paths are relative to the working directory. The command always uses the full film, ignores sticky focus and requires aligned or imported timing. Use the story and timing associated with the video being uploaded; this text export does not inspect an MP4 or establish delivery provenance.
+
+Keep the editorial title and description in tracked story-local JSON, following the [metadata template](templates/youtube.json). An optional `{chapters}` marker expands to editorial scene titles and start times, rounded down to whole seconds. Omitting the marker produces a description without chapters. Additional JSON fields are ignored, so an existing publication-settings record can remain in the same file; this command does not apply those settings or produce an upload API payload. Edit the source JSON and regenerate rather than editing the output files.
+
+The exporter checks the [YouTube title and description limits](https://developers.google.com/youtube/v3/docs/videos#snippet) and the [manual chapter requirements](https://support.google.com/youtube/answer/9884579): at least three chapters, starting at zero, each at least ten seconds after whole-second rounding. These checks do not guarantee that a channel has access to chapter features. Title and summary are authored editorially; generation keeps the copy-ready files and chapter timestamps synchronized with their sources.
