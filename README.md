@@ -307,7 +307,7 @@ pnpm exec explainery export --single-file                              # writes 
 pnpm exec explainery export --single-file --out renders/my-film.html  # choose a delivery filename
 ```
 
-Single-file exports default to `renders/<story-id>-full.html` relative to the working directory, alongside the default MP4 and subtitle outputs, even when the source project is elsewhere. `--out` overrides the path; missing parent directories are created. Add `renders/*.html` to the story repository’s `.gitignore`.
+Single-file exports default to `renders/<story-id>-full.html` relative to the working directory, alongside the default MP4 and subtitle outputs, even when the source project is elsewhere. `--out` overrides the path; missing parent directories are created. Add `renders/` to the repository’s `.gitignore` so videos, HTML, captions and disposable verification output stay untracked. Keep source inputs and durable verification notes outside that directory.
 
 This writes the same page as one HTML file that anyone can open by double-click, offline, with no web server and no developer tools. Send it by mail, chat, or a shared drive. The file embeds everything, including chapter navigation and any supplied subtitles: the theme and its fonts, the HyperFrames player and runtime, and the film itself, bundled by HyperFrames into one document. The narration is the project's recorded audio file, converted to AAC (128 kbit/s) and embedded; nothing is synthesised in the browser. A film of about two minutes comes to roughly 7 MB.
 

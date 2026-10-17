@@ -71,7 +71,7 @@ pnpm exec explainery preview --stop
 
 Explainery preview and render honor local focus; use `--film` to override it. Direct HyperFrames commands and the strict check always use their supplied project without consulting focus. Checks, fixture captures, and Explainery renders use software browser capture; this is separate from HyperFrames' optional `--gpu` video encoder. Local execution can still involve browser/model downloads and HyperFrames update or telemetry traffic; it does not imply an offline setup.
 
-Standalone HTML deliveries default to `renders/<story-id>-full.html` in the working directory, alongside MP4s and subtitle sidecars. Keep generated HTML ignored in story repositories with `renders/*.html`; use `--out` for an explicit delivery filename.
+Standalone HTML deliveries default to `renders/<story-id>-full.html` in the working directory, alongside MP4s and subtitle sidecars. Ignore the entire `renders/` directory in every repository; retain source inputs and durable verification notes outside it; use `--out` for an explicit delivery filename.
 
 ## Scope
 
