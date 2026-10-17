@@ -377,3 +377,7 @@ Node 22.18 or later runs the TypeScript sources directly by stripping their type
 ## Licence
 
 Apache-2.0, see [LICENSE](LICENSE). GSAP is a peer dependency and is never redistributed here, because its standard licence is not OSI-approved.
+
+## Production automation
+
+The [local voice and delivery workflow](docs/production.md) adds composition voice caching, pronunciation-aware alignment, production provenance, verification receipts and a single delivery command. Start with a short sample and scene verification; `deliver` reuses a matching verified MP4 so caption and HTML refreshes do not repeat capture.

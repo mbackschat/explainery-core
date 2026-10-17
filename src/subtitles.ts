@@ -1,4 +1,4 @@
-import { alignNarrationWords, type Silence, type TranscriptWord } from './align.ts';
+import { alignStoryWords, type AlignmentOptions, type TranscriptWord } from './align.ts';
 import { spokenText } from './narration.ts';
 import { storyCompositions } from './story.ts';
 import { toMillisecond } from './time.ts';
@@ -36,17 +36,14 @@ function lines(words: string[]): string | undefined {
  * seconds; timing and language still need editorial review. The narration clock is unchanged, including when a
  * scene is focused. Recognition spellings and draft-voice pronunciations never become subtitle text.
  */
-export function subtitleCues(story: Story, transcript: TranscriptWord[], { duration, silences = [] }: { duration: number; silences?: Silence[] }): SubtitleCue[] {
+export function subtitleCues(story: Story, transcript: TranscriptWord[], { duration, ...options }: { duration: number } & AlignmentOptions): SubtitleCue[] {
   if (!Number.isFinite(duration) || duration <= 0) throw new Error('subtitle duration must be positive and finite');
-  if (!Array.isArray(transcript) || !transcript.length || transcript.some((word, index) => !word || typeof word.text !== 'string' || !word.text.trim() || !Number.isFinite(word.start) || !Number.isFinite(word.end) || word.start < 0 || word.end < word.start || (index > 0 && word.start < transcript[index - 1].end))) {
-    throw new Error('transcript must contain ordered, non-overlapping words with finite, nonnegative timestamps');
-  }
+  const aligned = alignStoryWords(story, transcript, options).words;
   if (transcript.at(-1)!.end > duration) throw new Error('transcript extends beyond the film duration');
   const parts = storyCompositions(story).map(part => spokenText(part.narration).split(/\s+/).filter(Boolean));
   const text = parts.flat();
   if (!text.length) throw new Error('the story has no narration to subtitle');
   if (text.some(word => word.length > MAX_LINE)) throw new Error(`a narration word exceeds the ${MAX_LINE}-character subtitle line limit; shorten it in the script`);
-  const aligned = alignNarrationWords(text, transcript, silences);
   if (aligned.some(word => word.end - word.start > MAX_DURATION)) throw new Error('an aligned word lasts longer than six seconds; review the transcript timestamps');
   const cues: SubtitleCue[] = [];
   let offset = 0;

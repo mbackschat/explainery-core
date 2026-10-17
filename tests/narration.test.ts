@@ -17,3 +17,22 @@ test('a pronunciation replaces whole words only, beside punctuation, and is case
 test('without pronunciations the voiced text is the spoken text', () => {
   assert.equal(voicedText('Say {wave} hello.'), 'Say hello.');
 });
+
+
+test('voiced narration retains canonical and spoken offsets for expansions and unchanged text', async () => {
+  const { voicedNarration } = await import('../src/narration.ts');
+  const mapped = voicedNarration('{start} Use API, then Data Store.', { API: 'A P I', 'Data Store': 'data storage' });
+  assert.equal(mapped.written, 'Use API, then Data Store.');
+  assert.equal(mapped.text, 'Use A P I, then data storage.');
+  assert.deepEqual(mapped.spans.map(span => [mapped.written.slice(span.writtenStart, span.writtenEnd), mapped.text.slice(span.spokenStart, span.spokenEnd)]), [
+    ['Use ', 'Use '], ['API', 'A P I'], [', then ', ', then '], ['Data Store', 'data storage'], ['.', '.'],
+  ]);
+});
+
+
+test('beat-adjacent punctuation uses the same canonical words for voice, captions and markers', async () => {
+  const { spokenWords } = await import('../src/narration.ts');
+  assert.deepEqual(spokenWords('Hello {pause}, then continue {done}.'), {
+    words: ['Hello,', 'then', 'continue.'], markers: [{ beat: 'pause', before: 1 }, { beat: 'done', before: 3 }],
+  });
+});

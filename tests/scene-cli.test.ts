@@ -8,6 +8,36 @@ import test from 'node:test';
 import type { Story, Timing } from '../src/types.ts';
 
 const cli = fileURLToPath(new URL('../bin/explainery.ts', import.meta.url));
+
+test('production commands reject missing provenance and invalid worker counts before rendering', async t => {
+  const { project, run } = await fixture(t);
+  const checked = await run(['preflight', project]);
+  assert.equal(checked.status, 1);
+  assert.match(checked.stderr, /production.json/);
+  for (const count of ['0', '1.5', 'NaN']) {
+    const result = await run(['render', project, '--workers', count]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /positive integer/);
+    assert.equal(result.argv, undefined);
+  }
+});
+
+test('render forwards an explicitly chosen worker count', async t => {
+  const { project, run } = await fixture(t);
+  const result = await run(['render', project, '--scene', 'lead', '--workers', '2']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.argv?.[result.argv.indexOf('--workers') + 1], '2');
+});
+
+test('reusable rendering rejects draft quality and stale full-film assembly before spawning', async t => {
+  const { project, run } = await fixture(t);
+  const draft = await run(['render', project, '--reuse']);
+  assert.match(draft.stderr, /requires render --quality delivery/);
+  const stale = await run(['render', project, '--reuse', '--quality', 'delivery']);
+  assert.equal(stale.status, 1);
+  assert.match(stale.stderr, /assemble/);
+  assert.equal(stale.argv, undefined);
+});
 const story: Story = {
   id: 'demo', title: 'Demo film', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 24 },
   scenes: [

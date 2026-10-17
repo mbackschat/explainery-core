@@ -14,3 +14,9 @@ export { loadStory, validateProject, validateStoryTiming, type ProjectValidation
 export { subtitleCues, formatSubtitles, type SubtitleCue, type SubtitleFormat } from './subtitles.ts';
 export { sceneChapters, writeMp4Chapters, type Chapter } from './chapters.ts';
 export type { ExplainerExportOptions } from './export-subtitles.ts';
+export { voicedNarration, type PronunciationSpan, type VoicedNarration } from './narration.ts';
+export { alignStoryWords, alignTimingWithReport, type AudioSegment, type AlignmentOptions, type TimingAlignmentReport } from './align.ts';
+export { generateVoice, type VoiceManifest, type VoiceOptions } from './voice.ts';
+export { recordProduction, productionPreflight, type ProductionRecord } from './production.ts';
+export { verifyFilm, verifyVideo, verifyHtml } from './verification.ts';
+export { deliverFilm, type DeliveryManifest } from './delivery.ts';

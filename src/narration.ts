@@ -24,19 +24,50 @@ export const spokenText = (narration: string) => narration.replace(MARKER, '').r
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+/** UTF-16 offsets in the marker-free written text and the generated spoken text. */
+export interface PronunciationSpan {
+  writtenStart: number;
+  writtenEnd: number;
+  spokenStart: number;
+  spokenEnd: number;
+}
+
+export interface VoicedNarration {
+  written: string;
+  text: string;
+  spans: PronunciationSpan[];
+}
+
+/** Retains replacement spans so recorded pronunciation expansions can recover canonical caption words. */
+export function voicedNarration(narration: string, pronunciations: Record<string, string> = {}): VoicedNarration {
+  const written = spokenText(narration);
+  const words = Object.keys(pronunciations).filter(Boolean).sort((a, b) => b.length - a.length);
+  const spans: PronunciationSpan[] = [];
+  let text = '';
+  let cursor = 0;
+  const append = (start: number, end: number, value: string) => {
+    if (start === end) return;
+    spans.push({ writtenStart: start, writtenEnd: end, spokenStart: text.length, spokenEnd: text.length + value.length });
+    text += value;
+  };
+  if (words.length) {
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?:${words.map(escape).join('|')})(?![\\p{L}\\p{N}])`, 'gu');
+    for (const match of written.matchAll(pattern)) {
+      append(cursor, match.index, written.slice(cursor, match.index));
+      append(match.index, match.index + match[0].length, pronunciations[match[0]]);
+      cursor = match.index + match[0].length;
+    }
+  }
+  append(cursor, written.length, written.slice(cursor));
+  return { written, text, spans };
+}
+
 /**
- * The narration as a synthetic draft voice should speak it: the spoken text with each whole word that has a
- * pronunciation replaced by it.
- *
- * Words match case-sensitively and only where no letter or digit adjoins them, so "SQL" changes but "SQLs" and "MSSQL"
- * do not. Only the draft voice gets these spellings; readers, transcripts and alignment keep the written words.
+ * Applies case-sensitive whole-term pronunciations only to voice input; readers retain the written text.
+ * Letters or digits adjoining a term prevent replacement, so "SQLs" and "MSSQL" do not match "SQL".
  */
 export function voicedText(narration: string, pronunciations: Record<string, string> = {}): string {
-  const words = Object.keys(pronunciations).sort((a, b) => b.length - a.length);
-  const text = spokenText(narration);
-  if (!words.length) return text;
-  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?:${words.map(escape).join('|')})(?![\\p{L}\\p{N}])`, 'gu');
-  return text.replace(pattern, word => pronunciations[word]);
+  return voicedNarration(narration, pronunciations).text;
 }
 
 /**
@@ -46,14 +77,10 @@ export function voicedText(narration: string, pronunciations: Record<string, str
  * are whitespace-separated and keep their punctuation.
  */
 export function spokenWords(narration: string): { words: string[]; markers: { beat: string; before: number }[] } {
-  const words: string[] = [];
-  const markers: { beat: string; before: number }[] = [];
-  let last = 0;
-  for (const marker of narration.matchAll(MARKER)) {
-    words.push(...narration.slice(last, marker.index).split(/\s+/).filter(Boolean));
-    markers.push({ beat: marker[1], before: words.length });
-    last = marker.index + marker[0].length;
-  }
-  words.push(...narration.slice(last).split(/\s+/).filter(Boolean));
+  const words = spokenText(narration).split(/\s+/).filter(Boolean);
+  const markers = [...narration.matchAll(MARKER)].map(marker => ({
+    beat: marker[1],
+    before: spokenText(narration.slice(0, marker.index)).split(/\s+/).filter(Boolean).length,
+  }));
   return { words, markers };
 }

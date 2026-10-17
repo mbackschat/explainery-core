@@ -1,0 +1,273 @@
+import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
+import { chromium } from 'playwright-core';
+import { sceneChapters } from './chapters.ts';
+import { hyperframesDist } from './hyperframes.ts';
+import { prepareSceneProject } from './scene-project.ts';
+import { storyScenes, selectScenes } from './story.ts';
+import { validateProject } from './validate.ts';
+import type { Story, Timing } from './types.ts';
+
+const run = promisify(execFile);
+const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+const digest = (data: Uint8Array | string) => createHash('sha256').update(data).digest('hex');
+async function fileHash(file: string): Promise<string> {
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(file)) hash.update(chunk);
+  return hash.digest('hex');
+}
+interface Receipt { passed: boolean; failures: string[]; humanReview: 'pending'; receiptPath: string }
+function base(out: string, name: string): Receipt { return { passed: false, failures: [], humanReview: 'pending', receiptPath: join(resolve(out), `${name}.json`) }; }
+async function save<T extends Receipt>(receipt: T): Promise<T> {
+  receipt.passed = receipt.failures.length === 0;
+  await mkdir(dirname(receipt.receiptPath), { recursive: true });
+  await writeFile(receipt.receiptPath, JSON.stringify(receipt, null, 2) + '\n');
+  return receipt;
+}
+
+export interface VideoVerificationReceipt extends Receipt {
+  kind: 'video'; video: string; sha256?: string; decode: boolean; metadata?: MediaProbe;
+}
+interface MediaProbe {
+  format?: { duration?: string };
+  streams?: Array<{ codec_type?: string; codec_name?: string; width?: number; height?: number; pix_fmt?: string; avg_frame_rate?: string; field_order?: string }>;
+  chapters?: Array<{ start_time: string; end_time: string; tags?: { title?: string } }>;
+}
+/** Checks the delivered bytes; success records machine checks and never implies a person watched the film. */
+export async function verifyVideo(video: string, options: { out: string; story: Story; timing: Timing; sceneIds?: string[]; expectedSha256?: string; timeoutMs?: number }): Promise<VideoVerificationReceipt> {
+  const receipt: VideoVerificationReceipt = { ...base(options.out, 'video-receipt'), kind: 'video', video: resolve(video), decode: false };
+  const timeout = options.timeoutMs ?? 60000;
+  try {
+    receipt.sha256 = await fileHash(video);
+    if (options.expectedSha256 && options.expectedSha256 !== receipt.sha256) receipt.failures.push('video hash does not match expected SHA-256');
+    const { stdout } = await run('ffprobe', ['-v', 'error', '-show_streams', '-show_chapters', '-show_entries', 'format=duration', '-of', 'json', resolve(video)], { timeout: Math.min(timeout, 30000), maxBuffer: 4 * 1024 * 1024 });
+    const metadata: MediaProbe = JSON.parse(stdout);
+    receipt.metadata = metadata;
+    const chapters = sceneChapters(options.story, options.timing, options.sceneIds);
+    const duration = Number(metadata.format?.duration);
+    if (!Number.isFinite(duration) || Math.abs(duration - chapters.at(-1)!.end) > 1 / options.story.canvas.fps + .01) receipt.failures.push('video duration does not match selected timing');
+    const videoStream = metadata.streams?.find(stream => stream.codec_type === 'video');
+    if (videoStream?.codec_name !== 'h264') receipt.failures.push('video codec must be h264');
+    if (videoStream?.width !== options.story.canvas.width || videoStream?.height !== options.story.canvas.height) receipt.failures.push('video dimensions do not match the story canvas');
+    const [numerator, denominator] = (videoStream?.avg_frame_rate ?? '').split('/').map(Number);
+    const fps = numerator / denominator;
+    if (!Number.isFinite(fps) || Math.abs(fps - options.story.canvas.fps) > .001) receipt.failures.push('video frame rate does not match the story canvas');
+    if (videoStream?.pix_fmt !== 'yuv420p') receipt.failures.push('video pixel format must be yuv420p');
+    if (videoStream?.field_order !== 'progressive') receipt.failures.push('video must be progressive');
+    if (metadata.streams?.some(stream => stream.codec_type === 'audio' && stream.codec_name !== 'aac')) receipt.failures.push('audio codec must be aac');
+    if (options.timing.audio && !metadata.streams?.some(stream => stream.codec_type === 'audio')) receipt.failures.push('expected narration audio stream is missing');
+    if (metadata.chapters?.length !== chapters.length || chapters.some((expected, index) => {
+      const actual = metadata.chapters?.[index];
+      const end = index === chapters.length - 1 ? duration : expected.end;
+      return !actual || actual.tags?.title !== expected.title || Math.abs(Number(actual.start_time) - expected.start) > .001 || Math.abs(Number(actual.end_time) - end) > .001;
+    })) receipt.failures.push('video chapters do not match editorial scene chapters');
+    await run('ffmpeg', ['-v', 'error', '-xerror', '-nostdin', '-i', resolve(video), '-map', '0:v:0', '-map', '0:a?', '-f', 'null', '-'], { timeout, maxBuffer: 4 * 1024 * 1024 });
+    receipt.decode = true;
+    if (await fileHash(video) !== receipt.sha256) receipt.failures.push('video changed during verification');
+  } catch (error) { receipt.failures.push(message(error)); }
+  return save(receipt);
+}
+
+interface FrameEvidence { composition: string; context: 'full' | 'isolated'; cue: string; at: number; file: string; sha256: string }
+interface Comparison { composition: string; context: 'full' | 'isolated'; forward: boolean; backward: boolean; isolationMaxChannelDifference?: number }
+export interface FilmVerificationReceipt extends Receipt {
+  kind: 'film'; project: string; sceneIds: string[]; isolationTolerance: number; frames: FrameEvidence[]; comparisons: Comparison[]; contactSheetPath: string; sourceHashes: Record<string, string>;
+}
+// HyperFrames 0.8.142 ships capture helpers only in hashed CLI chunks, just like its bundler (explainer-file.ts).
+async function helper(project: string, symbol: string): Promise<any> {
+  const dist = hyperframesDist(project);
+  for (const name of await readdir(dist)) {
+    if (!name.endsWith('.js')) continue;
+    const source = await readFile(join(dist, name), 'utf8');
+    if (!source.includes(`function ${symbol}(`)) continue;
+    const module = await import(pathToFileURL(join(dist, name)).href);
+    if (typeof module[symbol] === 'function') return module[symbol];
+  }
+  throw new Error(`project-pinned HyperFrames no longer exports ${symbol}; verification adapter needs updating`);
+}
+async function pixels(file: string): Promise<Buffer> {
+  return (await run('ffmpeg', ['-v', 'error', '-i', file, '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'], { encoding: 'buffer', timeout: 10000, maxBuffer: 64 * 1024 * 1024 })).stdout;
+}
+async function pixelDifference(left: string, right: string): Promise<number> {
+  const [a, b] = await Promise.all([pixels(left), pixels(right)]);
+  if (a.length !== b.length) throw new Error('isolated/full frame sizes differ');
+  let maximum = 0;
+  for (let index = 0; index < a.length; index++) maximum = Math.max(maximum, Math.abs(a[index] - b[index]));
+  return maximum;
+}
+const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+
+/** Captures selected scenes without changing focus, recording the explicit per-channel isolation tolerance. */
+export async function verifyFilm(project: string, options: { out: string; sceneIds?: string[]; timeoutMs?: number; isolationTolerance?: number }): Promise<FilmVerificationReceipt> {
+  const out = resolve(options.out);
+  const receipt: FilmVerificationReceipt = { ...base(out, 'film-receipt'), kind: 'film', project: resolve(project), sceneIds: options.sceneIds ?? [], isolationTolerance: options.isolationTolerance ?? 1, frames: [], comparisons: [], sourceHashes: {}, contactSheetPath: join(out, 'contact-sheet.html') };
+  await mkdir(out, { recursive: true });
+  try {
+    if (!Number.isInteger(receipt.isolationTolerance) || receipt.isolationTolerance < 0 || receipt.isolationTolerance > 255) throw new Error('isolationTolerance must be an integer from 0 to 255');
+    const validated = await validateProject(project);
+    if (validated.errors.length || !validated.story || !validated.timing) throw new Error(validated.errors.join('\n') || 'story and timing are required');
+    const { story, timing } = validated;
+    const scenes = storyScenes(story);
+    if (options.sceneIds?.length) selectScenes(story, timing, options.sceneIds);
+    receipt.sceneIds = options.sceneIds?.length ? options.sceneIds : scenes.map(scene => scene.id);
+    for (const name of ['story.yaml', 'timing.json', 'index.html']) receipt.sourceHashes[name] = await fileHash(join(project, name));
+    const bundle = await helper(project, 'bundleWithLocalizedFonts');
+    const serve = await helper(project, 'serveStaticProjectHtml');
+    const open = await helper(project, 'openSettledCompositionPage');
+    const seekTimeline = await helper(project, 'seekCompositionTimeline');
+    const fullHtml = await bundle(project);
+    receipt.sourceHashes.bundle = digest(fullHtml);
+    const full = await serve(project, fullHtml);
+    try {
+      for (const scene of scenes.filter(scene => receipt.sceneIds.includes(scene.id))) {
+        const prepared = await prepareSceneProject(project, [scene.id]);
+        const isolatedHtml = await bundle(prepared.directory);
+        const isolated = await serve(prepared.directory, isolatedHtml);
+        const fullMidpoints = new Map<string, FrameEvidence>();
+        try {
+          for (const context of ['full', 'isolated'] as const) {
+            const { browser, page, renderReadyTimedOut } = await open(context === 'full' ? fullHtml : isolatedHtml, context === 'full' ? full.url : isolated.url, { renderReadyTimeoutMs: 5000, navigationTimeoutMs: 10000, browserGpuMode: 'software', beforeNavigate: (page: { on(event: string, listener: (error: Error) => void): void }) => page.on('pageerror', error => receipt.failures.push(`${scene.id}/${context}: ${message(error)}`)) });
+            const watchdog = setTimeout(() => browser.process()?.kill('SIGKILL'), options.timeoutMs ?? 60000);
+            try {
+              if (renderReadyTimedOut) receipt.failures.push(`${scene.id}/${context}: runtime did not become ready`);
+              page.setDefaultTimeout(10000);
+              const offset = context === 'full' ? 0 : prepared.start;
+              const end = context === 'full' ? timing.duration : prepared.duration;
+              const seek = (at: number) => seekTimeline(page, at, { exactTime: true });
+              const capture = async (composition: string, cue: string, at: number): Promise<FrameEvidence> => {
+                await seek(at - offset);
+                const data = await page.screenshot({ timeout: 10000 });
+                const file = `${receipt.frames.length.toString().padStart(4, '0')}-${composition}-${context}.png`;
+                await writeFile(join(out, file), data);
+                const frame: FrameEvidence = { composition, context, cue, at, file, sha256: digest(data) };
+                receipt.frames.push(frame);
+                return frame;
+              };
+              for (const [compositionIndex, composition] of scene.compositions.entries()) {
+                if (compositionIndex > 0) {
+                  await page.reload({ waitUntil: 'load', timeout: 10000 });
+                  await page.waitForFunction(() => Reflect.get(globalThis, '__renderReady') === true, { timeout: 10000 });
+                }
+                const slot = timing.scenes[composition.id];
+                const at = slot.start + slot.duration / 2;
+                const direct = await capture(composition.id, 'direct', at);
+                await seek(0);
+                await seek(Math.max(0, at - offset - 2));
+                const forward = await capture(composition.id, 'forward', at);
+                await seek(Math.max(0, end - 1 / story.canvas.fps));
+                const backward = await capture(composition.id, 'backward', at);
+                const comparison: Comparison = { composition: composition.id, context, forward: direct.sha256 === forward.sha256, backward: direct.sha256 === backward.sha256 };
+                if (!comparison.forward || !comparison.backward) receipt.failures.push(`${composition.id}/${context}: seek history changes midpoint pixels`);
+                if (context === 'full') fullMidpoints.set(composition.id, direct);
+                else {
+                  const original = fullMidpoints.get(composition.id)!;
+                  comparison.isolationMaxChannelDifference = original.sha256 === direct.sha256 ? 0 : await pixelDifference(join(out, original.file), join(out, direct.file));
+                  if (comparison.isolationMaxChannelDifference > receipt.isolationTolerance) receipt.failures.push(`${composition.id}: isolated/full pixels differ by more than ${receipt.isolationTolerance} channel levels`);
+                }
+                receipt.comparisons.push(comparison);
+                if (context === 'full') {
+                  for (const [cue, seconds] of Object.entries(slot.beats)) await capture(composition.id, cue, Math.min(slot.start + seconds + .3, slot.start + slot.duration - 1 / story.canvas.fps));
+                  await capture(composition.id, 'closing', slot.start + slot.duration - 1 / story.canvas.fps);
+                }
+              }
+              if (context === 'full') {
+                const index = scenes.indexOf(scene);
+                const joins = [...scene.compositions.slice(index > 0 ? 0 : 1), ...(scenes[index + 1]?.compositions.slice(0, 1) ?? [])];
+                for (const composition of joins) for (const delta of [-.1, .3]) await capture(composition.id, `join ${delta}`, Math.max(0, Math.min(timing.duration - 1 / story.canvas.fps, timing.scenes[composition.id].start + delta)));
+              }
+            } finally { try { await browser.close(); } finally { clearTimeout(watchdog); } }
+          }
+        } finally { await isolated.close(); }
+      }
+    } finally { await full.close(); }
+  } catch (error) { receipt.failures.push(message(error)); }
+  await writeFile(receipt.contactSheetPath, `<!doctype html><meta charset="utf-8"><title>Verification evidence</title><style>body{font:16px sans-serif;background:#eee}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}figure{margin:0}img{width:100%}</style><h1>Machine captures — human review pending</h1><p>${escape(receipt.failures.join('; '))}</p><main>${receipt.frames.map(frame => `<figure><img src="${escape(frame.file)}"><figcaption>${escape(`${frame.composition} · ${frame.context} · ${frame.cue} · ${frame.at.toFixed(3)}s`)}</figcaption></figure>`).join('')}</main>`);
+  return save(receipt);
+}
+
+export interface HtmlVerificationReceipt extends Receipt { kind: 'html'; file: string; sha256?: string; networkRequests: string[]; nonEmbeddedRequests: string[]; players: number; chapters: number; embeddedAudio: number; decodedAudio: number; subtitles: boolean }
+/** Opens a standalone delivery with network access blocked and exercises its actual player controls. */
+export async function verifyHtml(file: string, options: { out: string; project?: string; expectAudio?: boolean; expectSubtitles?: boolean }): Promise<HtmlVerificationReceipt> {
+  const receipt: HtmlVerificationReceipt = { ...base(options.out, 'html-receipt'), kind: 'html', file: resolve(file), networkRequests: [], nonEmbeddedRequests: [], players: 0, chapters: 0, embeddedAudio: 0, decodedAudio: 0, subtitles: false };
+  try {
+    receipt.sha256 = await fileHash(file);
+    const { stdout } = await run(process.execPath, [join(hyperframesDist(options.project ?? dirname(resolve(file))), 'cli.js'), 'browser', 'path'], { timeout: 15000 });
+    const browser = await chromium.launch({ executablePath: stdout.trim().split('\n').at(-1), args: ['--disable-gpu'], timeout: 15000 });
+    try {
+      const page = await browser.newPage();
+      page.setDefaultTimeout(10000);
+      page.on('pageerror', error => receipt.failures.push(error.message));
+      const entryUrl = pathToFileURL(resolve(file)).href;
+      const embedded = (url: string) => /^(?:data|blob|about):/i.test(url);
+      let initialNavigation = true;
+      page.on('request', request => {
+        if (initialNavigation && request.isNavigationRequest() && request.frame() === page.mainFrame() && request.url() === entryUrl) {
+          initialNavigation = false;
+          return;
+        }
+        if (embedded(request.url())) return;
+        receipt.nonEmbeddedRequests.push(request.url());
+        receipt.failures.push(`nonembedded resource: ${request.url()}`);
+        if (/^https?:/i.test(request.url())) receipt.networkRequests.push(request.url());
+      });
+      page.on('requestfailed', request => receipt.failures.push(`resource request failed: ${request.url()} (${request.failure()?.errorText ?? 'unknown error'})`));
+      await page.route('**/*', route => {
+        const request = route.request();
+        if (embedded(request.url()) || (request.isNavigationRequest() && request.frame() === page.mainFrame() && request.url() === entryUrl)) return route.continue();
+        return route.abort();
+      });
+      await page.goto(entryUrl, { waitUntil: 'load', timeout: 15000 });
+      receipt.players = await page.locator('hyperframes-player').count();
+      if (!receipt.players) receipt.failures.push('delivery contains no players');
+      for (let index = 0; index < receipt.players; index++) {
+        await page.locator('hyperframes-player').nth(index).scrollIntoViewIfNeeded();
+        await page.waitForFunction(`document.querySelectorAll('hyperframes-player')[${index}].ready`, null, { timeout: 15000 });
+      }
+      const chapters = page.locator('.explainer-chapters option');
+      receipt.chapters = await chapters.count();
+      for (let index = 0; index < receipt.chapters; index++) {
+        const value = await chapters.nth(index).getAttribute('value');
+        await page.locator('.explainer-chapters').selectOption(value!);
+        await page.waitForFunction(`Math.abs(document.querySelector('.explainer-film').currentTime - ${Number(value)}) < .05`);
+      }
+      const decodedSources = new Set<string>();
+      for (const frame of page.frames()) {
+        await frame.waitForLoadState('load', { timeout: 10000 });
+        const failedImages = await frame.locator('img').evaluateAll(elements => elements.filter((element: any) => !element.complete || element.naturalWidth === 0).map((element: any) => String(element.currentSrc || element.src || '(no source)')));
+        for (const source of failedImages) receipt.failures.push(`image failed to load: ${source.slice(0, 200)}`);
+        receipt.embeddedAudio += await frame.locator('audio[src^="data:audio/"], audio:has(source[src^="data:audio/"])').count();
+        if (options.expectAudio) for (const audio of await frame.locator('audio[src^="data:audio/"], audio:has(source[src^="data:audio/"])').all()) {
+          const source = await audio.evaluate((element: any) => String(element.currentSrc || element.src || element.querySelector('source')?.src));
+          const key = digest(source);
+          if (decodedSources.has(key)) continue;
+          await audio.evaluate(async (_element: unknown, source: string) => {
+            const AudioContext = Reflect.get(globalThis, 'AudioContext');
+            const context = new AudioContext();
+            const timeout = setTimeout(() => { void context.close(); }, 10000);
+            try {
+              const response = await fetch(source);
+              const decoded = await context.decodeAudioData(await response.arrayBuffer());
+              if (!(decoded.duration > 0)) throw new Error('embedded audio decoded to an empty buffer');
+            } finally { clearTimeout(timeout); await context.close(); }
+          }, source);
+          decodedSources.add(key);
+          receipt.decodedAudio++;
+        }
+      }
+      if (options.expectAudio && receipt.embeddedAudio === 0) receipt.failures.push('expected embedded narration audio is missing');
+      const cc = page.getByRole('button', { name: 'Subtitles', exact: true });
+      receipt.subtitles = await cc.count() > 0;
+      if (receipt.subtitles) { await cc.click(); if (await cc.getAttribute('aria-pressed') !== 'true') receipt.failures.push('subtitle toggle did not activate'); }
+      if (options.expectSubtitles && !receipt.subtitles) receipt.failures.push('expected subtitles are missing');
+      if (receipt.networkRequests.length) receipt.failures.push('standalone HTML requested network resources');
+      if (!receipt.chapters) receipt.failures.push('chapter selector is missing');
+      if (await fileHash(file) !== receipt.sha256) receipt.failures.push('HTML changed during verification');
+    } finally { await browser.close(); }
+  } catch (error) { receipt.failures.push(message(error)); }
+  return save(receipt);
+}

@@ -140,3 +140,114 @@ test('words that whisper drifts into a pause are fitted back before it, keeping 
   const small = timing.scenes.seed.beats.small;
   assert.ok(small > 1 && small < 1.9, `small starts at ${small}`);
 });
+
+
+test('spoken input maps pronunciation expansions onto canonical words and beat timestamps', async () => {
+  const { alignStoryWords, alignTimingWithReport } = await import('../src/align.ts');
+  const film = story(scene('one', '{api} API {next} stores JSON. {done}'));
+  film.pronunciations = { API: 'A P I', JSON: 'jay son' };
+  const transcript = spoken('A P I stores jay son.', 1);
+  const options = { transcriptMode: 'spoken' as const };
+  const aligned = alignStoryWords(film, transcript, options);
+  assert.deepEqual(aligned.words, [
+    { text: 'API', start: 1, end: 2.4 }, { text: 'stores', start: 2.5, end: 2.9 }, { text: 'JSON.', start: 3, end: 3.9 },
+  ]);
+  assert.deepEqual(alignTimingWithReport(film, transcript, { audio: 'a.wav', ...options }), {
+    timing: { source: 'aligned', audio: 'a.wav', duration: 3.9, scenes: { one: { start: 0, duration: 3.9, beats: { api: 1, next: 2.5, done: 3.9 } } } }, diagnostics: [],
+  });
+  assert.deepEqual(alignStoryWords(film, spoken('API stores JSON.', 0)).words.map(word => word.text), ['API', 'stores', 'JSON.']);
+});
+
+test('known audio segments bound missing edge words and report inferred opening and closing beats', async () => {
+  const { alignTimingWithReport, alignStoryWords } = await import('../src/align.ts');
+  const film = story(scene('one', 'One two three {last} missing. {close}'), scene('two', '{first} Missing four five six.'));
+  const transcript = [...spoken('One two three', 0), ...spoken('four five six.', 10.5)];
+  const segments = [{ id: 'one', start: 0, end: 2 }, { id: 'two', start: 10, end: 12 }];
+  const aligned = alignStoryWords(film, transcript, { segments });
+  assert.deepEqual(aligned.words[3], { text: 'missing.', start: 1.4, end: 2 });
+  assert.deepEqual(aligned.words[4], { text: 'Missing', start: 10, end: 10.5 });
+  const report = alignTimingWithReport(film, transcript, { audio: 'a.wav', segments });
+  assert.deepEqual(report.diagnostics, [
+    { compositionId: 'one', beat: 'last', time: 1.4, reason: 'inferred-word' },
+    { compositionId: 'one', beat: 'close', time: 2, reason: 'inferred-word' },
+    { compositionId: 'two', beat: 'first', time: 8, reason: 'inferred-word' },
+  ]);
+});
+
+test('known segments prevent matching repeated narration to a different composition', async () => {
+  const { alignStoryWords } = await import('../src/align.ts');
+  const film = story(scene('one', 'We use four words.'), scene('two', 'We use four words.'));
+  assert.throws(() => alignStoryWords(film, [...spoken('We use four words.', 0), ...spoken('We use four words.', 3)], {
+    segments: [{ id: 'one', start: 0, end: 5 }, { id: 'two', start: 10, end: 15 }],
+  }), /scene "two".*matches only 0/);
+});
+
+test('audio segments require complete ordered non-overlapping composition coverage', async () => {
+  const { alignStoryWords } = await import('../src/align.ts');
+  for (const segments of [[], [{ id: 'wrong', start: 0, end: 10 }], [{ id: 'seed', start: 0, end: 10 }, { id: 'harvest', start: 9, end: 12 }], [{ id: 'seed', start: 0, end: NaN }, { id: 'harvest', start: 10, end: 12 }]]) {
+    assert.throws(() => alignStoryWords(garden, gardenWords, { segments }), /segments/);
+  }
+});
+
+
+test('spoken aliases retain punctuation, joined recognition words and multi-word canonical phrases', async () => {
+  const { alignStoryWords } = await import('../src/align.ts');
+  const film = story(scene('one', 'Data Store uses SQL.'));
+  film.pronunciations = { 'Data Store': 'repository', SQL: 'S-Q-L' };
+  const aligned = alignStoryWords(film, spoken('repository uses S Q L.', 0), { transcriptMode: 'spoken' });
+  assert.deepEqual(aligned.words.map(word => word.text), ['Data', 'Store', 'uses', 'SQL.']);
+  assert.equal(aligned.words[0].start, 0);
+  assert.equal(aligned.words[1].end, .4);
+  assert.equal(aligned.words[2].start, .5);
+  assert.equal(aligned.words[3].start, 1);
+  assert.ok(Math.abs(aligned.words[3].end - 2.4) < 1e-9);
+  assert.ok(aligned.words.every((word, index) => word.end >= word.start && (!index || word.start >= aligned.words[index - 1].end)));
+});
+
+test('known segment ends clip recognition drift without consuming the next composition', async () => {
+  const { alignStoryWords } = await import('../src/align.ts');
+  const film = story(scene('one', 'Hello.'), scene('two', 'Goodbye.'));
+  const aligned = alignStoryWords(film, [{ text: 'Hello.', start: 0, end: 4 }, { text: 'Goodbye.', start: 5, end: 7 }], {
+    segments: [{ id: 'one', start: 0, end: 2 }, { id: 'two', start: 5, end: 6 }],
+  });
+  assert.deepEqual(aligned.words, [{ text: 'Hello.', start: 0, end: 2 }, { text: 'Goodbye.', start: 5, end: 6 }]);
+});
+
+
+test('beats beside punctuation align canonical and expanded transcripts to the same word', () => {
+  const film = story(scene('one', 'API {next}, stores data {done}.'));
+  film.pronunciations = { API: 'A P I' };
+  const canonical = alignTiming(film, spoken('API, stores data.', 0), { audio: 'a.wav' });
+  const expanded = alignTiming(film, spoken('A P I, stores data.', 0), { audio: 'a.wav', transcriptMode: 'spoken' });
+  assert.deepEqual(canonical.scenes.one.beats, { next: .5, done: 1.4 });
+  assert.deepEqual(expanded.scenes.one.beats, { next: 1.5, done: 2.4 });
+});
+
+test('spoken aliases never span composition boundaries during full-transcript matching', async () => {
+  const { alignStoryWords } = await import('../src/align.ts');
+  const film = story(scene('one', 'Data'), scene('two', 'Store.'));
+  film.pronunciations = { 'Data Store': 'repository' };
+  assert.deepEqual(alignStoryWords(film, spoken('Data Store.', 0), { transcriptMode: 'spoken' }), {
+    words: spoken('Data Store.', 0), inferred: [false, false],
+  });
+});
+
+test('shared story alignment rejects malformed or unordered transcript timestamps', async () => {
+  const { alignStoryWords } = await import('../src/align.ts');
+  const film = story(scene('one', 'One two.'));
+  const valid = spoken('One two.', 0);
+  const invalid = [
+    [{ ...valid[0], start: Number.NaN }, valid[1]],
+    [{ ...valid[0], start: -1 }, valid[1]],
+    [valid[0], { ...valid[1], end: Infinity }],
+    [{ ...valid[0], end: -1 }, valid[1]],
+    [{ ...valid[0], end: 1 }, valid[1]],
+    [{ ...valid[0], text: '' }, valid[1]],
+    [],
+  ];
+  for (const transcript of invalid) {
+    assert.throws(() => alignStoryWords(film, transcript), {
+      message: 'transcript must contain ordered, non-overlapping words with finite, nonnegative timestamps',
+    });
+  }
+});

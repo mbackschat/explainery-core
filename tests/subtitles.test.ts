@@ -105,3 +105,20 @@ test('compound terms keep their spoken span when recognition splits or merges wo
 test('an overlong word is rejected rather than silently hiding its final spoken seconds', () => {
   assert.throws(() => subtitleCues(story('Hello.'), [{ text: 'Hello.', start: 0, end: 7 }], { duration: 8 }), /six seconds/);
 });
+
+
+test('spoken pronunciation expansions produce canonical captions over their complete audio span', () => {
+  const film = story('API. JSON.');
+  film.pronunciations = { API: 'A P I', JSON: 'jay son' };
+  const cues = subtitleCues(film, words('A P I jay son.'), { duration: 3, transcriptMode: 'spoken' });
+  assert.deepEqual(cues.map(cue => cue.text), ['API.', 'JSON.']);
+  assert.equal(cues[0].start, 0);
+  assert.equal(cues[0].end, 1.2);
+  assert.ok(cues[1].end >= 1.9);
+});
+
+
+test('markers beside punctuation do not add a phantom caption word', () => {
+  const cues = subtitleCues(story('Hello {pause}, then continue {done}.'), words('Hello, then continue.'), { duration: 2 });
+  assert.equal(cues.map(cue => cue.text).join(' '), 'Hello, then continue.');
+});
