@@ -32,6 +32,14 @@ The manifest records measured segment boundaries, each composition's clip and it
 
 Recognition stays a separate step from alignment: `--transcript` reads a JSON array of `{text,start,end}` word records; omitting it invokes the pinned HyperFrames transcriber on the full audio. Preserve raw recognition output when available. `--transcript-mode spoken` matches pronunciation-expanded voice input and returns canonical caption words. Default `canonical` retains the existing transcript contract. `--segments` accepts either an array of `{id,start,end}` or a voice manifest; all compositions must be covered in order. The default alignment report is `film/.explainery/alignment.json`; `--report` chooses another path. Review every inferred beat and the affected animations and joins.
 
+The report is one object. `diagnostics` lists the beats whose anchor word was inferred rather than recognized, each as `{compositionId, beat, time, reason}`. `compositions` maps each composition ID to its script words in narration order, on that composition's clock:
+
+```json
+{ "text": "retries", "start": 4.12, "end": 4.58, "beat": "retry", "offset": 0.86 }
+```
+
+`start` and `end` are composition-local seconds, like the beats in `timing.json`. `beat` is the last marker before the word and `offset` the seconds from that beat to the word's start, so the word reads as `beat('retry') + 0.86` in a timeline or `checkout:retry+0.86` as a snapshot address; words before the first marker carry neither. `"inferred": true` marks a word the transcript did not contain, whose time is interpolated. Words keep the script's spelling, not the recognizer's. The cues are a reading aid for authoring: they change with every alignment, so anchor animation to beats and treat offsets as authored seconds that need rechecking after a re-voice.
+
 ## Record and verify
 
 ```bash

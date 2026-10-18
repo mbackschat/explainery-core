@@ -116,8 +116,8 @@ async function align({ audio, transcript, force }: { audio: string | undefined; 
     timing = result.timing;
     const reportFile = resolve(option('--report') ?? join(project, '.explainery/alignment.json'));
     await mkdir(dirname(reportFile), { recursive: true });
-    await writeFile(reportFile, JSON.stringify(result.diagnostics, null, 2) + '\n');
-    report(`Alignment: ${result.diagnostics.length} inferred beat timestamps; review ${reportFile}`);
+    await writeFile(reportFile, JSON.stringify({ diagnostics: result.diagnostics, compositions: result.compositions }, null, 2) + '\n');
+    report(`Alignment: ${result.diagnostics.length} inferred beat timestamps; review ${reportFile}, which also lists each composition's word cues`);
   } catch (error) {
     return fail([(error as Error).message]);
   }

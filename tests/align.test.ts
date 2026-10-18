@@ -19,6 +19,19 @@ const garden = story(
 );
 const gardenWords = [...spoken('Every garden starts small. Plant one seed and it grows.', 0.3), ...spoken('Then you pick the fruit.', 6)];
 
+test('the alignment report lists each composition\'s words on its own clock, with the beat each falls in', async () => {
+  const { alignTimingWithReport } = await import('../src/align.ts');
+  const { compositions } = alignTimingWithReport(garden, gardenWords, { audio: 'a.wav' });
+  assert.deepEqual(compositions.seed, [
+    { text: 'Every', start: .3, end: .7 }, { text: 'garden', start: .8, end: 1.2 }, { text: 'starts', start: 1.3, end: 1.7 }, { text: 'small.', start: 1.8, end: 2.2 },
+    { text: 'Plant', start: 2.3, end: 2.7, beat: 'plant', offset: 0 }, { text: 'one', start: 2.8, end: 3.2, beat: 'plant', offset: .5 }, { text: 'seed', start: 3.3, end: 3.7, beat: 'plant', offset: 1 },
+    { text: 'and', start: 3.8, end: 4.2, beat: 'grow', offset: 0 }, { text: 'it', start: 4.3, end: 4.7, beat: 'grow', offset: .5 }, { text: 'grows.', start: 4.8, end: 5.2, beat: 'grow', offset: 1 },
+  ]);
+  // harvest starts its overlap early, at film second 4.7, so its first word at film second 6 is local second 1.3.
+  assert.deepEqual(compositions.harvest[0], { text: 'Then', start: 1.3, end: 1.7, beat: 'pick', offset: 0 });
+  assert.equal(compositions.harvest.length, 5);
+});
+
 test('a beat falls where the word after its marker starts, and a closing beat where the last word ends', () => {
   const timing = alignTiming(garden, gardenWords, { audio: 'assets/narration.wav' });
   assert.deepEqual(timing.scenes.seed.beats, { plant: 2.3, grow: 3.8, sprout: 5.2 });
@@ -98,6 +111,13 @@ test('the align command writes aligned timing from a transcript, but never repla
   assert.deepEqual(JSON.parse(await readFile(join(dir, 'timing.json'), 'utf8')), {
     source: 'aligned', audio: 'assets/narration.wav', audioDuration: 1.9, duration: 2.1, scenes: { intro: { start: 0, duration: 2.1, beats: { wave: 1.2 } } },
   });
+  assert.deepEqual(JSON.parse(await readFile(join(dir, '.explainery/alignment.json'), 'utf8')), {
+    diagnostics: [],
+    compositions: { intro: [
+      { text: 'Say', start: .2, end: .6 }, { text: 'hello', start: .7, end: 1.1 },
+      { text: 'to', start: 1.2, end: 1.6, beat: 'wave', offset: 0 }, { text: 'everyone.', start: 1.7, end: 2.1, beat: 'wave', offset: .5 },
+    ] },
+  });
 });
 
 test('a word that whisper stretches across the following pause ends where the pause begins', () => {
@@ -154,6 +174,9 @@ test('spoken input maps pronunciation expansions onto canonical words and beat t
   ]);
   assert.deepEqual(alignTimingWithReport(film, transcript, { audio: 'a.wav', ...options }), {
     timing: { source: 'aligned', audio: 'a.wav', duration: 3.9, scenes: { one: { start: 0, duration: 3.9, beats: { api: 1, next: 2.5, done: 3.9 } } } }, diagnostics: [],
+    compositions: { one: [
+      { text: 'API', start: 1, end: 2.4, beat: 'api', offset: 0 }, { text: 'stores', start: 2.5, end: 2.9, beat: 'next', offset: 0 }, { text: 'JSON.', start: 3, end: 3.9, beat: 'next', offset: .5 },
+    ] },
   });
   assert.deepEqual(alignStoryWords(film, spoken('API stores JSON.', 0)).words.map(word => word.text), ['API', 'stores', 'JSON.']);
 });
@@ -172,6 +195,8 @@ test('known audio segments bound missing edge words and report inferred opening 
     { compositionId: 'one', beat: 'close', time: 2, reason: 'inferred-word' },
     { compositionId: 'two', beat: 'first', time: 8, reason: 'inferred-word' },
   ]);
+  assert.deepEqual(report.compositions.one[3], { text: 'missing.', start: 1.4, end: 2, beat: 'last', offset: 0, inferred: true });
+  assert.deepEqual(report.compositions.two[0], { text: 'Missing', start: 8, end: 8.5, beat: 'first', offset: 0, inferred: true });
 });
 
 test('known segments prevent matching repeated narration to a different composition', async () => {

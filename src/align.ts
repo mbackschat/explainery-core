@@ -47,9 +47,27 @@ export interface TimingAlignmentOptions extends AlignmentOptions {
   audioDuration?: number;
 }
 
+/**
+ * One script word on its composition's clock, so an author can read `beat('…') + offset` instead of the transcript.
+ *
+ * `start` and `end` are composition-local seconds, like the beats in timing.json. `beat` is the last marker before the
+ * word in narration order and `offset` the seconds from that beat to the word's start; both are absent for words
+ * before the first marker. `inferred` marks a word the transcript did not contain, whose time is interpolated.
+ */
+export interface WordCue {
+  text: string;
+  start: number;
+  end: number;
+  beat?: string;
+  offset?: number;
+  inferred?: true;
+}
+
 export interface TimingAlignmentReport {
   timing: Timing;
   diagnostics: AlignmentDiagnostic[];
+  /** Word cues per composition ID, in narration order. */
+  compositions: Record<string, WordCue[]>;
 }
 
 // Speech recognition mishears some words; far fewer matches mean the audio is not this narration.
@@ -170,6 +188,7 @@ export function alignTimingWithReport(story: Story, transcript: TranscriptWord[]
   const parts = compositions.map(scene => spokenWords(scene.narration));
   const { words: times, inferred } = alignStoryWords(story, transcript, options);
   const diagnostics: AlignmentDiagnostic[] = [];
+  const cues: Record<string, WordCue[]> = {};
 
   const scenes: Record<string, SceneTiming> = {};
   let start = 0;
@@ -192,6 +211,13 @@ export function alignTimingWithReport(story: Story, transcript: TranscriptWord[]
         diagnostics.push({ compositionId: scene.id, beat, time: beats[beat], reason: 'inferred-word' });
       }
     }
+    cues[scene.id] = spoken.map((word, index) => {
+      const cue: WordCue = { text: word.text, start: round(word.start - start), end: round(word.end - start) };
+      const marker = markers.findLast(({ before }) => before <= index);
+      if (marker) Object.assign(cue, { beat: marker.beat, offset: round(cue.start - beats[marker.beat]) });
+      if (inferred[wordOffset + index]) cue.inferred = true;
+      return cue;
+    });
     end = round(lastWordEnd + (scene.hold ?? 0));
     const duration = round(end - start);
     scenes[scene.id] = { start, duration, beats };
@@ -199,7 +225,7 @@ export function alignTimingWithReport(story: Story, transcript: TranscriptWord[]
     if (overlap >= duration) throw new Error(`scene "${scene.id}": overlap ${overlap}s is not shorter than its ${duration}s duration`);
     start = round(end - overlap);
   });
-  return { timing: { source: 'aligned', audio, ...(audioDuration === undefined ? {} : { audioDuration }), duration: end, scenes }, diagnostics };
+  return { timing: { source: 'aligned', audio, ...(audioDuration === undefined ? {} : { audioDuration }), duration: end, scenes }, diagnostics, compositions: cues };
 }
 
 function assertCoverage(matches: Array<WordMatch | undefined>, context = ''): void {
