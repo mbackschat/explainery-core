@@ -25,13 +25,15 @@ export interface CardLayerVariables {
  * Lists the story's cards for the card layer, which draws them in place of composition files.
  *
  * A card fades in over the previous composition's overlap and out over the next one's, so the crossfades follow
- * timing rather than a fixed theme value, capped at half the card. `scenes` lists the titles of the scenes with content
- * in film order, for chapter numbers and the roadmap. A scene of agenda cards alone, such as a closing recap, frames
- * the film: it is still an MP4 chapter, but it is not numbered. A selection keeps only its own cards and moves them
- * onto its clock, matching the retimed hosts of a scene preview.
+ * timing rather than a fixed theme value, capped at half the card. `scenes` is the numbered roadmap in film order: the
+ * scenes a chapter card opens, or every scene with content when the story has no chapter cards. A hook before them
+ * and a recap of agenda cards after them frame the film; they remain MP4 chapters but are not numbered. A selection
+ * keeps only its own cards and moves them onto its clock, matching the retimed hosts of a scene preview.
  */
 export function cardLayerVariables(story: Story, timing: Timing, selection?: SceneSelection): CardLayerVariables {
-  const scenes = storyScenes(story).filter(scene => scene.compositions.some(composition => !composition.card));
+  const all = storyScenes(story);
+  const opened = all.filter(scene => scene.compositions[0].card === 'chapter');
+  const scenes = opened.length ? opened : all.filter(scene => scene.compositions.some(composition => !composition.card));
   const sceneOf = new Map(scenes.flatMap((scene, index) => scene.compositions.map(composition => [composition.id, index] as const)));
   const compositions = storyCompositions(story);
   const end = (id: string) => timing.scenes[id].start + timing.scenes[id].duration;

@@ -40,20 +40,20 @@ test('the story schema accepts chapter and agenda cards and rejects other kinds'
   assert.notDeepEqual(checkStory(unknown), []);
 });
 
-test('the card layer receives every card with its scene, slot, crossfades and copy, and every scene title', () => {
+test('the card layer receives every card with its scene, slot, crossfades and copy, and the numbered scene titles', () => {
   assert.deepEqual(cardLayerVariables(story, timing), {
     duration: 14,
-    scenes: ['Why it matters', 'How data is stored'],
+    scenes: ['How data is stored'],
     cards: [
       { kind: 'agenda', start: 3.5, duration: 2.5, fadeIn: 0.5, fadeOut: 0.6, copy: { headline: 'What follows' } },
-      { kind: 'chapter', scene: 1, start: 5.4, duration: 2.6, fadeIn: 0.6, fadeOut: 0.4, copy: { category: 'PART', headline: 'Where does the state live?' } },
+      { kind: 'chapter', scene: 0, start: 5.4, duration: 2.6, fadeIn: 0.6, fadeOut: 0.4, copy: { category: 'PART', headline: 'Where does the state live?' } },
     ],
   });
 });
 
 test('a selected range keeps only its cards, on its own clock', () => {
   assert.deepEqual(cardLayerVariables(story, timing, { start: 5.4, end: 14, duration: 8.6, compositionIds: new Set(['storage-opener', 'tree']) }).cards, [
-    { kind: 'chapter', scene: 1, start: 0, duration: 2.6, fadeIn: 0.6, fadeOut: 0.4, copy: { category: 'PART', headline: 'Where does the state live?' } },
+    { kind: 'chapter', scene: 0, start: 0, duration: 2.6, fadeIn: 0.6, fadeOut: 0.4, copy: { category: 'PART', headline: 'Where does the state live?' } },
   ]);
 });
 
@@ -89,8 +89,18 @@ test('a scene of agenda cards alone is valid and stays out of the numbered roadm
   const slots: Timing = { ...timing, duration: 17, scenes: { ...timing.scenes, tree: { start: 7.6, duration: 6, beats: {} }, 'recap-card': { start: 13.2, duration: 3.8, beats: {} } } };
   assert.deepEqual(validateStoryTiming(closing, slots), []);
   const layer = cardLayerVariables(closing, slots);
-  assert.deepEqual(layer.scenes, ['Why it matters', 'How data is stored']);
-  assert.deepEqual(layer.cards.map(card => [card.kind, card.scene]), [['agenda', undefined], ['chapter', 1], ['agenda', undefined]]);
+  assert.deepEqual(layer.scenes, ['How data is stored']);
+  assert.deepEqual(layer.cards.map(card => [card.kind, card.scene]), [['agenda', undefined], ['chapter', 0], ['agenda', undefined]]);
+});
+
+// The roadmap is the film's route: the scenes a chapter card opens. A hook before them and a recap after them frame it.
+test('the roadmap numbers the scenes that open with a chapter card, or every scene with content when none does', () => {
+  const second: Story = { ...story, scenes: [...story.scenes, { id: 'hosts', title: 'Where it runs', compositions: [part('hosts-opener', { card: 'chapter' }), part('hosts')] }] };
+  const slots: Timing = { ...timing, duration: 20, scenes: { ...timing.scenes, tree: { start: 7.6, duration: 6, beats: {} }, 'hosts-opener': { start: 13.6, duration: 2, beats: {} }, hosts: { start: 15.6, duration: 4.4, beats: {} } } };
+  assert.deepEqual(cardLayerVariables(second, slots).scenes, ['How data is stored', 'Where it runs']);
+  assert.deepEqual(cardLayerVariables(second, slots).cards.filter(card => card.kind === 'chapter').map(card => card.scene), [0, 1]);
+  const agendaOnly: Story = { ...story, scenes: [story.scenes[0], { id: 'storage', title: 'How data is stored', compositions: [part('tree')] }] };
+  assert.deepEqual(cardLayerVariables(agendaOnly, { ...timing, scenes: { problem: timing.scenes.problem, agenda: timing.scenes.agenda, tree: timing.scenes.tree } }).scenes, ['Why it matters', 'How data is stored']);
 });
 
 test('project validation does not expect composition files for cards', async t => {

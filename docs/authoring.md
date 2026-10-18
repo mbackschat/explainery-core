@@ -39,7 +39,7 @@ The hook scene usually has no chapter card; an agenda card can follow the hook i
 
 ### Open scenes with cards
 
-A chapter card shows the scene's number and title, its question and the roadmap of all scenes, with the current one marked. An agenda card shows its headline above the list of all scenes, none marked, so it serves both as the route after the hook and as the recap at the end. Declare a card as a composition with `card: chapter` or `card: agenda`. Its narration, hold and overlap work like any composition's; its `copy.headline` is the question or agenda heading, and optional `category` and `support` are shown too. A card has no composition file and no root host. Every word comes from the story; the framework adds only digits.
+A chapter card shows the scene's number and title, its question and the roadmap, with the current scene marked. An agenda card shows its headline above the same roadmap, none marked, so it serves both as the route after the hook and as the recap at the end. The roadmap numbers the scenes that open with a chapter card; a hook before them and a recap after them frame the film and stay unnumbered. When a film's structure has a name, such as five pillars, give each chapter card that word as its `category` and keep the titles plain, so the number is not repeated in the title. Declare a card as a composition with `card: chapter` or `card: agenda`. Its narration, hold and overlap work like any composition's; its `copy.headline` is the question or agenda heading, and optional `category` and `support` are shown too. A card has no composition file and no root host. Every word comes from the story; the framework adds only digits.
 
 ```yaml
   - id: storage
@@ -58,7 +58,7 @@ A chapter card shows the scene's number and title, its question and the roadmap 
         narration: "{tree} The state lives in a persistent tree."
 ```
 
-A chapter card must be the first composition of its scene and be followed by content. A scene of agenda cards alone is allowed: a closing recap in its own scene gets its own MP4 and HTML chapter, but frames the film and is left out of the numbered roadmap. Remember that YouTube chapters need at least ten seconds, so a short agenda card belongs inside the hook scene rather than in a scene of its own. A card fades in over the previous composition's overlap and out over its own. Mount the card layer once in the root, as described in [the README](../README.md#add-chapter-and-agenda-cards). [ADR 0010](adr/0010-presentation-structure-and-cards.md) records the decision.
+A chapter card must be the first composition of its scene and be followed by content. A scene of agenda cards alone is allowed: a closing recap in its own scene gets its own MP4 and HTML chapter. A topic that needs two compositions, such as reading and then saving, stays one numbered scene; open its later composition with a spoken question instead of a second chapter card. Remember that YouTube chapters need at least ten seconds, so a short agenda card belongs inside the hook scene rather than in a scene of its own. A card fades in over the previous composition's overlap and out over its own. Mount the card layer once in the root, as described in [the README](../README.md#add-chapter-and-agenda-cards). [ADR 0010](adr/0010-presentation-structure-and-cards.md) records the decision.
 
 ## Author one scene at a time
 
