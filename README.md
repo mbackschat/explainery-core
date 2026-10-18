@@ -13,7 +13,7 @@ This repository, `explainery-core`, is the framework. Each film lives in its own
 - Structure the film like a presentation: [hook, questions, takeaways and recap](docs/authoring.md#structure-the-film-like-a-presentation), with [chapter and agenda cards](#add-chapter-and-agenda-cards).
 - Navigate MP4s with [automatic scene chapters](#mp4-scene-chapters), or refresh chapters in an existing render.
 - Generate [optional SRT and WebVTT subtitles](#generate-optional-subtitles), or review the [background sound proposal](docs/proposals/background-sound.md).
-- Discuss the [faster scene loop proposal](docs/proposals/authoring-workflow.md): beat-addressed snapshots, shared motion helpers and voice settings in the story.
+- Read the [faster scene loop proposal](docs/proposals/authoring-workflow.md) behind beat-addressed snapshots, shared motion helpers, voice settings in the story and composition selection.
 - Time narration: [estimate](#estimate-timing-before-a-voice-exists), [draft a voice](#draft-a-voice), or [align a recording](#align-timing-to-a-recorded-voice).
 - Prepare pronunciation: [voice and glossary guidance](docs/authoring.md#pronunciation-and-voice-direction) and a [reusable glossary template](docs/templates/pronunciation.md).
 - Author visuals: [write a scene](#write-a-scene) and [themes and components](#themes-and-components).

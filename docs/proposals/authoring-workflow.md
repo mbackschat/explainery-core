@@ -1,6 +1,6 @@
 # Proposal: a faster scene loop
 
-Status: accepted for implementation on 2026-10-18, after a fresh-context review of this proposal against the code. The review changed P1–P5 and dropped P6; each section below states the reviewed design. Evidence comes from one working session that revised two story films in parallel. It added four compositions, reworked eight for motion, re-voiced both films and realigned them about five times. Fixed on the spot and therefore not proposed here:
+Status: implemented on 2026-10-18 (P2 `a05fbec`, P1 `163ffcb`, P3 `f178985`, P5 `64e9dfb`, P4 `e4e3db1`), after a fresh-context review of this proposal against the code. The review changed P1–P5 and dropped P6; each section below states the reviewed design, and the README, authoring guide and production guide document the shipped commands. Evidence comes from one working session that revised two story films in parallel. It added four compositions, reworked eight for motion, re-voiced both films and realigned them about five times. Fixed on the spot and therefore not proposed here:
 
 - The card layer's unprefixed `.card` classes restyled a story's own SVG cards; they are now `explainery-card`, and a theme test guards the namespace.
 - A deferred `fromTo` (`immediateRender: false`) that sets opacity in its from-state renders in snapshots but not in MP4s, so new connector lines were missing from a preview while every frame check showed them. `explainery validate` now rejects that form; the fix is `tl.set` at the tween start, then `to`.
