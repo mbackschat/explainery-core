@@ -11,10 +11,18 @@ const source = await readFile(new URL('../runtime/scene.js', import.meta.url), '
 interface Variables { copy?: Record<string, string>; beats?: Record<string, number>; duration?: number }
 interface FakeElement { dataset: { copy: string }; textContent: string; removed: boolean; remove(): void }
 interface Reveal { at?: number; duration?: number }
-interface Tools { beat(name: string): number; duration: number; enterCopy(at: number, timing?: { headline?: Reveal; support?: Reveal }): void }
+type Target = string | object | object[];
+interface Motion {
+  draw(target: Target, at: number, seconds?: number): void;
+  rise(target: Target, at: number, y?: number): void;
+  travel(target: Target, points: [number, number][], at: number, seconds: number): void;
+  pulse(target: Target, origin: string, at: number, scale?: number): void;
+  focus(keep: Target, at: number, until: number, options: { within: string; dim?: number }): void;
+}
+interface Tools { beat(name: string): number; duration: number; enterCopy(at: number, timing?: { headline?: Reveal; support?: Reveal }): void; motion: Motion }
 interface Scope {
   window: { __hyperframes: { getVariables(): Variables }; __timelines: Record<string, gsap.core.Timeline> };
-  document: { querySelectorAll(selector: string): FakeElement[]; querySelector(selector: string): object | null };
+  document: { querySelectorAll(selector: string): object[]; querySelector(selector: string): object | null };
   gsap: typeof gsap;
 }
 type DefineScene = (scope: Scope, id: string, build: (timeline: gsap.core.Timeline, tools: Tools) => void) => gsap.core.Timeline;
@@ -117,4 +125,104 @@ test('enterCopy skips slots the story left out', () => {
   const { defineScene, scope } = sceneScope(variables(), [], blocks);
   const timeline = defineScene(scope, 'library', (tl, { enterCopy }) => enterCopy(0.4));
   assert.deepEqual(Object.keys(entrance(timeline)), ['accent', 'headline', 'support']);
+});
+
+// Plain objects stand in for SVG elements: GSAP tweens their properties, so a seek shows each helper's state directly.
+interface Shape { opacity: number; x?: number; y?: number; scale?: number; strokeDashoffset?: number; getTotalLength(): number; contains(other: object): boolean; children?: Shape[] }
+const shape = (opacity = 0, children: Shape[] = []): Shape => ({ opacity, children, getTotalLength: () => 100, contains(other) { return other === this || children.some(child => child.contains(other)); } });
+
+function motionScene(blocks: Record<string, object>, build: (tl: gsap.core.Timeline, tools: Tools) => void) {
+  const { defineScene, scope } = sceneScope(variables());
+  scope.document.querySelector = selector => blocks[selector] ?? null;
+  scope.document.querySelectorAll = selector => (blocks[selector] ? [blocks[selector]] : []);
+  return defineScene(scope, 'library', build);
+}
+
+test('draw reveals a hidden line at its start and strokes it to full length', () => {
+  const line = shape();
+  const timeline = motionScene({}, (tl, { motion }) => motion.draw(line, 1, .5));
+  timeline.seek(.9);
+  assert.equal(line.opacity, 0);
+  timeline.seek(1.25);
+  assert.equal(line.opacity, 1);
+  assert.ok(line.strokeDashoffset! > 0 && line.strokeDashoffset! < 100);
+  timeline.seek(1.6);
+  assert.equal(line.strokeDashoffset, 0);
+});
+
+// A dash hides the stroke but not its markers, so an arrowhead would wait at the far end while the line is drawn.
+// GSAP's attr plugin is inactive under Node, so this locks the schedule; the MP4 fixture proves the rendered effect.
+test('draw holds back a line marker until the stroke reaches it', () => {
+  const line = Object.assign(shape(), { getAttribute: (name: string) => (name === 'marker-end' ? 'url(#arrow)' : null) });
+  const timeline = motionScene({}, (tl, { motion }) => motion.draw(line, 1, .5));
+  const markers = (timeline.getChildren() as gsap.core.Tween[])
+    .filter(tween => tween.vars.attr)
+    .map(tween => [tween.startTime(), (tween.vars.attr as Record<string, string>)['marker-end']]);
+  assert.deepEqual(markers, [[1, 'none'], [1.5, 'url(#arrow)']]);
+});
+
+test('rise holds its target hidden and lifted until its start, then settles it in place', () => {
+  const card = shape(1);
+  const timeline = motionScene({}, (tl, { motion }) => motion.rise(card, 1));
+  timeline.seek(.5);
+  assert.deepEqual([card.opacity, card.y], [0, 24]);
+  timeline.seek(2);
+  assert.deepEqual([card.opacity, card.y], [1, 0]);
+});
+
+test('travel shows a token at its first waypoint, passes every corner and hides it on arrival', () => {
+  const token = shape();
+  const timeline = motionScene({}, (tl, { motion }) => motion.travel(token, [[0, 0], [100, 0], [100, 50]], 1, 1));
+  timeline.seek(1.5);
+  assert.deepEqual([token.opacity, token.x, token.y], [1, 100, 0]);
+  timeline.seek(2.5);
+  assert.deepEqual([token.opacity, token.x, token.y], [0, 100, 50]);
+});
+
+test('pulse scales its target about the origin and returns it to rest', () => {
+  const mark = shape(1);
+  const timeline = motionScene({}, (tl, { motion }) => motion.pulse(mark, '10 10', 1, 1.5));
+  timeline.seek(1.25);
+  assert.equal(mark.scale, 1.5);
+  timeline.seek(2);
+  assert.equal(mark.scale, 1);
+});
+
+test('focus dims the other wrappers of its container for its window and leaves the kept one alone', () => {
+  const kept = shape(1);
+  const [left, middle, right] = [shape(1), shape(1, [kept]), shape(1)];
+  const diagram = shape(1, [left, middle, right]);
+  const timeline = motionScene({ '#diagram': diagram, '#kept': kept }, (tl, { motion }) => {
+    motion.focus('#kept', 1, 3, { within: '#diagram' });
+    tl.to({}, { duration: 1 }, 4);
+  });
+  timeline.seek(2);
+  assert.deepEqual([left.opacity, middle.opacity, right.opacity], [.3, 1, .3]);
+  timeline.seek(4);
+  assert.deepEqual([left.opacity, middle.opacity, right.opacity], [1, 1, 1]);
+});
+
+test('focus windows in one container may not overlap', () => {
+  const kept = shape(1);
+  const diagram = shape(1, [shape(1, [kept]), shape(1)]);
+  assert.throws(() => motionScene({ '#diagram': diagram, '#kept': kept }, (tl, { motion }) => {
+    motion.focus('#kept', 1, 3, { within: '#diagram' });
+    motion.focus('#kept', 2, 4, { within: '#diagram' });
+  }), /scene "library": focus windows in "#diagram" overlap at 2s/);
+});
+
+// Opacity multiplies down the tree but not across tweens: a dimmed wrapper that another tween also fades would end
+// the focus window at 1 even before its own reveal. Wrappers must be left to focus.
+test('focus refuses to dim a wrapper whose opacity another tween animates', () => {
+  const kept = shape(1);
+  const other = shape(0);
+  const diagram = shape(1, [shape(1, [kept]), other]);
+  assert.throws(() => motionScene({ '#diagram': diagram, '#kept': kept }, (tl, { motion }) => {
+    motion.focus('#kept', 1, 3, { within: '#diagram' });
+    tl.to(other, { opacity: 1, duration: .5 }, 4);
+  }), /scene "library": focus dims a wrapper in "#diagram" whose opacity another tween animates; wrap it in a group of its own/);
+});
+
+test('a focus container that is missing fails naming it', () => {
+  assert.throws(() => motionScene({}, (tl, { motion }) => motion.focus('#kept', 1, 2, { within: '#diagram' })), /scene "library": focus container "#diagram" not found/);
 });

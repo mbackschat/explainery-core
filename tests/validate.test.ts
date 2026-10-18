@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
-import { narrationBeats, validateProject, validateStoryTiming, type Composition, type Story, type Timing } from '../src/index.ts';
+import { deferredReveals, narrationBeats, validateProject, validateStoryTiming, type Composition, type Story, type Timing } from '../src/index.ts';
 
 const scene = (id: string, narration: string): Composition => ({ id, copy: { headline: id }, narration });
 const story = (...scenes: Composition[]): Story => ({ id: 'demo', title: 'Demo', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 }, scenes });
@@ -163,4 +163,15 @@ test('a deferred fromTo that sets opacity in its from-state fails, because rende
   const allowed = `tl.fromTo('#a', { x: 0 }, { x: 40, immediateRender: false }, 2);
   tl.fromTo('#b', { opacity: 0 }, { opacity: 1 }, 1);`;
   assert.deepEqual((await validateProject(await project({ storyYaml, timingJson, compositions: { intro: html(allowed) } }))).errors, []);
+});
+
+test('a shared layer that is no story composition is checked for deferred reveals too', async () => {
+  const dir = await project({ storyYaml, timingJson, compositions: { intro: introHtml, cards: `<template><script>tl.fromTo('#c', { opacity: 1 }, { opacity: 0, immediateRender: false }, 2);</script></template>` } });
+  assert.deepEqual((await validateProject(dir)).errors, ['compositions/cards.html:1: a deferred fromTo (immediateRender: false) sets opacity in its from-state, which HyperFrames renders ignore; set it with tl.set at the tween start instead']);
+});
+
+// The runtime's card layer and motion helpers run inside sub-compositions, so they obey the rule validate enforces.
+test('the runtime never defers a fromTo whose from-state sets opacity', async () => {
+  const runtime = await readFile(new URL('../runtime/scene.ts', import.meta.url), 'utf8');
+  assert.deepEqual(deferredReveals(runtime), []);
 });

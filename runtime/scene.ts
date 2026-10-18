@@ -62,11 +62,35 @@ interface CopyEntranceTiming {
   support?: Partial<RevealTiming>;
 }
 
+type MotionTarget = gsap.TweenTarget;
+
+/**
+ * Shared motion for a scene's timeline. Every helper adds tweens only to that timeline and never defers a fromTo
+ * whose from-state sets opacity, which HyperFrames renders ignore inside sub-compositions (src/validate.ts).
+ */
+interface Motion {
+  /** Strokes a line to its full length from `at`. The markup hides the line (opacity 0) until then. */
+  draw(target: MotionTarget, at: number, seconds?: number): void;
+  /** Fades the target in while it moves up into place; as the target's first tween it also hides it until `at`. */
+  rise(target: MotionTarget, at: number, y?: number): void;
+  /** Shows a token at the first waypoint, moves it through the others in equal steps, and hides it on arrival. */
+  travel(target: MotionTarget, points: [number, number][], at: number, seconds: number): void;
+  /** Scales the target about an SVG origin and back. Pulse an inner group, never one that x/y tweens also move. */
+  pulse(target: MotionTarget, origin: string, at: number, scale?: number): void;
+  /**
+   * Dims every child of `within` that holds none of the kept elements from `at` until `until`. Those children must
+   * be wrappers left to focus: opacity multiplies down the tree, so dimming a wrapper never reveals a child that has
+   * not appeared, but a second tween on the wrapper's own opacity would fight the restore.
+   */
+  focus(keep: string | MotionTarget, at: number, until: number, options: { within: string; dim?: number }): void;
+}
+
 interface SceneTools {
   beat(name: string): number;
   duration: number;
   copy: SceneCopy;
   enterCopy(at: number, timing?: CopyEntranceTiming): void;
+  motion: Motion;
 }
 
 type DefineScene = (scope: SceneScope, id: string, build: (timeline: gsap.core.Timeline, tools: SceneTools) => void) => gsap.core.Timeline;
@@ -107,6 +131,70 @@ declare var defineCards: DefineCards;
     };
   }
 
+  // A focus window dims and later restores wrappers; the build check below needs to know which tweens are its own.
+  interface FocusWindow { within: string; at: number; until: number; wrappers: object[] }
+
+  function sceneMotion(scope: SceneScope, id: string, timeline: gsap.core.Timeline, windows: FocusWindow[], own: Set<gsap.core.Tween>): Motion {
+    const length = function (index: number, line: SVGGeometryElement) { return line.getTotalLength(); };
+    const resolve = function (target: string | MotionTarget): object[] {
+      if (typeof target === 'string') return Array.prototype.slice.call(scope.document.querySelectorAll(target));
+      return scope.gsap.utils.toArray(target);
+    };
+    return {
+      draw: function (target, at, seconds) {
+        const duration = seconds === undefined ? .6 : seconds;
+        timeline.set(target, { opacity: 1, strokeDasharray: length, strokeDashoffset: length }, at)
+          .to(target, { strokeDashoffset: 0, duration: duration, ease: 'power1.inOut' }, at);
+        // A dash hides the stroke but not its markers, so the arrowhead joins the line when the stroke reaches it.
+        resolve(target).forEach(function (line) {
+          const marker = typeof (line as Element).getAttribute === 'function' ? (line as Element).getAttribute('marker-end') : null;
+          if (marker) timeline.set(line, { attr: { 'marker-end': 'none' } }, at).set(line, { attr: { 'marker-end': marker } }, at + duration);
+        });
+      },
+      rise: function (target, at, y) {
+        timeline.fromTo(target, { opacity: 0, y: y === undefined ? 24 : y }, { opacity: 1, y: 0, duration: .55, ease: 'power2.out' }, at);
+      },
+      travel: function (target, points, at, seconds) {
+        const step = seconds / Math.max(points.length - 1, 1);
+        timeline.set(target, { opacity: 1, x: points[0][0], y: points[0][1] }, at);
+        points.slice(1).forEach(function (point, index) {
+          timeline.to(target, { x: point[0], y: point[1], duration: step, ease: 'none' }, at + index * step);
+        });
+        timeline.to(target, { opacity: 0, duration: .2 }, at + seconds);
+      },
+      pulse: function (target, origin, at, scale) {
+        timeline.fromTo(target, { scale: 1, svgOrigin: origin }, { scale: scale === undefined ? 1.25 : scale, svgOrigin: origin, duration: .25, yoyo: true, repeat: 1 }, at);
+      },
+      focus: function (keep, at, until, options) {
+        const container = scope.document.querySelector(options.within);
+        if (!container) throw new Error('scene "' + id + '": focus container "' + options.within + '" not found');
+        windows.forEach(function (other) {
+          if (other.within === options.within && at < other.until && other.at < until) {
+            throw new Error('scene "' + id + '": focus windows in "' + options.within + '" overlap at ' + seconds(Math.max(at, other.at)));
+          }
+        });
+        const kept = resolve(keep);
+        const wrappers = Array.prototype.slice.call(container.children).filter(function (child: Node) {
+          return !kept.some(function (element) { return child.contains(element as Node); });
+        });
+        windows.push({ within: options.within, at: at, until: until, wrappers: wrappers });
+        own.add(timeline.to(wrappers, { opacity: options.dim === undefined ? .3 : options.dim, duration: .4 }, at).recent() as gsap.core.Tween);
+        own.add(timeline.to(wrappers, { opacity: 1, duration: .4 }, until).recent() as gsap.core.Tween);
+      },
+    };
+  }
+
+  function checkFocus(id: string, timeline: gsap.core.Timeline, windows: FocusWindow[], own: Set<gsap.core.Tween>) {
+    windows.forEach(function (focusWindow) {
+      focusWindow.wrappers.forEach(function (wrapper) {
+        const rival = timeline.getTweensOf(wrapper).some(function (tween) {
+          return !own.has(tween) && ('opacity' in tween.vars || 'autoAlpha' in tween.vars || 'opacity' in (tween.vars.startAt || {}));
+        });
+        if (rival) throw new Error('scene "' + id + '": focus dims a wrapper in "' + focusWindow.within + '" whose opacity another tween animates; wrap it in a group of its own');
+      });
+    });
+  }
+
   /**
    * Builds and registers a scene's paused timeline from its composition variables (copy, beats, duration).
    *
@@ -129,7 +217,10 @@ declare var defineCards: DefineCards;
       return beats[name];
     };
     const timeline = scope.gsap.timeline({ paused: true });
-    build(timeline, { beat: beat, duration: duration, copy: copy, enterCopy: copyEntrance(scope.document, timeline) });
+    const windows: FocusWindow[] = [];
+    const own = new Set<gsap.core.Tween>();
+    build(timeline, { beat: beat, duration: duration, copy: copy, enterCopy: copyEntrance(scope.document, timeline), motion: sceneMotion(scope, id, timeline, windows, own) });
+    checkFocus(id, timeline, windows, own);
     if (timeline.duration() > duration + EPSILON) {
       throw new Error('scene "' + id + '" timeline ends at ' + seconds(timeline.duration()) + ', after its ' + seconds(duration));
     }
@@ -182,8 +273,9 @@ declare var defineCards: DefineCards;
     const wipe = Math.max(Math.min(.6, slot.duration - slot.fadeOut - settle), .01);
     timeline.fromTo(card, { opacity: 0 }, { opacity: 1, duration: fadeIn }, slot.start);
     timeline.fromTo(question || title, { clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)', duration: wipe, ease: 'power1.out' }, slot.start + settle);
-    // Not rendered at build time: the card must stay hidden until its fade-in.
-    timeline.fromTo(card, { opacity: 1 }, { opacity: 0, duration: fadeOut, immediateRender: false }, end - fadeOut);
+    // A set at the fade's start rather than a deferred fromTo: the card stays hidden until its fade-in, and renders
+    // honour the opacity a set applies (src/validate.ts, deferredReveals).
+    timeline.set(card, { opacity: 1 }, end - fadeOut).to(card, { opacity: 0, duration: fadeOut }, end - fadeOut);
   }
 
   /**

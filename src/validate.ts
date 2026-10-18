@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { narrationBeats } from './narration.ts';
@@ -101,7 +101,12 @@ async function checkCompositions(dir: string, story: Story): Promise<string[]> {
     }
     // HyperFrames looks a scene's timeline up by this id; a mismatch only surfaces as a 45-second render stall.
     if (!new RegExp(`data-composition-id=["']${id}["']`).test(html)) errors.push(`${file}: no element with data-composition-id="${id}"`);
-    errors.push(...deferredReveals(html).map(({ line, property }) => `${file}:${line}: a deferred fromTo (immediateRender: false) sets ${property} in its from-state, which HyperFrames renders ignore; set it with tl.set at the tween start instead`));
+  }
+  // Shared layers such as the card layer are sub-compositions too, so every file obeys the render rule.
+  const files = await readdir(join(dir, 'compositions')).catch(error => { if (isMissing(error)) return []; throw error; });
+  for (const name of files.filter(name => name.endsWith('.html')).sort()) {
+    const html = await readFile(join(dir, 'compositions', name), 'utf8');
+    errors.push(...deferredReveals(html).map(({ line, property }) => `compositions/${name}:${line}: a deferred fromTo (immediateRender: false) sets ${property} in its from-state, which HyperFrames renders ignore; set it with tl.set at the tween start instead`));
   }
   return errors;
 }
@@ -114,7 +119,7 @@ async function checkCompositions(dir: string, story: Story): Promise<string[]> {
  * reproduced it on 2026-10-18. Transform- and dash-only deferred calls render correctly. The scan is lexical: it
  * splits each call's arguments at top-level commas and follows spreads of option objects declared in the file.
  */
-function deferredReveals(html: string): { line: number; property: string }[] {
+export function deferredReveals(html: string): { line: number; property: string }[] {
   const found: { line: number; property: string }[] = [];
   const deferring = /\bimmediateRender\s*:\s*false\b/;
   // Shared option objects such as `const later = { immediateRender: false }` defer every call that spreads them.

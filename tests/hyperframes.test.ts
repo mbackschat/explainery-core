@@ -68,6 +68,34 @@ test('the card layer covers the scenes only while a card shows, and a chapter ca
   await hyperframes(dir, 'check', '--no-browser-gpu', '--no-contrast', '--samples', '8', '--strict');
 });
 
+async function videoPixel(video: string, at: number, x: number, y: number) {
+  const { stdout } = await run('ffmpeg', ['-v', 'error', '-ss', String(at), '-i', video, '-frames:v', '1', '-vf', `format=rgb24,crop=1:1:${x}:${y}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], { encoding: 'buffer' });
+  return [...stdout];
+}
+
+// Video encoding shifts colours a little, so rendered pixels are compared within a tolerance.
+const near = (actual: number[], expected: number[], label: string) => assert.ok(actual.every((channel, index) => Math.abs(channel - expected[index]) <= 40), `${label}: ${actual} is not near ${expected}`);
+
+// Snapshots and MP4 renders take different paths through HyperFrames 0.8.142, and a deferred fromTo's opacity
+// from-state is lost only in renders, so the motion helpers are proven on a rendered video. The deferred line is a
+// characterization: when an upgrade draws it, the validate rule against that form can be relaxed.
+test('motion helpers render in an MP4, while a deferred opacity from-state is lost there', { timeout: 300000 }, async () => {
+  const dir = await fixtureProject('motion');
+  const video = join(dir, 'out.mp4');
+  await hyperframes(dir, 'render', '--output', video, '--workers', '1', '--no-browser-gpu');
+  near(await videoPixel(video, 1, 330, 300), [255, 255, 0], 'travel carries the token halfway');
+  near(await videoPixel(video, 1, 600, 30), [0, 0, 0], 'the arrowhead waits while its line is drawn');
+  near(await videoPixel(video, 1.9, 600, 30), [255, 0, 255], 'the arrowhead joins the drawn line');
+  near(await videoPixel(video, 1, 230, 190), [77, 77, 77], 'focus dims the other wrapper');
+  near(await videoPixel(video, 1, 330, 190), [255, 255, 255], 'focus keeps the kept element');
+  near(await videoPixel(video, 1.9, 320, 60), [255, 0, 0], 'draw strokes the line');
+  near(await videoPixel(video, 1.9, 70, 190), [0, 0, 255], 'rise settles the box');
+  near(await videoPixel(video, 1.9, 230, 190), [255, 255, 255], 'focus restores the wrapper');
+  near(await videoPixel(video, 1.9, 320, 120), [0, 0, 0], 'the deferred opacity from-state stays lost in the render');
+  await snapshot(dir, '--at', '1.9');
+  near(await pixel(join(dir, 'out/frame-00-at-1.9s.png'), 320, 120), [0, 255, 0], 'while a snapshot draws the deferred line');
+});
+
 test('transcription removes its temporary folder, even when HyperFrames fails', { timeout: 60000 }, async () => {
   const leftovers = async () => (await readdir(tmpdir())).filter(name => name.startsWith('explainery-transcript-')).sort();
   const before = await leftovers();

@@ -44,6 +44,69 @@
             reveal('[data-copy="support"]', { opacity: 0 }, { opacity: 1, duration: support.duration }, at + support.at);
         };
     }
+    function sceneMotion(scope, id, timeline, windows, own) {
+        const length = function (index, line) { return line.getTotalLength(); };
+        const resolve = function (target) {
+            if (typeof target === 'string')
+                return Array.prototype.slice.call(scope.document.querySelectorAll(target));
+            return scope.gsap.utils.toArray(target);
+        };
+        return {
+            draw: function (target, at, seconds) {
+                const duration = seconds === undefined ? .6 : seconds;
+                timeline.set(target, { opacity: 1, strokeDasharray: length, strokeDashoffset: length }, at)
+                    .to(target, { strokeDashoffset: 0, duration: duration, ease: 'power1.inOut' }, at);
+                // A dash hides the stroke but not its markers, so the arrowhead joins the line when the stroke reaches it.
+                resolve(target).forEach(function (line) {
+                    const marker = typeof line.getAttribute === 'function' ? line.getAttribute('marker-end') : null;
+                    if (marker)
+                        timeline.set(line, { attr: { 'marker-end': 'none' } }, at).set(line, { attr: { 'marker-end': marker } }, at + duration);
+                });
+            },
+            rise: function (target, at, y) {
+                timeline.fromTo(target, { opacity: 0, y: y === undefined ? 24 : y }, { opacity: 1, y: 0, duration: .55, ease: 'power2.out' }, at);
+            },
+            travel: function (target, points, at, seconds) {
+                const step = seconds / Math.max(points.length - 1, 1);
+                timeline.set(target, { opacity: 1, x: points[0][0], y: points[0][1] }, at);
+                points.slice(1).forEach(function (point, index) {
+                    timeline.to(target, { x: point[0], y: point[1], duration: step, ease: 'none' }, at + index * step);
+                });
+                timeline.to(target, { opacity: 0, duration: .2 }, at + seconds);
+            },
+            pulse: function (target, origin, at, scale) {
+                timeline.fromTo(target, { scale: 1, svgOrigin: origin }, { scale: scale === undefined ? 1.25 : scale, svgOrigin: origin, duration: .25, yoyo: true, repeat: 1 }, at);
+            },
+            focus: function (keep, at, until, options) {
+                const container = scope.document.querySelector(options.within);
+                if (!container)
+                    throw new Error('scene "' + id + '": focus container "' + options.within + '" not found');
+                windows.forEach(function (other) {
+                    if (other.within === options.within && at < other.until && other.at < until) {
+                        throw new Error('scene "' + id + '": focus windows in "' + options.within + '" overlap at ' + seconds(Math.max(at, other.at)));
+                    }
+                });
+                const kept = resolve(keep);
+                const wrappers = Array.prototype.slice.call(container.children).filter(function (child) {
+                    return !kept.some(function (element) { return child.contains(element); });
+                });
+                windows.push({ within: options.within, at: at, until: until, wrappers: wrappers });
+                own.add(timeline.to(wrappers, { opacity: options.dim === undefined ? .3 : options.dim, duration: .4 }, at).recent());
+                own.add(timeline.to(wrappers, { opacity: 1, duration: .4 }, until).recent());
+            },
+        };
+    }
+    function checkFocus(id, timeline, windows, own) {
+        windows.forEach(function (focusWindow) {
+            focusWindow.wrappers.forEach(function (wrapper) {
+                const rival = timeline.getTweensOf(wrapper).some(function (tween) {
+                    return !own.has(tween) && ('opacity' in tween.vars || 'autoAlpha' in tween.vars || 'opacity' in (tween.vars.startAt || {}));
+                });
+                if (rival)
+                    throw new Error('scene "' + id + '": focus dims a wrapper in "' + focusWindow.within + '" whose opacity another tween animates; wrap it in a group of its own');
+            });
+        });
+    }
     /**
      * Builds and registers a scene's paused timeline from its composition variables (copy, beats, duration).
      *
@@ -68,7 +131,10 @@
             return beats[name];
         };
         const timeline = scope.gsap.timeline({ paused: true });
-        build(timeline, { beat: beat, duration: duration, copy: copy, enterCopy: copyEntrance(scope.document, timeline) });
+        const windows = [];
+        const own = new Set();
+        build(timeline, { beat: beat, duration: duration, copy: copy, enterCopy: copyEntrance(scope.document, timeline), motion: sceneMotion(scope, id, timeline, windows, own) });
+        checkFocus(id, timeline, windows, own);
         if (timeline.duration() > duration + EPSILON) {
             throw new Error('scene "' + id + '" timeline ends at ' + seconds(timeline.duration()) + ', after its ' + seconds(duration));
         }
@@ -120,8 +186,9 @@
         const wipe = Math.max(Math.min(.6, slot.duration - slot.fadeOut - settle), .01);
         timeline.fromTo(card, { opacity: 0 }, { opacity: 1, duration: fadeIn }, slot.start);
         timeline.fromTo(question || title, { clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)', duration: wipe, ease: 'power1.out' }, slot.start + settle);
-        // Not rendered at build time: the card must stay hidden until its fade-in.
-        timeline.fromTo(card, { opacity: 1 }, { opacity: 0, duration: fadeOut, immediateRender: false }, end - fadeOut);
+        // A set at the fade's start rather than a deferred fromTo: the card stays hidden until its fade-in, and renders
+        // honour the opacity a set applies (src/validate.ts, deferredReveals).
+        timeline.set(card, { opacity: 1 }, end - fadeOut).to(card, { opacity: 0, duration: fadeOut }, end - fadeOut);
     }
     /**
      * Draws the story's cards into the card layer composition `id` and registers its timeline through defineScene.

@@ -67,6 +67,21 @@ A narrated film already speaks its explanation; the picture has to show it. Plan
 - **Show first, then label.** Draw the thing the narration talks about: the structure, the object that moves, the result that changes. Labels name what is drawn in one to three words. A card that holds only text, or a frame whose meaning depends on reading sentences, is a slide, not an explanation. Keep identifiers on screen only where the identifier itself is the point, such as a method the viewer will later use.
 - **Motion carries the story.** When something changes, show it changing: an object travels from cause to effect, transforms into its next form, splits, merges, is replaced, or bounces back when it is refused. The motion should make the claim visible, so that a viewer with the sound off can still tell what happened. Fades bring context in and clear it away; they never carry the explanation on their own.
 - **One change at a time.** Give each beat one change the eye can follow, anchored to the word that names it. Let earlier state stay put, so the change stands out against it.
+- **Focus follows the voice.** A diagram that holds several parts must show which part the narration is talking about, or viewers search the frame while they listen. Let the referenced part move or draw on its word, and let the rest step back while the voice dwells elsewhere. Disclose a diagram progressively only where its parts are explained in order; if everything appears piece by piece, the motion itself becomes the noise.
+
+The scene context's `motion` helpers cover the recurring moves, so compositions share one tested implementation instead of redeclaring it:
+
+```js
+defineScene({ window, document, gsap }, 'checkout', (tl, { beat, motion }) => {
+  motion.draw('#co-link', beat('partial') + .4);                                    // stroke a hidden line to full length
+  motion.rise('#co-holder', beat('materialize'));                                    // fade in while moving into place
+  motion.travel('#co-token', [[150, 374], [900, 454]], beat('refuse') + .6, 1.3);    // show, move through waypoints, hide
+  motion.pulse('#co-token-mark', '95 17', beat('retry') + 2.5);                      // scale an inner group about an origin
+  motion.focus('#co-ledger', beat('merge'), beat('retry'), { within: '#co-diagram' });  // dim the rest of the diagram
+});
+```
+
+`draw` needs the line hidden in the markup (`opacity="0"`) and holds a `marker-end` arrowhead back until the stroke reaches it; `rise` hides its target until its start because it is the target's first tween. `focus` dims the other children of its container, so give each part of a diagram its own wrapper group and leave that wrapper's opacity to focus: the scene fails when another tween animates it, or when two focus windows in one container overlap. Never tween `x`/`y` and `svgOrigin` scaling on the same group; pulse an inner group instead. Inside a sub-composition, a `fromTo` with `immediateRender: false` loses an opacity from-state in MP4 renders while snapshots show it, so `explainery validate` rejects that form; the helpers never use it.
 
 ## Author one scene at a time
 

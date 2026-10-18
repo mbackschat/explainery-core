@@ -1,0 +1,28 @@
+<template id="motion-template">
+  <div id="motion-scene" data-composition-id="motion" data-width="640" data-height="360" data-duration="2">
+    <svg width="640" height="360" viewBox="0 0 640 360">
+      <defs><marker id="m-arrow" viewBox="0 0 12 12" refX="6" refY="6" markerWidth="4" markerHeight="4" orient="auto"><rect width="12" height="12" fill="#ff00ff"/></marker></defs>
+      <path id="m-arrowed" d="M40 30H600" stroke="#ff0000" stroke-width="6" fill="none" opacity="0" marker-end="url(#m-arrow)"/>
+      <path id="m-draw" d="M40 60H600" stroke="#ff0000" stroke-width="10" fill="none" opacity="0"/>
+      <path id="m-deferred" d="M40 120H600" stroke="#00ff00" stroke-width="10" fill="none" opacity="0"/>
+      <rect id="m-rise" x="40" y="170" width="60" height="40" fill="#0000ff"/>
+      <g id="m-diagram">
+        <g id="m-other"><rect x="200" y="170" width="60" height="40" fill="#ffffff"/></g>
+        <g id="m-holder"><rect id="m-kept" x="300" y="170" width="60" height="40" fill="#ffffff"/></g>
+      </g>
+      <circle id="m-token" cx="0" cy="0" r="12" fill="#ffff00" opacity="0"/>
+    </svg>
+  </div>
+  <script>
+    defineScene({ window, document, gsap }, 'motion', (tl, { motion }) => {
+      motion.draw('#m-draw', .2, .4);
+      motion.draw('#m-arrowed', .2, 1.2);
+      // HyperFrames 0.8.142 ignores this from-state opacity in renders only; the test characterizes that defect.
+      tl.fromTo('#m-deferred', { opacity: 1, strokeDasharray: 560, strokeDashoffset: 560 }, { strokeDashoffset: 0, duration: .4, immediateRender: false }, .2);
+      motion.rise('#m-rise', .2);
+      motion.focus('#m-kept', .5, 1.2, { within: '#m-diagram' });
+      motion.travel('#m-token', [[60, 300], [600, 300]], .2, 1.6);
+      tl.set({}, {}, 2);
+    });
+  </script>
+</template>

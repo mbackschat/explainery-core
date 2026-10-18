@@ -11,7 +11,7 @@ export { checkStory, checkTiming } from './schemas.ts';
 export { sceneRange, storyCompositions, storyScenes } from './story.ts';
 export { prepareSceneProject, type PreparedSceneProject } from './scene-project.ts';
 export type { Composition, Copy, Scene, SceneTiming, Story, Timing } from './types.ts';
-export { loadStory, validateProject, validateStoryTiming, type ProjectValidation } from './validate.ts';
+export { deferredReveals, loadStory, validateProject, validateStoryTiming, type ProjectValidation } from './validate.ts';
 export { subtitleCues, formatSubtitles, type SubtitleCue, type SubtitleFormat } from './subtitles.ts';
 export { sceneChapters, writeMp4Chapters, type Chapter } from './chapters.ts';
 export type { ExplainerExportOptions } from './export-subtitles.ts';

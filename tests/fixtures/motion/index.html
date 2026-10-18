@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=640, height=360">
+    <title>Motion fixture</title>
+    <script src="node_modules/gsap/dist/gsap.min.js"></script>
+    <script src="node_modules/explainery-core/runtime/scene.js"></script>
+    <style>
+      html, body { width: 640px; height: 360px; margin: 0; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; color: #fff; font-family: sans-serif; }
+      .clip { position: absolute; inset: 0; width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="2" data-width="640" data-height="360">
+      <div id="motion" class="clip" data-composition-id="motion" data-composition-src="compositions/motion.html" data-start="0" data-duration="2" data-width="640" data-height="360" data-track-index="1"
+        data-variable-values='{"beats":{},"duration":2}'></div>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines['main'] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>
