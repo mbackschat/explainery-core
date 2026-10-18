@@ -52,14 +52,14 @@ test('the dark theme styles a project through the linked package', { timeout: 15
   await hyperframes(dir, 'check', '--no-browser-gpu', '--no-contrast', '--samples', '2');
 });
 
-// Roadmap rows are 44px from y=330 on a chapter card and 62px from y=360 on an agenda card; the current row carries
-// a 5px accent bar at its left edge on a chapter card only, so one pixel shows which scene it marks.
+// Roadmap rows are 44px from y=330 on a chapter card; the current row carries a 5px accent bar at its left edge,
+// so one pixel shows which scene it marks. An agenda card marks none: its first row starts below the headline.
 test('the card layer covers the scenes only while a card shows, and a chapter card marks its scene', { timeout: 150000 }, async () => {
   const dir = await fixtureProject('cards');
   await snapshot(dir, '--at', '0.5,2,3.9,5.5');
   const at = (index: number, time: string, x: number, y: number) => pixel(join(dir, `out/frame-0${index}-at-${time}s.png`), x, y);
   assert.deepEqual(await at(0, '0.5', 960, 1060), [0, 255, 0], 'the scene shows before the first card');
-  assert.notDeepEqual(await at(1, '2', 112, 391), [0xa9, 0xbf, 0xdc], 'the agenda marks no scene');
+  assert.notDeepEqual(await at(1, '2', 112, 370), [0xa9, 0xbf, 0xdc], 'the agenda marks no scene');
   assert.notDeepEqual(await at(1, '2', 960, 1060), [0, 255, 0], 'the agenda covers the scene');
   assert.deepEqual(await at(2, '3.9', 960, 1060), [0, 255, 0], 'the scene shows between cards');
   assert.deepEqual(await at(3, '5.5', 1292, 396), [0xa9, 0xbf, 0xdc], 'the chapter card marks the second scene');

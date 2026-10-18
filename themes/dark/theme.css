@@ -72,6 +72,6 @@ body { background: var(--canvas); color: var(--text); font-family: var(--font-fa
 .card-roadmap li { height: 44px; padding-left: 22px; line-height: 44px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-roadmap li.past { color: var(--text-muted); opacity: .5; }
 .card-roadmap li.current { color: var(--accent); font-weight: 700; box-shadow: inset 5px 0 var(--accent); }
-.card.agenda .card-main { top: 160px; }
-.card.agenda .card-roadmap { left: var(--copy-left); top: 360px; width: 1500px; font-size: var(--type-agenda); }
+.card.agenda .card-main { top: 160px; width: var(--copy-width); }
+.card.agenda .card-roadmap { position: static; margin-top: 56px; width: auto; font-size: var(--type-agenda); }
 .card.agenda .card-roadmap li { height: 62px; line-height: 62px; }

@@ -161,7 +161,8 @@ declare var defineCards: DefineCards;
     const title = append(main, 'h1', 'card-title', chapter ? scenes[slot.scene] : slot.copy.headline);
     const question = chapter && slot.copy.headline ? append(main, 'p', 'card-question', slot.copy.headline) : undefined;
     if (slot.copy.support) append(main, 'p', 'support', slot.copy.support);
-    const roadmap = append(card, 'ol', 'card-roadmap');
+    // On an agenda the list follows the headline, so a headline of any length pushes it down instead of overlapping.
+    const roadmap = append(chapter ? card : main, 'ol', 'card-roadmap');
     scenes.forEach(function (name, index) {
       const state = !chapter ? 'next' : index < slot.scene ? 'past' : index === slot.scene ? 'current' : 'next';
       append(roadmap, 'li', state, pad(index + 1) + '  ' + name);
