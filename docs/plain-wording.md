@@ -66,8 +66,10 @@ A chapter question is a real question that the scene answers, in the viewer's te
 | Discover how X seamlessly empowers your team. | hype | How X assigns each request to one owner, step by step. |
 | Your journey into graph runtimes starts here. | metaphor, hype | A technical introduction to the graph runtime and its storage interface. |
 
-## How it is enforced
+## The marketing slop detector
 
-1. **Lexical check.** `explainery validate`, `explainery production` and `preflight`, and therefore `deliver`, reject the recurring forms that [the wording check](../src/wording.ts) recognizes: several sentences or a full stop in a headline or title, teaser openings, counted contrasts, and the hype words and metaphors listed above. The check cannot judge meaning, so it is a floor, not the review.
-2. **Review before showing.** An agent that drafts viewer-facing text checks every line against this guide before presenting it, including proposals in a table or a chat message. The review is done with a fresh context: a reviewer receives this guide and the draft lines, nothing else, and returns each line that breaks a rule with the rule's number. The agent revises until the reviewer returns nothing, then presents the text.
+The marketing slop detector enforces this guide in two steps; both run before any viewer-facing text reaches the author or a film.
+
+1. **Lexical check.** `explainery validate`, `explainery production` and `preflight`, and therefore `deliver`, reject the recurring forms that [its lexical part](../src/slop.ts) recognizes: several sentences or a full stop in a headline or title, teaser openings, counted contrasts, and the hype words and metaphors listed above. The check cannot judge meaning, so it is a floor, not the review.
+2. **Review before showing.** This is the detector's main step. An agent that drafts viewer-facing text checks every line against this guide before presenting it, including proposals in a table or a chat message. The review is done with a fresh context: a reviewer receives this guide and the draft lines, nothing else, and returns each line that breaks a rule with the rule's number. The agent revises until the reviewer returns nothing, then presents the text.
 3. **New patterns.** When the author rejects wording as slop that passed both steps, add it to the examples here with its pattern, and to the lexical check if the form can be recognized from its words.

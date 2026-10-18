@@ -81,7 +81,7 @@ Adding the frame to an existing film changes no composition file: cards are stor
 
 ### Write plain copy
 
-Every word on screen and in the voice describes the subject and never sells it. The [plain wording guide](plain-wording.md) owns the rules and their good and bad examples, and applies to headlines, card text, support lines, scene titles, narration and delivery text. `explainery validate`, `explainery production` and `preflight` reject the recurring slogan forms that [the wording check](../src/wording.ts) recognizes; the check is lexical, so the guide's review step still applies.
+Every word on screen and in the voice describes the subject and never sells it. The [plain wording guide](plain-wording.md) owns the rules and their good and bad examples, and applies to headlines, card text, support lines, scene titles, narration and delivery text. `explainery validate`, `explainery production` and `preflight` reject the recurring slogan forms that the [marketing slop detector](plain-wording.md#the-marketing-slop-detector) recognizes lexically; its review step applies to every draft before anyone sees it.
 
 ### Open scenes with cards
 

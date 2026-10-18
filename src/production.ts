@@ -8,7 +8,7 @@ import { hyperframesDist } from './hyperframes.ts';
 import { storyPronunciations, voicedText } from './narration.ts';
 import { storyCompositions } from './story.ts';
 import { validateProject } from './validate.ts';
-import { editorialErrors } from './wording.ts';
+import { editorialErrors } from './slop.ts';
 import type { Story } from './types.ts';
 import { alignStoryWords, type AudioSegment, type TranscriptWord } from './align.ts';
 import { parseHTML } from 'linkedom';

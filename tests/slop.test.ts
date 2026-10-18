@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { frameErrors, wordingErrors, type Composition, type Scene, type Story } from '../src/index.ts';
+import { frameErrors, slopErrors, type Composition, type Scene, type Story } from '../src/index.ts';
 
 const composition = (id: string, headline: string, extra: Partial<Composition> = {}): Composition => ({ id, copy: { headline }, narration: 'Plain words.', ...extra });
 const film = (...scenes: (Composition | Scene)[]): Story => ({ id: 'demo', title: 'Demo', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 }, scenes });
@@ -20,10 +20,10 @@ test('slogan headlines fail with the pattern they use', () => {
     ['The cache answers reads.', /ends with a period/],
   ];
   for (const [headline, reason] of rejected) {
-    const errors = wordingErrors(film(composition('c', headline)));
+    const errors = slopErrors(film(composition('c', headline)));
     assert.equal(errors.length, 1, `${headline}: ${errors.join('; ')}`);
     assert.match(errors[0], reason);
-    assert.match(errors[0], /^story\.yaml composition "c": headline "/);
+    assert.match(errors[0], /^story\.yaml composition "c": headline ".*; marketing slop: /);
   }
 });
 
@@ -35,7 +35,7 @@ test('plain claims, contrasts and questions pass', () => {
     'Save commits one transaction per editing session',
     'Where does the state live?',
     'Define languages, work with models, run apps',
-  ]) assert.deepEqual(wordingErrors(film(composition('c', headline))), [], headline);
+  ]) assert.deepEqual(slopErrors(film(composition('c', headline))), [], headline);
 });
 
 test('support lines, card headlines, scene titles and narration are checked too', () => {
@@ -43,7 +43,7 @@ test('support lines, card headlines, scene titles and narration are checked too'
     { id: 'opening', title: 'One tool, many teams', compositions: [composition('route', 'The four parts of this film', { card: 'agenda', copy: { headline: 'The four parts of this film', support: 'Unlock a powerful workflow.' } })] },
     composition('content', 'A queue assigns each task once', { narration: 'The queue gives every task a home.' }),
   );
-  assert.deepEqual(wordingErrors(story).map(error => error.replace(/;.*$/, '')), [
+  assert.deepEqual(slopErrors(story).map(error => error.replace(/;.*$/, '')), [
     'story.yaml scene "opening": title "One tool, many teams" is a counted contrast',
     'story.yaml composition "route": support "Unlock a powerful workflow." uses hype words (unlock, powerful)',
     'story.yaml composition "content": narration uses a metaphor (home)',
@@ -89,7 +89,7 @@ test('every good example in the plain wording guide passes the check', async () 
     const good = cells[3];
     const asCopy = /Headlines|Cards/.test(section);
     const story = film(composition('c', asCopy ? good : 'Plain claim', asCopy ? {} : { narration: good }));
-    assert.deepEqual(wordingErrors(story), [], `${section}: ${good}`);
+    assert.deepEqual(slopErrors(story), [], `${section}: ${good}`);
     checked++;
   }
   assert.ok(checked >= 20, `only ${checked} examples found`);

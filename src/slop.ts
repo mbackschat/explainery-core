@@ -2,7 +2,7 @@ import { storyScenes } from './story.ts';
 import type { Composition, Story } from './types.ts';
 
 /**
- * Rejects the slogan patterns that agents reach for when copy must be short, so plain wording does not depend on a
+ * The lexical half of the marketing slop detector: rejects the slogan patterns that agents reach for when copy must be short, so plain wording does not depend on a
  * reviewer catching them. Each pattern below was produced for a real film and rejected by its author; see
  * docs/plain-wording.md.
  *
@@ -10,7 +10,7 @@ import type { Composition, Story } from './types.ts';
  * check; support lines, which are sentences, skip the sentence checks; narration gets only the word lists, because
  * spoken sentences legitimately count and contrast.
  */
-export function wordingErrors(story: Story): string[] {
+export function slopErrors(story: Story): string[] {
   const errors: string[] = [];
   for (const entry of story.scenes) {
     if ('compositions' in entry) {
@@ -41,7 +41,7 @@ export function frameErrors(story: Story): string[] {
  * The editorial gate for production and delivery: plain wording and the film frame. Previews, snapshots and
  * verification skip it, because they must work on a film that is still being written.
  */
-export const editorialErrors = (story: Story): string[] => [...wordingErrors(story), ...frameErrors(story)];
+export const editorialErrors = (story: Story): string[] => [...slopErrors(story), ...frameErrors(story)];
 
 const HYPE = ['seamless', 'seamlessly', 'powerful', 'unlock', 'unlocks', 'unleash', 'supercharge', 'effortless', 'effortlessly', 'game-changing', 'revolutionary', 'next-level', 'cutting-edge', 'world-class', 'best-in-class', 'empower', 'empowers', 'magic', 'magical', 'journey', 'delightful'];
 const METAPHORS = ['home', 'superpower', 'superpowers'];
@@ -75,4 +75,4 @@ function slogans(text: string, checks: 'all' | 'sentence' | 'words'): string[] {
   return reasons;
 }
 
-const fix = (error: string) => `${error}; state what the viewer sees plainly (docs/plain-wording.md)`;
+const fix = (error: string) => `${error}; marketing slop: state what the viewer sees plainly (docs/plain-wording.md)`;
