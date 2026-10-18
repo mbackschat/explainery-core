@@ -18,6 +18,9 @@ test('slogan headlines fail with the pattern they use', () => {
     ['Recap: one language, eight steps', /counted contrast/],
     ['Seamless editing for every team', /hype/],
     ['The cache answers reads.', /ends with a period/],
+    ['Registration and support travel together', /metaphor/],
+    ['Rows and documents are different data universes', /metaphor/],
+    ['The CLI puts it within reach of agents', /metaphor/],
   ];
   for (const [headline, reason] of rejected) {
     const errors = slopErrors(film(composition('c', headline)));

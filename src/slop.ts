@@ -44,7 +44,8 @@ export function frameErrors(story: Story): string[] {
 export const editorialErrors = (story: Story): string[] => [...slopErrors(story), ...frameErrors(story)];
 
 const HYPE = ['seamless', 'seamlessly', 'powerful', 'unlock', 'unlocks', 'unleash', 'supercharge', 'effortless', 'effortlessly', 'game-changing', 'revolutionary', 'next-level', 'cutting-edge', 'world-class', 'best-in-class', 'empower', 'empowers', 'magic', 'magical', 'journey', 'delightful'];
-const METAPHORS = ['home', 'superpower', 'superpowers'];
+const METAPHORS = ['home', 'superpower', 'superpowers', 'travel', 'travels', 'universe', 'universes'];
+const METAPHOR_PHRASES = ['within reach', 'ready to travel'];
 const COUNT = '(?:one|two|three|four|five|six|seven|eight|nine|ten|many|several|\\d+)';
 // "Five pillars, one core", "One core, many hosts": a count, a noun phrase, a comma and another count.
 const COUNTED_CONTRAST = new RegExp(`\\b${COUNT}\\s+[\\w'-]+(?:\\s+[\\w'-]+)?\\s*,\\s*${COUNT}\\b`, 'i');
@@ -71,7 +72,9 @@ function slogans(text: string, checks: 'all' | 'sentence' | 'words'): string[] {
   const hype = [...new Set(words.filter(word => HYPE.includes(word)))];
   if (hype.length) reasons.push(`uses hype words (${hype.join(', ')})`);
   const metaphors = [...new Set(words.filter((word, index) => METAPHORS.includes(word) && !(word === 'home' && words[index + 1] === 'page')))];
-  if (metaphors.length) reasons.push(`uses a metaphor (${metaphors.join(', ')})`);
+  const phrases = METAPHOR_PHRASES.filter(phrase => text.toLowerCase().includes(phrase));
+  const images = [...new Set([...metaphors, ...phrases])].filter(image => !phrases.some(phrase => phrase !== image && phrase.includes(image)));
+  if (images.length) reasons.push(`uses a metaphor (${images.join(', ')})`);
   return reasons;
 }
 

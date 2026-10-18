@@ -19,6 +19,16 @@ A slogan makes the viewer decode what was meant before they can check it against
 9. **Dull and exact beats clever.** If a plain phrasing feels flat, it is usually right. “The three parts of this film” is a good agenda heading.
 10. **Qualifiers go in the support line.** The headline states the claim; limits, status and evidence go in the support line or the narration.
 
+## Decided cases
+
+These cases were decided by the author on 19 October 2026; the review applies them as written.
+
+- **Two-part claims are allowed when each half states a different part of the diagram:** “The language declares types; nodes hold values.” Halves that mirror each other for sound are slop: “State in, state out.”
+- **A support line is one sentence.** A noun list that names what is on screen is fine; two fragments with full stops are not.
+- **Mild images** such as “brings its own engine”, “lives in a tree” or “views stay still” are rewritten when the line changes anyway; they alone do not justify re-recording narration.
+- **The source's own technical terms stay**, even when they sound like images, such as “cursor” for a node handle. Words that are only images do not: say “validation”, not “gate”.
+- **Imperative titles are allowed when plain:** “Publish and load a language.” A pair of imperatives that reads like a slogan is not: “Edit locally, persist through DataServices.”
+
 ## Examples
 
 Each bad example was written for a real film and rejected by its author.
@@ -32,7 +42,7 @@ Each bad example was written for a real film and rejected by its author.
 | One core, many hosts. | counted contrast | The same core runs in the browser, Node and GraalJS |
 | More than a shape. | teaser | Shape, identity, rules, scopes and operations |
 | Generate. Check. Package. | fragments | The build generates models and checks the package |
-| A cursor into the data. | metaphor, no verb | A node handle reads documents without copying them |
+| Loaded, checked, and kept for the page. | fragments, triplet | The host checks structure, not hashes or signatures |
 | Give domain knowledge a shared home. | metaphor | The library language holds the cross-record rule |
 | The agent decides. The CLI executes. | fragments, symmetry | Language operations become CLI verbs for agents |
 | One Save. One transaction. | fragments, counted | Save commits every changed record in one transaction |
@@ -58,6 +68,9 @@ A chapter question is a real question that the scene answers, in the viewer's te
 | Five pillars make this runtime fit the browser and ready to travel. | metaphor | The runtime rests on five design decisions; this film explains each. |
 | Unlock a powerful modelling workflow. | hype | Tools and agents read the same definitions. |
 | Authored once, registered once, used everywhere. | triplet slogan | The author registers each building block once; callers look it up. |
+| Shared definitions. Immutable data snapshots. | fragments | Each edit creates a new snapshot; the language stays shared. |
+| That gives tools and agents a common foundation. | metaphor | Tools and agents can then read rules across models. |
+| The CLI puts it within reach of scripts and agents. | metaphor | Scripts and agents use it through the CLI. |
 
 ### Delivery text
 
