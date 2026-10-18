@@ -13,8 +13,8 @@ const seconds = (value: number) => `${Number(value.toFixed(6))}s`;
 /**
  * Checks that a schema-valid story and timing describe the same compositions and beats.
  *
- * Editorial scene IDs and composition IDs are unique within their own namespaces. A chapter card opens its scene,
- * and no scene consists of cards alone. Compositions must start in story order and end within the story; beats must
+ * Editorial scene IDs and composition IDs are unique within their own namespaces. A chapter card opens its scene
+ * and is followed by content; only agenda cards may form a scene of their own. Compositions must start in story order and end within the story; beats must
  * follow their narration markers and lie within their composition.
  */
 export function validateStoryTiming(story: Story, timing: Timing): string[] {
@@ -31,7 +31,10 @@ export function validateStoryTiming(story: Story, timing: Timing): string[] {
     scene.compositions.forEach((composition, index) => {
       if (composition.card === 'chapter' && index > 0) errors.push(`story.yaml scene "${composition.id}": a chapter card must be the first composition of its scene`);
     });
-    if (scene.compositions.every(composition => composition.card)) errors.push(`story.yaml scene "${scene.id}": needs a composition besides its cards`);
+    // A scene of agenda cards alone frames the film, like a closing recap; a chapter card must introduce content.
+    if (scene.compositions.every(composition => composition.card) && scene.compositions.some(composition => composition.card === 'chapter')) {
+      errors.push(`story.yaml scene "${scene.id}": a chapter card needs a composition after it in its scene`);
+    }
   }
 
   let previous: { id: string; slot: SceneTiming } | undefined;

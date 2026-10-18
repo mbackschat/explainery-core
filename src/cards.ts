@@ -5,7 +5,8 @@ import type { Composition, Copy, Story, Timing } from './types.ts';
 /** One card as the theme's card layer draws it, on the layer's clock. */
 export interface CardSlot {
   kind: NonNullable<Composition['card']>;
-  scene: number;
+  /** A chapter card's index into `scenes`; agenda cards mark no scene. */
+  scene?: number;
   start: number;
   duration: number;
   fadeIn: number;
@@ -24,12 +25,13 @@ export interface CardLayerVariables {
  * Lists the story's cards for the card layer, which draws them in place of composition files.
  *
  * A card fades in over the previous composition's overlap and out over the next one's, so the crossfades follow
- * timing rather than a fixed theme value, capped at half the card. `scene` indexes `scenes`, every editorial title in
- * film order, which the layer uses for chapter numbers and the roadmap. A selection keeps only its own cards and
- * moves them onto its clock, matching the retimed hosts of a scene preview.
+ * timing rather than a fixed theme value, capped at half the card. `scenes` lists the titles of the scenes with content
+ * in film order, for chapter numbers and the roadmap. A scene of agenda cards alone, such as a closing recap, frames
+ * the film: it is still an MP4 chapter, but it is not numbered. A selection keeps only its own cards and moves them
+ * onto its clock, matching the retimed hosts of a scene preview.
  */
 export function cardLayerVariables(story: Story, timing: Timing, selection?: SceneSelection): CardLayerVariables {
-  const scenes = storyScenes(story);
+  const scenes = storyScenes(story).filter(scene => scene.compositions.some(composition => !composition.card));
   const sceneOf = new Map(scenes.flatMap((scene, index) => scene.compositions.map(composition => [composition.id, index] as const)));
   const compositions = storyCompositions(story);
   const end = (id: string) => timing.scenes[id].start + timing.scenes[id].duration;
@@ -41,7 +43,7 @@ export function cardLayerVariables(story: Story, timing: Timing, selection?: Sce
     const fade = (seconds: number) => round(Math.min(Math.max(seconds, 0), duration / 2));
     return [{
       kind: composition.card,
-      scene: sceneOf.get(composition.id)!,
+      ...(composition.card === 'chapter' ? { scene: sceneOf.get(composition.id)! } : {}),
       start: round(start - (selection?.start ?? 0)),
       duration,
       fadeIn: previous ? fade(end(previous.id) - start) : 0,

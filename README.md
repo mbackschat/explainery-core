@@ -216,7 +216,7 @@ See [ADR 0005](docs/adr/0005-optional-subtitles.md) for the contract. Background
 pnpm exec explainery validate
 ```
 
-This checks `story.yaml` and `timing.json` against [their](schemas/story.schema.json) [schemas](schemas/timing.schema.json), then checks that they agree with each other. Editorial scene IDs and flattened composition IDs must each be unique. Every composition must have timing that starts in story order and ends within the film. Every `{beat}` marked in its narration must have a time, in narration order and within the composition. Each composition except a [card](#add-chapter-and-agenda-cards) must also have a `compositions/<id>.html` declaring `data-composition-id="<id>"`; editorial scenes need no additional HTML file or timing entry. A chapter card must open its scene, and every scene needs a composition besides its cards. The command prints each error and exits with status 1.
+This checks `story.yaml` and `timing.json` against [their](schemas/story.schema.json) [schemas](schemas/timing.schema.json), then checks that they agree with each other. Editorial scene IDs and flattened composition IDs must each be unique. Every composition must have timing that starts in story order and ends within the film. Every `{beat}` marked in its narration must have a time, in narration order and within the composition. Each composition except a [card](#add-chapter-and-agenda-cards) must also have a `compositions/<id>.html` declaring `data-composition-id="<id>"`; editorial scenes need no additional HTML file or timing entry. A chapter card must open its scene and be followed by content; only agenda cards may form a scene of their own. The command prints each error and exits with status 1.
 
 ## Assemble the root composition
 

@@ -45,7 +45,7 @@ test('the card layer receives every card with its scene, slot, crossfades and co
     duration: 14,
     scenes: ['Why it matters', 'How data is stored'],
     cards: [
-      { kind: 'agenda', scene: 0, start: 3.5, duration: 2.5, fadeIn: 0.5, fadeOut: 0.6, copy: { headline: 'What follows' } },
+      { kind: 'agenda', start: 3.5, duration: 2.5, fadeIn: 0.5, fadeOut: 0.6, copy: { headline: 'What follows' } },
       { kind: 'chapter', scene: 1, start: 5.4, duration: 2.6, fadeIn: 0.6, fadeOut: 0.4, copy: { category: 'PART', headline: 'Where does the state live?' } },
     ],
   });
@@ -75,12 +75,22 @@ test('assembly reports a missing or repeated card layer and a host for a card', 
   assert.deepEqual(assembleIndex(linked, story, timing).errors, ['index.html: load the card layer from a file inside the project, not node_modules/explainery-core/cards.html']);
 });
 
-test('a chapter card must open its scene, and every scene needs content besides cards', () => {
+test('a chapter card must open its scene and introduce content after it', () => {
   const late: Story = { ...story, scenes: [story.scenes[0], { id: 'storage', title: 'Storage', compositions: [part('tree'), part('storage-opener', { card: 'chapter' })] }] };
   assert.ok(validateStoryTiming(late, timing).includes('story.yaml scene "storage-opener": a chapter card must be the first composition of its scene'));
   const cardsOnly: Story = { ...story, scenes: [story.scenes[0], { id: 'storage', title: 'Storage', compositions: [part('storage-opener', { card: 'chapter' })] }, part('tree')] };
-  assert.ok(validateStoryTiming(cardsOnly, timing).includes('story.yaml scene "storage": needs a composition besides its cards'));
+  assert.ok(validateStoryTiming(cardsOnly, timing).includes('story.yaml scene "storage": a chapter card needs a composition after it in its scene'));
   assert.deepEqual(validateStoryTiming(story, timing), []);
+});
+
+// A closing recap is its own MP4 chapter, but it frames the film rather than adding a numbered scene to the roadmap.
+test('a scene of agenda cards alone is valid and stays out of the numbered roadmap', () => {
+  const closing: Story = { ...story, scenes: [story.scenes[0], { id: 'storage', title: 'How data is stored', compositions: [part('storage-opener', { card: 'chapter', copy: { headline: 'Where does the state live?' } }), part('tree')] }, { id: 'recap', title: 'Recap', compositions: [part('recap-card', { card: 'agenda', copy: { headline: 'What we saw' } })] }] };
+  const slots: Timing = { ...timing, duration: 17, scenes: { ...timing.scenes, tree: { start: 7.6, duration: 6, beats: {} }, 'recap-card': { start: 13.2, duration: 3.8, beats: {} } } };
+  assert.deepEqual(validateStoryTiming(closing, slots), []);
+  const layer = cardLayerVariables(closing, slots);
+  assert.deepEqual(layer.scenes, ['Why it matters', 'How data is stored']);
+  assert.deepEqual(layer.cards.map(card => [card.kind, card.scene]), [['agenda', undefined], ['chapter', 1], ['agenda', undefined]]);
 });
 
 test('project validation does not expect composition files for cards', async t => {
