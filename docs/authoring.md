@@ -35,7 +35,53 @@ A viewer cannot ask where they are, so the film signposts its structure the way 
 - **Close the film with a recap and a next step.** Return to the hook and restate the takeaways in the film's own structure, for example over a closing agenda card. Name one concrete next step only when the audience has a real destination; do not invent one. Give the recap its own closing scene, and add nothing after it. A summary spoken over the last content diagram does not replace the recap: the film still ends inside that scene's material, without its structure. Hold the final frame at least two seconds after the last word, so the film does not cut on a word.
 - **Scale the signposting to the film.** Each card costs a few seconds. Keep its narration to one sentence and its whole slot to about three to six seconds. A short film needs a shorter question, not fewer rules. When scenes last only seconds, consider fewer, larger scenes rather than a card every few seconds.
 
-The hook scene usually has no chapter card; an agenda card can follow the hook inside that scene. Later scenes open with chapter cards when the film has more than a few scenes.
+### Frame the film
+
+A film of more than three editorial scenes uses one frame. `explainery validate`, `explainery production` and `preflight`, and therefore `deliver`, enforce it; previews, snapshots and verification do not, so a film can be built before its frame exists:
+
+- **The first scene orients.** It names the topic, says what the viewer will understand, and shows the route on an agenda card. A short hook problem may come first; the scene is unnumbered and has no chapter card.
+- **Every scene in between opens with a chapter card** that asks the scene's question.
+- **The last scene is the recap**, made of agenda cards alone, and nothing follows it.
+
+```yaml
+scenes:
+  - id: introduction
+    title: Introduction
+    compositions:
+      - id: route
+        card: agenda
+        copy: { headline: The three parts of this film }
+        narration: "Requests reach the team through two inboxes. This film shows how one shared queue assigns each request an owner, in three parts."
+        hold: 1.2
+        overlap: 0.6
+  - id: ownership
+    title: Ownership
+    compositions:
+      - id: ownership-question
+        card: chapter
+        copy: { headline: Who owns a request? }
+        narration: Who owns a request?
+        hold: 1
+        overlap: 0.6
+      - id: ownership-queue
+        copy: { headline: A shared queue assigns each request one owner }
+        narration: "{assign} The queue assigns ..."
+  # … two more scenes, each opening with a chapter card …
+  - id: recap
+    title: Recap
+    compositions:
+      - id: recap
+        card: agenda
+        copy: { headline: Recap of the three parts }
+        narration: "Requests now wait in one queue, each has one owner, and a handover moves the owner, not the request."
+        hold: 2
+```
+
+Adding the frame to an existing film changes no composition file: cards are story compositions without HTML, and the voice cache keeps the unchanged clips. Every later start shifts, so the film is realigned and rendered again.
+
+### Write plain copy
+
+Every word on screen and in the voice describes the subject and never sells it. The [plain wording guide](plain-wording.md) owns the rules and their good and bad examples, and applies to headlines, card text, support lines, scene titles, narration and delivery text. `explainery validate`, `explainery production` and `preflight` reject the recurring slogan forms that [the wording check](../src/wording.ts) recognizes; the check is lexical, so the guide's review step still applies.
 
 ### Open scenes with cards
 
@@ -62,7 +108,7 @@ A chapter card must be the first composition of its scene and be followed by con
 
 ### Write headlines that state the claim
 
-A composition's `copy.headline` stays over its diagram for the whole composition, so it tells the viewer what the diagram shows. State the claim the diagram demonstrates, with its concrete subject and the names the diagram and narration use: “Save commits one Activity's holders atomically”, not “One Save. One transaction.” Slogan fragments, rhetorical pairs and teasers such as “More than a shape.” sound like marketing and give the viewer nothing to check against the picture. Put qualifiers and evidence limits in the support line, and end a headline without a period. A chapter card's headline is the scene's question and keeps its question mark.
+A composition's `copy.headline` stays over its diagram for the whole composition, so it tells the viewer what the diagram shows. State the claim the diagram demonstrates, with its concrete subject and the names the diagram and narration use: “Save commits every changed record in one transaction”, not “One Save. One transaction.” Slogan fragments, rhetorical pairs and teasers such as “More than a shape.” sound like marketing and give the viewer nothing to check against the picture. Put qualifiers and evidence limits in the support line, and end a headline without a period. A chapter card's headline is the scene's question and keeps its question mark.
 
 A headline fits on one line. The dark theme sets it at 65 px in a 1500 px copy block; on 18 October 2026 about 50 characters fit with the bundled font, and a long final word wraps sooner. A wrapped headline pushes the support line out of the copy block, so `explainery verify` fails a composition whose headline wraps. Shorten the claim or move a qualifier into the support line rather than shrinking the type.
 

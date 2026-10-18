@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve } from 'node:path';
-import { assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, exportExplainerFile, loadStory, sceneRange, silences, storyCompositions, storyPronunciations, storyScenes, transcribe, validateProject, validateStoryTiming, voicedText, type PreparedSceneProject, type Story, type Timing, type TranscriptWord } from '../src/index.ts';
+import { assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, editorialErrors, estimateTiming, exportExplainer, exportExplainerFile, loadStory, sceneRange, silences, storyCompositions, storyPronunciations, storyScenes, transcribe, validateProject, validateStoryTiming, voicedText, type PreparedSceneProject, type Story, type Timing, type TranscriptWord } from '../src/index.ts';
 import { exportYoutubeText } from '../src/youtube.ts';
 import { renderChapters, sceneChapters, writeMp4Chapters } from '../src/chapters.ts';
 import { subtitleCues, formatSubtitles } from '../src/subtitles.ts';
@@ -342,6 +342,8 @@ async function snapshot() {
 async function validate() {
   const validation = await validateProject(project);
   if (!validation.valid) return fail(validation.errors);
+  const editorial = editorialErrors(validation.story);
+  if (editorial.length) return fail(editorial);
   const count = validation.story.scenes.length;
   return report(`Valid: ${count} ${count === 1 ? 'scene' : 'scenes'} in ${project}`);
 }

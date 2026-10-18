@@ -5,6 +5,7 @@ export { DEFAULT_WORDS_PER_SECOND, estimateTiming } from './estimate.ts';
 export { explainerPage, exportExplainer } from './explainer.ts';
 export { exportExplainerFile } from './explainer-file.ts';
 export { filmFiles } from './film-files.ts';
+export { editorialErrors, frameErrors, wordingErrors } from './wording.ts';
 export { COMMON_PRONUNCIATIONS, narrationBeats, pronunciationErrors, spokenText, spokenWords, storyPronunciations, voicedText } from './narration.ts';
 export { audioDuration, silences, transcribe } from './hyperframes.ts';
 export { checkStory, checkTiming } from './schemas.ts';

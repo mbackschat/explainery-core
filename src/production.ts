@@ -8,6 +8,7 @@ import { hyperframesDist } from './hyperframes.ts';
 import { storyPronunciations, voicedText } from './narration.ts';
 import { storyCompositions } from './story.ts';
 import { validateProject } from './validate.ts';
+import { editorialErrors } from './wording.ts';
 import type { Story } from './types.ts';
 import { alignStoryWords, type AudioSegment, type TranscriptWord } from './align.ts';
 import { parseHTML } from 'linkedom';
@@ -59,6 +60,8 @@ export async function recordProduction(project: string, options: { transcript: s
   const validated = await validateProject(project);
   if (!validated.valid) throw new Error(validated.errors.join('\n'));
   const { story, timing } = validated;
+  const editorial = editorialErrors(story);
+  if (editorial.length) throw new Error(editorial.join('\n'));
   if (timing.source === 'estimate' || !timing.audio) throw new Error('production requires aligned or imported timing with audio');
   const errors = await assembled(project, story, timing);
   if (errors.length) throw new Error(errors.join('\n'));
@@ -97,6 +100,7 @@ export async function productionPreflight(project: string): Promise<{ errors: st
     const validated = await validateProject(project);
     if (!validated.valid) return { errors: validated.errors };
     const { story, timing } = validated;
+    errors.push(...editorialErrors(story));
     errors.push(...await assembled(project, story, timing));
     let record: ProductionRecord;
     try { record = JSON.parse(await readFile(join(project, 'production.json'), 'utf8')); }

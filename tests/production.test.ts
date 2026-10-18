@@ -42,6 +42,18 @@ test('production preflight rejects missing provenance and changed narration, aud
   }
 });
 
+// Wording and the film frame gate production and delivery, not previews, which must work on unfinished films.
+test('production and its preflight reject slogan copy', async t => {
+  const dir = await fixture();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await recordProduction(dir, { transcript: 'transcript.json' });
+  const storyFile = join(dir, 'story.yaml');
+  await writeFile(storyFile, (await readFile(storyFile, 'utf8')).replace('headline: Story copy', 'headline: "One core, many hosts"'));
+  assert.match((await productionPreflight(dir)).errors.join('\n'), /headline "One core, many hosts" is a counted contrast/);
+  await assert.rejects(recordProduction(dir, { transcript: 'transcript.json' }), /counted contrast/);
+  assert.ok((await validateProject(dir)).valid, 'previews and verification still accept the project');
+});
+
 test('production requires the reviewed narration to be the managed rendered audio track', async t => {
   const dir = await fixture();
   t.after(() => rm(dir, { recursive: true, force: true }));
