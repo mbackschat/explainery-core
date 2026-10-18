@@ -60,6 +60,21 @@ test('video evidence checks decode, duration, codec, chapters and the expected h
   assert.equal(JSON.parse(await readFile(bad.receiptPath, 'utf8')).humanReview, 'pending');
 });
 
+test('video evidence of a composition selection expects its range and no chapters', { timeout: 30000 }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'explainery-verification-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const grouped: Story = { ...story, scenes: [{ id: 'pair', title: 'Pair', compositions: [{ id: 'a', copy: { headline: 'First' }, narration: 'First.' }, { id: 'b', copy: { headline: 'Second' }, narration: 'Second.' }] }] };
+  const pairTiming: Timing = { source: 'imported', duration: 1.5, scenes: { a: { start: 0, duration: 1, beats: {} }, b: { start: 1, duration: .5, beats: {} } } };
+  const video = join(dir, 'b.mp4');
+  await promisify(execFile)('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=s=32x32:r=30:d=0.5', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', video], { timeout: 10000 });
+  await writeMp4Chapters(video, [], 30, .5);
+  const good = await verifyVideo(video, { out: join(dir, 'good'), story: grouped, timing: pairTiming, compositionIds: ['b'] });
+  assert.equal(good.passed, true, good.failures.join('\n'));
+  const asScene = await verifyVideo(video, { out: join(dir, 'scene'), story: grouped, timing: pairTiming, sceneIds: ['pair'] });
+  assert.match(asScene.failures.join('\n'), /duration/);
+  assert.match(asScene.failures.join('\n'), /chapters/);
+});
+
 test('source evidence captures every seek direction and HTML evidence opens offline', { timeout: 60000 }, async t => {
   const project = await fixtureProject('scene-runtime');
   t.after(() => rm(project, { recursive: true, force: true }));

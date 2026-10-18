@@ -198,6 +198,42 @@ test('scene lists and full-film overrides are one-off and preserve sticky focus'
   assert.equal(full.argv?.at(-1), join(cwd, 'renders/demo-full.mp4'));
 });
 
+test('a composition selection previews and renders inside its scene without chapters and leaves focus unchanged', async t => {
+  const { cwd, project, run } = await fixture(t);
+  await run(['focus', project, '--scene', 'lead']);
+  const previewed = await run(['preview', project, '--composition', 'part-a,part-b']);
+  assert.equal(previewed.status, 0, previewed.stderr);
+  assert.deepEqual(previewed.argv, ['preview', join(project, '.explainery/scenes/demo--chapter.part-a--part-b'), '--background', '--no-open']);
+  assert.match(previewed.stdout, /Scope: compositions part-a,part-b of scene chapter — The chapter \(2–10s\)/);
+  const rendered = await run(['render', project, '--composition', 'part-b']);
+  assert.equal(rendered.status, 0, rendered.stderr);
+  const output = join(cwd, 'renders/demo-chapter.part-b.mp4');
+  assert.deepEqual(rendered.argv, ['render', join(project, '.explainery/scenes/demo--chapter.part-b'), '--quality', 'draft', '--no-browser-gpu', '--workers', '1', '--fps', '24', '--output', output]);
+  assert.match(rendered.stdout, /Scope: composition part-b of scene chapter — The chapter \(6–10s\)/);
+  assert.match(rendered.stdout, /no chapters/);
+  assert.deepEqual(chapterEntries(output), []);
+  assert.equal(JSON.parse(await readFile(join(project, '.explainery/focus.json'), 'utf8')).sceneId, 'lead');
+});
+
+test('composition selections across scenes, out of order, or beside another scope fail before spawning HyperFrames', async t => {
+  const { project, run } = await fixture(t);
+  for (const [args, message] of [
+    [['--composition', 'part-b,final'], /composition selection must lie within one editorial scene; "part-b" belongs to "chapter" and "final" to "final"/],
+    [['--composition', 'part-b,part-a'], /consecutive compositions of scene "chapter" in story order/],
+    [['--composition', 'nowhere'], /unknown composition "nowhere"/],
+    [['--composition', 'part-a,'], /Composition selection contains an empty ID/],
+    [['--composition', 'part-a', '--scene', 'chapter'], /--composition selects its own scene; omit --scene and --film/],
+    [['--composition', 'part-a', '--film'], /--composition selects its own scene; omit --scene and --film/],
+  ] as const) {
+    for (const command of ['preview', 'render']) {
+      const result = await run([command, project, ...args]);
+      assert.equal(result.status, 1, `${command} ${args.join(' ')}`);
+      assert.match(result.stderr, message, `${command} ${args.join(' ')}`);
+      assert.equal(result.argv, undefined, `${command} ${args.join(' ')}`);
+    }
+  }
+});
+
 test('bad options, stale focus, and invalid scene ranges fail before spawning HyperFrames', async t => {
   const { project, run } = await fixture(t);
   for (const args of [['focus', '--scene'], ['render', '--quality'], ['render', '--out'], ['preview', '--scene', '--film'], ['preview', '--scene', 'lead', '--film'], ['render', '--quality', 'high'], ['preview', '--stop', '--status'], ['render', '--stop'], ['preview', '--quality', 'draft'], ['preview', '--scene', 'lead,final'], ['preview', '--scene', 'missing']]) {

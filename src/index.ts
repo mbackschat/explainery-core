@@ -13,7 +13,7 @@ export { prepareSceneProject, type PreparedSceneProject } from './scene-project.
 export type { Composition, Copy, Scene, SceneTiming, Story, StoryVoice, Timing } from './types.ts';
 export { deferredReveals, loadStory, validateProject, validateStoryTiming, type ProjectValidation } from './validate.ts';
 export { subtitleCues, formatSubtitles, type SubtitleCue, type SubtitleFormat } from './subtitles.ts';
-export { sceneChapters, writeMp4Chapters, type Chapter } from './chapters.ts';
+export { renderChapters, sceneChapters, writeMp4Chapters, type Chapter } from './chapters.ts';
 export type { ExplainerExportOptions } from './export-subtitles.ts';
 export { voicedNarration, type PronunciationSpan, type VoicedNarration } from './narration.ts';
 export { alignStoryWords, alignTimingWithReport, type AudioSegment, type AlignmentOptions, type TimingAlignmentReport, type WordCue } from './align.ts';

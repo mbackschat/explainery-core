@@ -64,7 +64,7 @@ pnpm exec explainery deliver film --out renders/film
 
 The command produces MP4, standalone HTML with captions, SRT, VTT, checksums and delivery metadata. It checks provenance before starting, verifies the video and offline HTML, and refuses to finish a successful delivery report if checks fail. Repeating it reuses the verified MP4 when inputs and output bytes match, while rebuilding inexpensive sidecars and HTML. Output remains local; nothing is uploaded or published.
 
-For scene or full-film delivery rendering, `render --quality delivery --reuse` opts into verified MP4 reuse. `--workers 2` explicitly chooses two capture workers; the default remains one. A changed worker count invalidates the cache. Stage progress includes elapsed time and a stage-local ETA when counters support it. No speedup is promised for a particular machine.
+For scene, composition or full-film delivery rendering, `render --quality delivery --reuse` opts into verified MP4 reuse; a composition render is verified without chapters. `--workers 2` explicitly chooses two capture workers; the default remains one. A changed worker count invalidates the cache. Stage progress includes elapsed time and a stage-local ETA when counters support it. No speedup is promised for a particular machine.
 
 Keep `renders/` and `.explainery/` ignored. Render cache receipts sit beside MP4s as `.mp4.render.json`; deleting a receipt simply requires a fresh render. An existing video without a receipt cannot be safely inferred to match current sources from its duration alone.
 

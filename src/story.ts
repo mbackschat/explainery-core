@@ -48,3 +48,40 @@ export function selectScenes(story: Story, timing: Timing, sceneIds: string[]): 
   const compositionIds = new Set(selected.flatMap(scene => scene.compositions.map(composition => composition.id)));
   return { start, end, duration: end - start, compositionIds };
 }
+
+export interface CompositionSelection extends SceneSelection {
+  /** The editorial scene that contains every selected composition. */
+  sceneId: string;
+}
+
+/**
+ * Selects consecutive compositions inside one editorial scene, on the clock a scene selection uses: the enclosing
+ * range of the selected compositions, with their authored overlaps and gaps. Compositions outside it, including an
+ * overlapping neighbour, are not part of the selection.
+ */
+export function selectCompositions(story: Story, timing: Timing, compositionIds: string[]): CompositionSelection {
+  if (!compositionIds.length) throw new Error('composition selection must contain at least one composition id');
+  if (new Set(compositionIds).size !== compositionIds.length) throw new Error('composition selection contains duplicate composition ids');
+  const scenes = storyScenes(story);
+  const owners = compositionIds.map(id => {
+    const owner = scenes.find(scene => scene.compositions.some(composition => composition.id === id));
+    if (!owner) throw new Error(`unknown composition "${id}"`);
+    return owner;
+  });
+  const scene = owners[0];
+  const other = owners.findIndex(owner => owner !== scene);
+  if (other >= 0) throw new Error(`composition selection must lie within one editorial scene; "${compositionIds[0]}" belongs to "${scene.id}" and "${compositionIds[other]}" to "${owners[other].id}"`);
+  const positions = compositionIds.map(id => scene.compositions.findIndex(composition => composition.id === id));
+  if (positions.some((position, index) => index > 0 && position !== positions[index - 1] + 1)) throw new Error(`composition selection must be consecutive compositions of scene "${scene.id}" in story order`);
+  const { start, duration } = sceneRange({ ...scene, compositions: positions.map(position => scene.compositions[position]) }, timing);
+  return { start, end: start + duration, duration, compositionIds: new Set(compositionIds), sceneId: scene.id };
+}
+
+/**
+ * Names a selection in render files and scene views: scene IDs joined by `--`, or `<scene>.<composition>--…` for a
+ * composition selection. IDs are slugs (story schema), which contain neither `.` nor `--`, so the two forms never
+ * collide, even where a flat scene and its composition share one ID.
+ */
+export function selectionName(sceneIds: string[], compositionIds: string[] = []): string {
+  return compositionIds.length ? `${sceneIds.join('--')}.${compositionIds.join('--')}` : sceneIds.join('--');
+}

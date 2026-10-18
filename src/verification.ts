@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { chromium } from 'playwright-core';
-import { sceneChapters } from './chapters.ts';
+import { renderChapters } from './chapters.ts';
 import { hyperframesDist } from './hyperframes.ts';
 import { prepareSceneProject } from './scene-project.ts';
 import { beatNarration } from './narration.ts';
@@ -40,7 +40,7 @@ interface MediaProbe {
   chapters?: Array<{ start_time: string; end_time: string; tags?: { title?: string } }>;
 }
 /** Checks the delivered bytes; success records machine checks and never implies a person watched the film. */
-export async function verifyVideo(video: string, options: { out: string; story: Story; timing: Timing; sceneIds?: string[]; expectedSha256?: string; timeoutMs?: number }): Promise<VideoVerificationReceipt> {
+export async function verifyVideo(video: string, options: { out: string; story: Story; timing: Timing; sceneIds?: string[]; compositionIds?: string[]; expectedSha256?: string; timeoutMs?: number }): Promise<VideoVerificationReceipt> {
   const receipt: VideoVerificationReceipt = { ...base(options.out, 'video-receipt'), kind: 'video', video: resolve(video), decode: false };
   const timeout = options.timeoutMs ?? 60000;
   try {
@@ -49,9 +49,9 @@ export async function verifyVideo(video: string, options: { out: string; story: 
     const { stdout } = await run('ffprobe', ['-v', 'error', '-show_streams', '-show_chapters', '-show_entries', 'format=duration', '-of', 'json', resolve(video)], { timeout: Math.min(timeout, 30000), maxBuffer: 4 * 1024 * 1024 });
     const metadata: MediaProbe = JSON.parse(stdout);
     receipt.metadata = metadata;
-    const chapters = sceneChapters(options.story, options.timing, options.sceneIds);
+    const { chapters, duration: selectedDuration } = renderChapters(options.story, options.timing, options);
     const duration = Number(metadata.format?.duration);
-    if (!Number.isFinite(duration) || Math.abs(duration - chapters.at(-1)!.end) > 1 / options.story.canvas.fps + .01) receipt.failures.push('video duration does not match selected timing');
+    if (!Number.isFinite(duration) || Math.abs(duration - selectedDuration) > 1 / options.story.canvas.fps + .01) receipt.failures.push('video duration does not match selected timing');
     const videoStream = metadata.streams?.find(stream => stream.codec_type === 'video');
     if (videoStream?.codec_name !== 'h264') receipt.failures.push('video codec must be h264');
     if (videoStream?.width !== options.story.canvas.width || videoStream?.height !== options.story.canvas.height) receipt.failures.push('video dimensions do not match the story canvas');

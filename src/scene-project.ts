@@ -6,7 +6,7 @@ import { addPreviewNarration } from './preview-narration.ts';
 import { audioDuration } from './hyperframes.ts';
 import { cardLayerVariables } from './cards.ts';
 import { checkTiming } from './schemas.ts';
-import { selectScenes, storyCompositions, type SceneSelection } from './story.ts';
+import { selectCompositions, selectionName, selectScenes, storyCompositions, type SceneSelection } from './story.ts';
 import { loadStory, validateStoryTiming } from './validate.ts';
 import type { Story, Timing } from './types.ts';
 
@@ -14,7 +14,10 @@ export interface PreparedSceneProject {
   directory: string;
   start: number;
   duration: number;
+  /** The selected scenes; for a composition selection, the one scene containing it. */
   sceneIds: string[];
+  /** The selected compositions, empty unless the view selects compositions inside one scene. */
+  compositionIds: string[];
 }
 
 const seconds = (value: number) => String(Number(value.toFixed(6)));
@@ -167,14 +170,18 @@ async function retimeAudio(document: Page, project: string, selection: SceneSele
  * edits; node_modules keeps the project's normal dependency link. Audio is intersected with both the selected
  * range and the actual media tail, preserving source offsets. Authoring stays in the source project.
  * Optional narration adds estimated script captions only to this disposable view; an empty selection in that
- * mode previews the full film, including leading and trailing gaps.
+ * mode previews the full film, including leading and trailing gaps. `compositionIds` replaces the scene list with
+ * consecutive compositions of one scene, on their own enclosing range.
  */
-export async function prepareSceneProject(projectDir: string, sceneIds: string[], { narration = false }: { narration?: boolean } = {}): Promise<PreparedSceneProject> {
+export async function prepareSceneProject(projectDir: string, sceneIds: string[], { narration = false, compositionIds = [] }: { narration?: boolean; compositionIds?: string[] } = {}): Promise<PreparedSceneProject> {
   const project = resolve(projectDir);
+  if (sceneIds.length && compositionIds.length) throw new Error('select either scenes or compositions, not both');
   const { story, timing, sourceHTML } = await loadSource(project);
-  const selection = !sceneIds.length && narration
+  const compositionSelection = compositionIds.length ? selectCompositions(story, timing, compositionIds) : undefined;
+  const selectedSceneIds = compositionSelection ? [compositionSelection.sceneId] : sceneIds;
+  const selection = compositionSelection ?? (!sceneIds.length && narration
     ? { start: 0, end: timing.duration, duration: timing.duration, compositionIds: new Set(storyCompositions(story).map(part => part.id)) }
-    : selectScenes(story, timing, sceneIds);
+    : selectScenes(story, timing, sceneIds));
   const document = assembledPage(sourceHTML, story, timing);
   retimeRoot(document, selection);
   retimeHosts(document, story, timing, selection);
@@ -183,10 +190,10 @@ export async function prepareSceneProject(projectDir: string, sceneIds: string[]
   await retimeAudio(document, project, selection);
 
   if (narration) addPreviewNarration(document, story, timing, selection);
-  const directory = sceneIds.length
-    ? join(project, '.explainery', 'scenes', `${story.id}--${sceneIds.join('--')}`)
+  const directory = selectedSceneIds.length
+    ? join(project, '.explainery', 'scenes', `${story.id}--${selectionName(selectedSceneIds, compositionIds)}`)
     : join(project, '.explainery', 'preview', `${story.id}--full`);
   await refreshSources(project, directory);
   await writeFile(join(directory, 'index.html'), document.toString());
-  return { directory, start: selection.start, duration: selection.duration, sceneIds: [...sceneIds] };
+  return { directory, start: selection.start, duration: selection.duration, sceneIds: [...selectedSceneIds], compositionIds: [...compositionIds] };
 }

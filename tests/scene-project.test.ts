@@ -87,6 +87,20 @@ test('a selected scene keeps all of its compositions and their overlap, copy, an
   assert.doesNotMatch(document.body.textContent!, /lead host body|final host body|tail host body/);
 });
 
+test('a composition selection keeps only its compositions, on its own range, beside scene views', async t => {
+  const dir = await project(t);
+  const result = await prepareSceneProject(dir, [], { compositionIds: ['part-b'] });
+  assert.deepEqual({ start: result.start, duration: result.duration, sceneIds: result.sceneIds, compositionIds: result.compositionIds }, { start: 6, duration: 4, sceneIds: ['chapter'], compositionIds: ['part-b'] });
+  assert.equal(basename(result.directory), 'review-film--chapter.part-b');
+  const document = await readIndex(result.directory);
+  assert.deepEqual([...document.querySelectorAll('[data-composition-src]')].map(e => e.getAttribute('data-composition-id')), ['part-b', 'brand-frame']);
+  assert.equal(document.querySelector('#host-part-b')!.getAttribute('data-start'), '0');
+  assert.equal(document.querySelector('#root')!.getAttribute('data-duration'), '4');
+  assert.equal(document.querySelector('audio')!.getAttribute('data-media-start'), '6');
+  await assert.rejects(prepareSceneProject(dir, ['chapter'], { compositionIds: ['part-b'] }), /either scenes or compositions/);
+  await assert.rejects(prepareSceneProject(dir, [], { compositionIds: ['part-b', 'final'] }), /one editorial scene/);
+});
+
 test('consecutive scene ranges cover their complete units and retime the root and shared frame', async t => {
   const dir = await project(t);
   const result = await prepareSceneProject(dir, ['chapter', 'final']);

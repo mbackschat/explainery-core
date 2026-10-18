@@ -92,4 +92,7 @@ test('render reuse requires a verified fingerprint and intact output bytes', asy
   assert.equal(await reusableRender(output, fingerprint), false);
   await writeFile(join(dir, 'compositions/probe.html'), (await readFile(join(dir, 'compositions/probe.html'), 'utf8')) + '\n<!-- changed -->');
   assert.notEqual(await renderFingerprint(dir, { quality: 'delivery', sceneIds: [], workers: 1 }), fingerprint);
+  // A flat scene and its only composition render the same range but differ in chapters, so their receipts must differ.
+  const scene = await renderFingerprint(dir, { quality: 'delivery', sceneIds: ['probe'], workers: 1 });
+  assert.notEqual(await renderFingerprint(dir, { quality: 'delivery', sceneIds: ['probe'], compositionIds: ['probe'], workers: 1 }), scene);
 });

@@ -5,11 +5,12 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve } from 'node:path';
 import { assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, exportExplainerFile, loadStory, sceneRange, silences, storyCompositions, storyScenes, transcribe, validateProject, validateStoryTiming, voicedText, type PreparedSceneProject, type Story, type Timing, type TranscriptWord } from '../src/index.ts';
 import { exportYoutubeText } from '../src/youtube.ts';
-import { sceneChapters, writeMp4Chapters } from '../src/chapters.ts';
+import { renderChapters, sceneChapters, writeMp4Chapters } from '../src/chapters.ts';
 import { subtitleCues, formatSubtitles } from '../src/subtitles.ts';
 import { clearFocus, readFocus, writeFocus } from '../src/focus.ts';
 import { hyperframesDist } from '../src/hyperframes.ts';
 import { prepareSceneProject } from '../src/scene-project.ts';
+import { selectionName } from '../src/story.ts';
 import { alignTimingWithReport, type AlignmentOptions, type AudioSegment } from '../src/align.ts';
 import { generateVoice } from '../src/voice.ts';
 import { transcribeSegments } from '../src/transcribe.ts';
@@ -18,7 +19,7 @@ import { verifyFilm, verifyVideo } from '../src/verification.ts';
 import { snapshotTimes } from '../src/snapshot.ts';
 import { formatRenderProgress, parseRenderProgress } from '../src/render-progress.ts';
 
-const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --film] [--narration] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --film] [--quality draft|looks|delivery] [--out <file>] [--workers <number>] [--reuse]\n       explainery chapters [project-dir] --video <file.mp4> [--scene <id,...> | --film]\n       explainery snapshot [project-dir] --at <seconds|composition[:beat][±seconds],...> [--out <directory>] [--zoom <selector|x,y,w,h>]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--transcript-mode canonical|spoken] [--segments <file.json>] [--report <file.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>] [--subtitles <file.vtt>]\n       explainery export [project-dir] --single-file [--out <file.html>] [--subtitles <file.vtt>]';
+const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --composition <id,...> | --film] [--narration] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --composition <id,...> | --film] [--quality draft|looks|delivery] [--out <file>] [--workers <number>] [--reuse]\n       explainery chapters [project-dir] --video <file.mp4> [--scene <id,...> | --film]\n       explainery snapshot [project-dir] --at <seconds|composition[:beat][±seconds],...> [--out <directory>] [--zoom <selector|x,y,w,h>]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--transcript-mode canonical|spoken] [--segments <file.json>] [--report <file.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>] [--subtitles <file.vtt>]\n       explainery export [project-dir] --single-file [--out <file.html>] [--subtitles <file.vtt>]';
 const PRODUCTION_USAGE = '\n       explainery voice [project-dir] [--sample <composition>] [--voice <name>] [--lang <locale>] [--speed <number>] [--gap <seconds>] [--out <relative.wav>]\n       explainery transcribe [project-dir] --segments <voice-manifest.json> [--out <transcript.json>]\n       explainery production [project-dir] --transcript <relative.json> [--segments <relative.json>] [--transcript-mode canonical|spoken]\n       explainery preflight [project-dir]\n       explainery verify [project-dir] [--scene <id,...> | --film] [--composition <id>] [--quick] [--out <directory>] [--pixel-tolerance <0..255>]\n       explainery deliver [project-dir] [--out <prefix>] [--workers <number>]\n       explainery youtube [project-dir] --metadata <file.json> [--out <prefix>]';
 const args = process.argv.slice(2);
 const valueOptions = new Set(['--subtitles', '--video', '--out', '--wps', '--audio', '--transcript', '--scene', '--quality', '--workers', '--voice', '--lang', '--speed', '--gap', '--sample', '--segments', '--transcript-mode', '--report', '--pixel-tolerance', '--metadata', '--at', '--zoom', '--composition']);
@@ -181,6 +182,7 @@ type PlaybackMode = 'preview' | 'render';
 // Rejects unsupported flag combinations before any project work starts, and returns the render quality.
 function checkPlaybackFlags(mode: PlaybackMode): string {
   checkScopeFlags();
+  if (option('--composition') !== undefined && (option('--scene') !== undefined || flag('--film'))) throw new Error('--composition selects its own scene; omit --scene and --film');
   workers();
   if (mode === 'render' && flag('--narration')) throw new Error('--narration applies only to preview');
   if (flag('--stop') && flag('--status')) throw new Error('Use either --stop or --status, not both');
@@ -192,7 +194,13 @@ function checkPlaybackFlags(mode: PlaybackMode): string {
   return quality;
 }
 
-// --scene and --film override the sticky focus for this one command and never change it.
+// --composition, --scene and --film override the sticky focus for this one command and never change it.
+function playbackCompositionIds(): string[] {
+  const ids = option('--composition')?.split(',').map(id => id.trim()) ?? [];
+  if (ids.some(id => !id)) throw new Error('Composition selection contains an empty ID');
+  return ids;
+}
+
 async function playbackSceneIds(story: Story): Promise<string[]> {
   const explicit = option('--scene');
   const active = explicit !== undefined || flag('--film') ? undefined : await readFocus(project, story);
@@ -202,14 +210,16 @@ async function playbackSceneIds(story: Story): Promise<string[]> {
 }
 
 function reportScope(story: Story, timing: Timing, view: PreparedSceneProject) {
-  const { sceneIds } = view;
+  const { sceneIds, compositionIds } = view;
   if (!sceneIds.length) return report(`Scope: full film — ${story.title} (0–${timing.duration}s)`);
   const titles = storyScenes(story).filter(scene => sceneIds.includes(scene.id)).map(scene => scene.title).join('; ');
-  return report(`Scope: scene${sceneIds.length === 1 ? '' : 's'} ${sceneIds.join(',')} — ${titles} (${view.start}–${view.start + view.duration}s)`);
+  const range = `(${view.start}–${view.start + view.duration}s)`;
+  if (compositionIds.length) return report(`Scope: composition${compositionIds.length === 1 ? '' : 's'} ${compositionIds.join(',')} of scene ${sceneIds[0]} — ${titles} ${range}`);
+  return report(`Scope: scene${sceneIds.length === 1 ? '' : 's'} ${sceneIds.join(',')} — ${titles} ${range}`);
 }
 
-function renderOutput(story: Story, sceneIds: string[]): string {
-  return resolve(option('--out') ?? join('renders', `${story.id}-${sceneIds.length ? sceneIds.join('--') : 'full'}.mp4`));
+function renderOutput(story: Story, view: PreparedSceneProject): string {
+  return resolve(option('--out') ?? join('renders', `${story.id}-${view.sceneIds.length ? selectionName(view.sceneIds, view.compositionIds) : 'full'}.mp4`));
 }
 
 async function chapters() {
@@ -232,7 +242,7 @@ async function forwardedArguments(mode: PlaybackMode, story: Story, view: Prepar
     case 'preview':
       return ['preview', view.directory, ...(flag('--stop') ? ['--stop'] : flag('--status') ? ['--status'] : ['--background', '--no-open'])];
     case 'render': {
-      const out = renderOutput(story, view.sceneIds);
+      const out = renderOutput(story, view);
       await mkdir(dirname(out), { recursive: true });
       report(`Rendering ${quality} to ${out}`);
       return ['render', view.directory, '--quality', quality, '--no-browser-gpu', '--workers', String(workers()), '--fps', String(story.canvas.fps), '--output', out];
@@ -269,26 +279,29 @@ async function playback(mode: PlaybackMode) {
   const validation = await validateProject(project);
   if (!validation.valid) return fail(validation.errors);
   const { story, timing } = validation;
-  const sceneIds = await playbackSceneIds(story);
+  const compositionIds = playbackCompositionIds();
+  const sceneIds = compositionIds.length ? [] : await playbackSceneIds(story);
   const narration = mode === 'preview' && flag('--narration');
-  const view = sceneIds.length || narration ? await prepareSceneProject(project, sceneIds, { narration }) : { directory: project, start: 0, duration: timing.duration, sceneIds };
+  const view = sceneIds.length || compositionIds.length || narration ? await prepareSceneProject(project, sceneIds, { narration, compositionIds }) : { directory: project, start: 0, duration: timing.duration, sceneIds, compositionIds };
   reportScope(story, timing, view);
-  const entries = mode === 'render' ? sceneChapters(story, timing, sceneIds) : [];
-  if (mode === 'render' && flag('--reuse') && !sceneIds.length) {
+  // A composition selection's scene id stays in sceneIds, so only compositionIds tells it apart from that scene.
+  const selection = compositionIds.length ? { compositionIds } : { sceneIds };
+  const planned = mode === 'render' ? renderChapters(story, timing, selection) : undefined;
+  if (mode === 'render' && flag('--reuse') && !view.sceneIds.length) {
     const stale = await staleIndex(story, timing, 'before reusable rendering');
     if (stale.length) return fail(stale);
   }
-  const settings = { quality, sceneIds, workers: workers() };
+  const settings = { quality, sceneIds: view.sceneIds, compositionIds, workers: workers() };
   const fingerprint = mode === 'render' && flag('--reuse') ? await renderFingerprint(project, settings) : undefined;
-  if (fingerprint && await reusableRender(renderOutput(story, sceneIds), fingerprint)) return report(`Reusing verified render ${renderOutput(story, sceneIds)}`);
+  const output = renderOutput(story, view);
+  if (fingerprint && await reusableRender(output, fingerprint)) return report(`Reusing verified render ${output}`);
   process.exitCode = await runHyperframes(await forwardedArguments(mode, story, view, quality));
-  if (mode === 'render' && process.exitCode === 0) {
-    const output = renderOutput(story, sceneIds);
+  if (planned && process.exitCode === 0) {
     if (extname(output).toLowerCase() === '.mp4') {
-      await writeMp4Chapters(output, entries, story.canvas.fps);
-      report(`Added ${entries.length} scene chapters to ${output}`);
+      await writeMp4Chapters(output, planned.chapters, story.canvas.fps, planned.duration);
+      report(planned.chapters.length ? `Added ${planned.chapters.length} scene chapters to ${output}` : `Wrote no chapters to ${output}: a composition selection lies inside one scene`);
       if (fingerprint) {
-        const checked = await verifyVideo(output, { out: `${output}.verification`, story, timing, sceneIds });
+        const checked = await verifyVideo(output, { out: `${output}.verification`, story, timing, ...selection });
         if (!checked.passed) return fail(checked.failures);
         if (fingerprint !== await renderFingerprint(project, settings)) return fail(['Sources changed during rendering; output cannot be reused']);
         await recordRender(output, fingerprint);

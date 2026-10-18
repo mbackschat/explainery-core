@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { selectCompositions, selectionName } from '../src/story.ts';
 import { alignTiming, assembleIndex, checkStory, estimateTiming, explainerPage, sceneRange, storyCompositions, storyScenes, validateStoryTiming, type Composition, type Story, type Timing } from '../src/index.ts';
 
 const first: Composition = { id: 'first', copy: { headline: 'First' }, narration: 'One {enter} two.', overlap: .5 };
@@ -63,4 +64,27 @@ test('the explainer renders one section per editorial scene with its title, comb
   assert.match(chapter, /<h3>A chapter &amp; its parts<\/h3>/);
   assert.match(chapter, /<p class="explainer-narration">One two. Three four.<\/p>/);
   assert.doesNotMatch(page, /id="first-player"|id="second-player"|\{enter\}/);
+});
+
+test('a composition selection takes the enclosing range of consecutive compositions inside one editorial scene', () => {
+  assert.deepEqual(selectCompositions(grouped, timing, ['second']), { start: 3.5, end: 6.5, duration: 3, compositionIds: new Set(['second']), sceneId: 'chapter' });
+  assert.deepEqual(selectCompositions(grouped, timing, ['first', 'second']), { start: 0, end: 6.5, duration: 6.5, compositionIds: new Set(['first', 'second']), sceneId: 'chapter' });
+  assert.equal(selectCompositions(grouped, timing, ['last']).sceneId, 'last');
+});
+
+test('a composition selection rejects unknown, repeated, unordered, gapped, or cross-scene ids with their names', () => {
+  const single: Story = { ...flat, scenes: [{ id: 'all', title: 'All', compositions: [first, second, last] }] };
+  for (const [selected, ids, message] of [
+    [grouped, [], /at least one composition id/],
+    [grouped, ['missing'], /unknown composition "missing"/],
+    [grouped, ['first', 'first'], /duplicate composition ids/],
+    [grouped, ['second', 'first'], /consecutive compositions of scene "chapter" in story order/],
+    [single, ['first', 'last'], /consecutive compositions of scene "all" in story order/],
+    [grouped, ['second', 'last'], /one editorial scene; "second" belongs to "chapter" and "last" to "last"/],
+  ] as const) assert.throws(() => selectCompositions(selected, timing, [...ids]), message, ids.join(','));
+});
+
+test('selection names keep scene lists and composition selections apart in file names', () => {
+  assert.equal(selectionName(['chapter', 'last']), 'chapter--last');
+  assert.equal(selectionName(['chapter'], ['first', 'second']), 'chapter.first--second');
 });

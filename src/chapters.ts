@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { chmod, mkdtemp, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { sceneRange, selectScenes, storyScenes } from './story.ts';
+import { sceneRange, selectCompositions, selectScenes, storyScenes } from './story.ts';
 import { toMillisecond } from './time.ts';
 import type { Story, Timing } from './types.ts';
 
@@ -22,8 +22,18 @@ export function sceneChapters(story: Story, timing: Timing, sceneIds: string[] =
   return chapters;
 }
 
-function validateChapters(chapters: Chapter[]): void {
-  if (!chapters.length) throw new Error('chapters require at least one scene');
+/**
+ * The chapters a render carries and the duration its video must have. A composition selection lies inside one
+ * editorial scene, so it carries no chapters; every film or scene selection carries at least one.
+ */
+export function renderChapters(story: Story, timing: Timing, { sceneIds = [], compositionIds = [] }: { sceneIds?: string[]; compositionIds?: string[] }): { chapters: Chapter[]; duration: number } {
+  if (compositionIds.length) return { chapters: [], duration: toMillisecond(selectCompositions(story, timing, compositionIds).duration) };
+  const chapters = sceneChapters(story, timing, sceneIds);
+  return { chapters, duration: chapters.at(-1)!.end };
+}
+
+function validateChapters(chapters: Chapter[], allowEmpty = false): void {
+  if (!chapters.length && !allowEmpty) throw new Error('chapters require at least one scene');
   for (const [index, chapter] of chapters.entries()) {
     if (!chapter.title.trim() || !Number.isFinite(chapter.start) || !Number.isFinite(chapter.end) || chapter.start < 0 || Math.round(chapter.end * 1000) <= Math.round(chapter.start * 1000)) throw new Error('chapter title and duration must be nonempty');
     if (chapter.start !== (index === 0 ? 0 : chapters[index - 1].end)) throw new Error('chapter starts must form contiguous intervals from zero');
@@ -47,17 +57,22 @@ async function probe(file: string): Promise<MediaProbe> {
  * The chapter range must match the video duration within one frame plus 10 ms of container rounding. The last
  * chapter ends at the actual media duration. Audio, video and subtitle streams are copied; the old chapter data
  * track is regenerated. FFmpeg writes QuickTime and Nero chapter representations by default (MOV muxer docs).
+ *
+ * Only a composition selection writes an empty list: it passes its `selectedDuration`, because no chapter states it,
+ * and the remux then leaves the video without chapters. When both are given, the last chapter must end there.
  */
-export async function writeMp4Chapters(file: string, chapters: Chapter[], fps: number): Promise<void> {
-  validateChapters(chapters);
+export async function writeMp4Chapters(file: string, chapters: Chapter[], fps: number, selectedDuration?: number): Promise<void> {
+  validateChapters(chapters, selectedDuration !== undefined);
+  const selectedEnd = selectedDuration ?? chapters.at(-1)!.end;
+  if (chapters.length && chapters.at(-1)!.end !== selectedEnd) throw new Error('chapters must end at the selected duration');
   if (!Number.isFinite(fps) || fps <= 0) throw new Error('chapter frame rate must be positive');
   if (extname(file).toLowerCase() !== '.mp4') throw new Error('chapter refresh requires an MP4 file');
   const source = await realpath(file);
   const before = await probe(source);
   const duration = Number(before.format.duration);
-  if (!Number.isFinite(duration) || duration <= 0 || Math.abs(duration - chapters.at(-1)!.end) > 1 / fps + .01) throw new Error('video duration does not match the selected scene range; use its original timing and scene selection');
+  if (!Number.isFinite(duration) || duration <= 0 || Math.abs(duration - selectedEnd) > 1 / fps + .01) throw new Error('video duration does not match the selected scene range; use its original timing and scene selection');
   const expected = chapters.map((chapter, index) => ({ ...chapter, end: index === chapters.length - 1 ? toMillisecond(duration) : chapter.end }));
-  validateChapters(expected);
+  validateChapters(expected, selectedDuration !== undefined);
   const escape = (title: string) => title.replace(/([\\=;#\n\r])/g, '\\$1');
   const metadata = ';FFMETADATA1\n' + expected.map(chapter => `[CHAPTER]\nTIMEBASE=1/1000\nSTART=${Math.round(chapter.start * 1000)}\nEND=${Math.round(chapter.end * 1000)}\ntitle=${escape(chapter.title)}\n`).join('');
   // A sibling temporary directory keeps the final rename on the same filesystem as the render.

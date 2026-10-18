@@ -243,6 +243,19 @@ A comma-separated selection must be consecutive and in film order. The command d
 
 These commands do not infer semantic boundaries or orchestrate separately encoded scene caches. See the [CLI](../bin/explainery.ts) and [story schema](../schemas/story.schema.json).
 
+### Select compositions inside a scene
+
+To review new or changed compositions inside a long scene without rendering all of it, select them by composition ID:
+
+```sh
+explainery preview <project-dir> --composition <composition-id>
+explainery render <project-dir> --composition <composition-id>,<next-composition-id>
+```
+
+The IDs must be consecutive compositions of one editorial scene, in story order; IDs from different scenes, a gap, a reversed order or an unknown ID fail before HyperFrames starts, naming the IDs and their scenes. The selection uses the scene clock rule: its range encloses the selected compositions, including their overlaps with each other, and starts at zero; neighbouring compositions are left out even where they overlap it. Shared layers and the trimmed narration stay, as in a scene preview; a chapter or agenda card appears only when it is itself one of the selected compositions. `--composition` is a separate flag because a flat scene's ID equals its composition's ID, so `--scene` could not tell the two apart. It cannot be combined with `--scene` or `--film`.
+
+Like `--scene`, the flag overrides focus for one command and never changes it. The disposable view is `.explainery/scenes/<story-id>--<scene-id>.<composition-ids>` and the default render is `renders/<story-id>-<scene-id>.<composition-ids>.mp4`, with composition IDs joined by `--`; IDs never contain a dot, so these names cannot collide with a scene selection's. The render carries no chapters, because it lies inside one scene, and Explainery still checks its duration against the selected range. With `render --quality delivery --reuse`, the composition IDs are part of the fingerprint, so a composition render and a scene render are never mistaken for each other.
+
 `explainery focus <project-dir> --scene <id-or-title>` stores the active scene locally until changed; `--film` returns to the whole film. Without options, `focus` reports it. Subsequent preview/render commands use that target and print it. Explicit `--scene` or `--film` on a command overrides it once. Agents apply the same focus to conversational edits. Focus lives in ignored `.explainery/focus.json`, not in the story schema, and does not scope validation, alignment, assembly, or page export.
 
 ## Revise and check a scene

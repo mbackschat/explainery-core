@@ -117,7 +117,7 @@ export async function productionPreflight(project: string): Promise<{ errors: st
 }
 
 /** Fingerprints the local shipping dependency closure and render settings (ADR 0009). */
-export async function renderFingerprint(project: string, settings: { quality: string; sceneIds: string[]; workers: number }): Promise<string> {
+export async function renderFingerprint(project: string, settings: { quality: string; sceneIds: string[]; compositionIds?: string[]; workers: number }): Promise<string> {
   const paths = [...new Set([...await filmFiles(project, { strict: true }), 'story.yaml', 'timing.json'])].sort();
   const files = await Promise.all(paths.map(async path => [path, await fileSha256(join(project, path))]));
   const engine = JSON.parse(await readFile(join(hyperframesDist(project), '../package.json'), 'utf8')).version;

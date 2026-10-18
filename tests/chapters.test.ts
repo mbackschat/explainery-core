@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
-import { sceneChapters, writeMp4Chapters } from '../src/chapters.ts';
+import { renderChapters, sceneChapters, writeMp4Chapters } from '../src/chapters.ts';
 import type { Story, Timing } from '../src/types.ts';
 
 const story: Story = {
@@ -42,6 +42,13 @@ test('selected scenes start at zero and end with the selected render, without co
   }
 });
 
+test('a composition selection renders without chapters but keeps its selected duration', () => {
+  assert.deepEqual(renderChapters(story, timing, { compositionIds: ['sun'] }), { chapters: [], duration: 3 });
+  assert.deepEqual(renderChapters(story, timing, { sceneIds: ['grow'] }), { chapters: [{ title: 'Watch it grow', start: 0, end: 5.5 }], duration: 5.5 });
+  assert.deepEqual(renderChapters(story, timing, {}).duration, 10);
+  assert.throws(() => renderChapters(story, timing, { compositionIds: ['sun', 'pick'] }), /one editorial scene/);
+});
+
 test('indistinguishable chapter starts fail instead of creating an empty chapter', () => {
   assert.throws(() => sceneChapters(story, { ...timing, scenes: { ...timing.scenes, water: { start: 0, duration: 5, beats: {} } } }), /chapter.*start|chapter.*duration/i);
 });
@@ -76,4 +83,12 @@ test('MP4 remux preserves compressed video, audio and subtitles, and replaces ch
   assert.deepEqual(await readFile(video), original);
   await assert.rejects(writeMp4Chapters(video, [{ title: 'Empty', start: 0, end: 0 }], 30), /chapter/);
   assert.deepEqual(await readFile(video), original);
+  // Only a composition selection, which states its duration, may write an empty chapter list.
+  await assert.rejects(writeMp4Chapters(video, [], 30), /at least one scene/);
+  await assert.rejects(writeMp4Chapters(video, [], 30, 20), /duration/);
+  await assert.rejects(writeMp4Chapters(video, chapters, 30, 1.5), /end at the selected duration/);
+  assert.deepEqual(await readFile(video), original);
+  await writeMp4Chapters(video, [], 30, 2);
+  assert.deepEqual(await probe(video), []);
+  assert.deepEqual(await Promise.all(['v', 'a', 's'].map(stream => packetHashes(video, stream))), before);
 });
