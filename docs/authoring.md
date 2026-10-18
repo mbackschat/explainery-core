@@ -60,6 +60,14 @@ A chapter card shows the scene's number and title, its question and the roadmap,
 
 A chapter card must be the first composition of its scene and be followed by content. A scene of agenda cards alone is allowed: a closing recap in its own scene gets its own MP4 and HTML chapter. A topic that needs two compositions, such as reading and then saving, stays one numbered scene; open its later composition with a spoken question instead of a second chapter card. Remember that YouTube chapters need at least ten seconds, so a short agenda card belongs inside the hook scene rather than in a scene of its own. A card fades in over the previous composition's overlap and out over its own. Mount the card layer once in the root, as described in [the README](../README.md#add-chapter-and-agenda-cards). [ADR 0010](adr/0010-presentation-structure-and-cards.md) records the decision.
 
+## Show the mechanism and let motion tell it
+
+A narrated film already speaks its explanation; the picture has to show it. Plan these rules in every scene brief and check them on the beat frames.
+
+- **Show first, then label.** Draw the thing the narration talks about: the structure, the object that moves, the result that changes. Labels name what is drawn in one to three words. A card that holds only text, or a frame whose meaning depends on reading sentences, is a slide, not an explanation. Keep identifiers on screen only where the identifier itself is the point, such as a method the viewer will later use.
+- **Motion carries the story.** When something changes, show it changing: an object travels from cause to effect, transforms into its next form, splits, merges, is replaced, or bounces back when it is refused. The motion should make the claim visible, so that a viewer with the sound off can still tell what happened. Fades bring context in and clear it away; they never carry the explanation on their own.
+- **One change at a time.** Give each beat one change the eye can follow, anchored to the word that names it. Let earlier state stay put, so the change stands out against it.
+
 ## Author one scene at a time
 
 1. **Define the scene boundary.** Give the scene a stable ID, title, and one idea to explain. Describe its starting state, visual beats, final state, and handoff to its neighbors. Map the description to its ordered composition IDs in `story.yaml`. Use one composition when it is sufficient; split only when separate HTML modules make the scene easier to author.
