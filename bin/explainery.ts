@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve } from 'node:path';
-import { assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, exportExplainerFile, loadStory, sceneRange, silences, storyCompositions, storyScenes, transcribe, validateProject, validateStoryTiming, voicedText, type PreparedSceneProject, type Story, type Timing, type TranscriptWord } from '../src/index.ts';
+import { assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, estimateTiming, exportExplainer, exportExplainerFile, loadStory, sceneRange, silences, storyCompositions, storyPronunciations, storyScenes, transcribe, validateProject, validateStoryTiming, voicedText, type PreparedSceneProject, type Story, type Timing, type TranscriptWord } from '../src/index.ts';
 import { exportYoutubeText } from '../src/youtube.ts';
 import { renderChapters, sceneChapters, writeMp4Chapters } from '../src/chapters.ts';
 import { subtitleCues, formatSubtitles } from '../src/subtitles.ts';
@@ -151,7 +151,7 @@ async function narration() {
   const loaded = await loadStory(project);
   if (!loaded.value) return fail(loaded.errors);
   const story = loaded.value;
-  return report(storyCompositions(story).map(composition => voicedText(composition.narration, story.pronunciations)).join('\n\n'));
+  return report(storyCompositions(story).map(composition => voicedText(composition.narration, storyPronunciations(story))).join('\n\n'));
 }
 
 async function scenes() {

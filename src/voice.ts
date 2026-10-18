@@ -6,7 +6,7 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { hyperframesDist } from './hyperframes.ts';
-import { voicedText } from './narration.ts';
+import { storyPronunciations, voicedText } from './narration.ts';
 import { storyCompositions } from './story.ts';
 import type { Story } from './types.ts';
 
@@ -182,7 +182,7 @@ export async function generateVoice(projectDir: string, story: Story, options: V
   const compositions = options.sample ? all.filter(part => part.id === options.sample) : all;
   if (!compositions.length) throw new Error(options.sample ? `unknown composition "${options.sample}"` : 'story has no compositions to voice');
   for (const part of compositions) {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(part.id) || !voicedText(part.narration, story.pronunciations)) throw new Error(`invalid or empty voice composition "${part.id}"`);
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(part.id) || !voicedText(part.narration, storyPronunciations(story))) throw new Error(`invalid or empty voice composition "${part.id}"`);
     if (![part.hold ?? 0, part.overlap ?? 0].every(value => Number.isFinite(value) && value >= 0)) throw new Error(`invalid hold or overlap in "${part.id}"`);
   }
   const destination = join('.explainery', 'voice', options.sample ? join('samples', options.sample) : 'film');
@@ -201,7 +201,7 @@ export async function generateVoice(projectDir: string, story: Story, options: V
   };
   silence(0.25);
   for (const [index, part] of compositions.entries()) {
-    const text = voicedText(part.narration, story.pronunciations);
+    const text = voicedText(part.narration, storyPronunciations(story));
     const scriptHash = hash(part.narration);
     const voiceInputHash = hash(text);
     const cacheKey = hash(JSON.stringify({ engine, voice: settings.voice, lang: settings.lang, speed: settings.speed, voiceInputHash, chunking: 1 }));
@@ -232,7 +232,7 @@ export async function generateVoice(projectDir: string, story: Story, options: V
   const manifest: VoiceManifest = {
     schemaVersion: 1, engine, settings,
     scriptHash: hash(JSON.stringify(compositions.map(part => ({ id: part.id, narration: part.narration })))),
-    voiceInputHash: hash(JSON.stringify(compositions.map(part => ({ id: part.id, text: voicedText(part.narration, story.pronunciations) })))),
+    voiceInputHash: hash(JSON.stringify(compositions.map(part => ({ id: part.id, text: voicedText(part.narration, storyPronunciations(story)) })))),
     audio, audioSha256: hash(bytes), manifestFile: options.out ? `${audio}.voice.json` : join(destination, 'manifest.json'),
     duration: samples / rate, ...(options.sample ? { sample: options.sample } : {}), segments,
   };

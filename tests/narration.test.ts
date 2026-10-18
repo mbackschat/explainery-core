@@ -42,3 +42,23 @@ test('each beat carries the written words spoken from its marker up to the next 
   assert.deepEqual(beatNarration('Before. {merge} Two ledgers  merge, {retry}then a retry {end}.'), { merge: 'Two ledgers merge,', retry: 'then a retry.', end: '' });
   assert.deepEqual(beatNarration('No markers here.'), {});
 });
+
+test('common acronyms read the same in every film unless a story gives its own reading', async () => {
+  const { storyPronunciations } = await import('../src/narration.ts');
+  assert.equal(voicedText('The CLI calls the API.', storyPronunciations({})), 'The C-L-eye calls the A-P-eye.');
+  assert.equal(voicedText('The CLI calls the API.', storyPronunciations({ pronunciations: { API: 'app eye' } })), 'The C-L-eye calls the app eye.');
+});
+
+// espeak reads a separate letter I as the unstressed pronoun before a verb ("The C L I blocks" became `sˈiː ˈɛl aɪ`,
+// heard as "C-L", checked on 2026-10-18), and a separate A as the article.
+test('a reading that spells the letter I, or a lone letter A, is reported', async () => {
+  const { COMMON_PRONUNCIATIONS, pronunciationErrors } = await import('../src/narration.ts');
+  assert.deepEqual(pronunciationErrors({ CLI: 'C L I', AI: 'A-I', XA: 'A I', A12: 'A-twelve', API: 'A-P-eye', IO: 'I O' }), [
+    'pronunciation of "CLI" spells the letter I as "I", which the voice reads as an unstressed pronoun; write "eye", hyphenated to its neighbours (for example "C-L-eye")',
+    'pronunciation of "AI" spells the letter I as "I", which the voice reads as an unstressed pronoun; write "eye", hyphenated to its neighbours (for example "C-L-eye")',
+    'pronunciation of "XA" spells the letter A as a separate word, which the voice reads as the article; hyphenate it to the next letter (for example "A-eye")',
+    'pronunciation of "XA" spells the letter I as "I", which the voice reads as an unstressed pronoun; write "eye", hyphenated to its neighbours (for example "C-L-eye")',
+    'pronunciation of "IO" spells the letter I as "I", which the voice reads as an unstressed pronoun; write "eye", hyphenated to its neighbours (for example "C-L-eye")',
+  ]);
+  assert.deepEqual(pronunciationErrors(COMMON_PRONUNCIATIONS), []);
+});

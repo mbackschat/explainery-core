@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { narrationBeats } from './narration.ts';
+import { narrationBeats, pronunciationErrors } from './narration.ts';
 import { checkStory, checkTiming } from './schemas.ts';
 import { storyCompositions, storyScenes } from './story.ts';
 import type { SceneTiming, Story, Timing } from './types.ts';
@@ -27,6 +27,7 @@ export function validateStoryTiming(story: Story, timing: Timing): string[] {
   for (const id of ids) if (!timing.scenes[id]) errors.push(`timing.json: no timing for scene "${id}"`);
   for (const id of Object.keys(timing.scenes)) if (!ids.includes(id)) errors.push(`timing.json: scene "${id}" is not in the story`);
 
+  errors.push(...pronunciationErrors(story.pronunciations ?? {}).map(error => `story.yaml: ${error}`));
   for (const scene of storyScenes(story)) {
     scene.compositions.forEach((composition, index) => {
       if (composition.card === 'chapter' && index > 0) errors.push(`story.yaml scene "${composition.id}": a chapter card must be the first composition of its scene`);

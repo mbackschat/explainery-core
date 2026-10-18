@@ -63,6 +63,32 @@ export function voicedNarration(narration: string, pronunciations: Record<string
 }
 
 /**
+ * Readings of acronyms that recur across films, so every story voices them alike; a story's own entry wins.
+ *
+ * Letters are hyphenated into one token and the letter I is written "eye", following pronunciationErrors.
+ */
+export const COMMON_PRONUNCIATIONS: Readonly<Record<string, string>> = { AI: 'A-eye', API: 'A-P-eye', CLI: 'C-L-eye', ID: 'eye-D', 'I/O': 'eye-O', SPI: 'S-P-eye' };
+
+/** The readings a story's voice uses: the common acronyms, overridden by the story's own pronunciations. */
+export const storyPronunciations = (story: { pronunciations?: Record<string, string> }): Record<string, string> => ({ ...COMMON_PRONUNCIATIONS, ...story.pronunciations });
+
+/**
+ * Reports readings the local voice speaks wrongly in running text.
+ *
+ * Its espeak front end reads a letter I written as "I" as the unstressed pronoun when a verb follows, even inside a
+ * hyphenated token: "The C L I blocks" became `sˈiː ˈɛl aɪ` and was heard as "C-L" (kokoro-onnx phonemes, checked on
+ * 2026-10-18). A lone A is read as the article. "eye", and an A hyphenated to the next letter, stay stressed.
+ */
+export function pronunciationErrors(pronunciations: Record<string, string>): string[] {
+  const errors: string[] = [];
+  for (const [term, reading] of Object.entries(pronunciations)) {
+    if (reading.split(/\s+/).includes('A')) errors.push(`pronunciation of "${term}" spells the letter A as a separate word, which the voice reads as the article; hyphenate it to the next letter (for example "A-eye")`);
+    if (reading.split(/[\s-]+/).includes('I')) errors.push(`pronunciation of "${term}" spells the letter I as "I", which the voice reads as an unstressed pronoun; write "eye", hyphenated to its neighbours (for example "C-L-eye")`);
+  }
+  return errors;
+}
+
+/**
  * Applies case-sensitive whole-term pronunciations only to voice input; readers retain the written text.
  * Letters or digits adjoining a term prevent replacement, so "SQLs" and "MSSQL" do not match "SQL".
  */

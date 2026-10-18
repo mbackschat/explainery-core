@@ -1,4 +1,4 @@
-import { spokenWords, voicedNarration } from './narration.ts';
+import { spokenWords, storyPronunciations, voicedNarration } from './narration.ts';
 import { toMillisecond as round } from './time.ts';
 import { storyCompositions } from './story.ts';
 import type { SceneTiming, Story, Timing } from './types.ts';
@@ -287,7 +287,7 @@ export function alignStoryWords(story: Story, transcript: TranscriptWord[], { si
     throw new Error('audio segments must cover every composition in story order with finite, positive, non-overlapping ranges');
   }
   const match = (group: string[][], input: TranscriptWord[]) => transcriptMode === 'spoken'
-    ? spokenMatches(group, input, story.pronunciations ?? {})
+    ? spokenMatches(group, input, storyPronunciations(story))
     : matchWords(group.flat().map(normal), input);
   const groups = segments ? parts.map(part => [part]) : [parts];
   const result: AlignedStoryWords = { words: [], inferred: [] };

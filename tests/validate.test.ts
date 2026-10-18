@@ -175,3 +175,10 @@ test('the runtime never defers a fromTo whose from-state sets opacity', async ()
   const runtime = await readFile(new URL('../runtime/scene.ts', import.meta.url), 'utf8');
   assert.deepEqual(deferredReveals(runtime), []);
 });
+
+test('a story pronunciation that the voice misreads fails validation', () => {
+  const { story, timing } = consistent();
+  assert.deepEqual(validateStoryTiming({ ...story, pronunciations: { CLI: 'C L I' } }, timing), [
+    'story.yaml: pronunciation of "CLI" spells the letter I as "I", which the voice reads as an unstressed pronoun; write "eye", hyphenated to its neighbours (for example "C-L-eye")',
+  ]);
+});
