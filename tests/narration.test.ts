@@ -36,3 +36,9 @@ test('beat-adjacent punctuation uses the same canonical words for voice, caption
     words: ['Hello,', 'then', 'continue.'], markers: [{ beat: 'pause', before: 1 }, { beat: 'done', before: 3 }],
   });
 });
+
+test('each beat carries the written words spoken from its marker up to the next marker', async () => {
+  const { beatNarration } = await import('../src/narration.ts');
+  assert.deepEqual(beatNarration('Before. {merge} Two ledgers  merge, {retry}then a retry {end}.'), { merge: 'Two ledgers merge,', retry: 'then a retry.', end: '' });
+  assert.deepEqual(beatNarration('No markers here.'), {});
+});

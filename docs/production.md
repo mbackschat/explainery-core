@@ -25,11 +25,14 @@ pnpm exec explainery production film --transcript drafts/transcript.json --trans
 pnpm exec explainery preflight film
 pnpm exec explainery verify film --scene opening --out renders/verification/opening
 pnpm exec explainery verify film --film --out renders/verification/full
+pnpm exec explainery verify film --scene payments --composition checkout --quick --out renders/verification/checkout
 ```
 
 Paths passed to `production` are relative to the project directory; other CLI input/output paths are relative to the current working directory unless explicitly described otherwise. Record only after reviewing the actual audio, transcript and timing. The root must contain one `audio[data-story-audio][data-story-span]` narration track starting at zero and bound to `timing.audio`; other audio tracks may coexist. Check in `production.json` and its source inputs. Imported recordings can be recorded without synthesis or realignment. A failed preflight names stale inputs; inspect the cause before explicitly recording a new snapshot.
 
 Verification writes JSON receipts and an HTML contact sheet. Isolated/full comparisons default to a maximum difference of one channel level; `--pixel-tolerance 2` is an explicit, recorded override for investigated raster rounding, not a substitute for review. Inspect the frames as part of scene review; automated pixel comparisons cannot judge visual intent. `verify` uses its explicit scene selection, ignores sticky focus and never changes it.
+
+Each beat frame is captured 0.3 s after its beat, and its caption on the contact sheet carries the narration words written between that beat's marker and the next. `--composition <id>` limits every capture to one composition; it must belong to a selected scene (any scene when `--scene` is omitted), and verification then opens only that scene. `--quick` captures only beat and closing frames: it skips the seek-history and isolation comparisons and the join frames, records `"quick": true` in the receipt, and so rejects `--pixel-tolerance`. Use it while revising a scene; run full verification before recording or delivery.
 
 ## Deliver and reuse
 

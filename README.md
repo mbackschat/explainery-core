@@ -17,7 +17,7 @@ This repository, `explainery-core`, is the framework. Each film lives in its own
 - Time narration: [estimate](#estimate-timing-before-a-voice-exists), [draft a voice](#draft-a-voice), or [align a recording](#align-timing-to-a-recorded-voice).
 - Prepare pronunciation: [voice and glossary guidance](docs/authoring.md#pronunciation-and-voice-direction) and a [reusable glossary template](docs/templates/pronunciation.md).
 - Author visuals: [write a scene](#write-a-scene) and [themes and components](#themes-and-components).
-- Check and watch the film: [validate](#validate-a-project), [assemble](#assemble-the-root-composition), and [preview and render](#preview-and-render).
+- Check and watch the film: [validate](#validate-a-project), [assemble](#assemble-the-root-composition), [preview and render](#preview-and-render), and [snapshot a beat](#snapshot-a-beat).
 - Share the page: [static folder](#export-the-explainer-page) or [single file](#export-a-single-file-to-send).
 - Change the framework: [development](#develop), [repository guidelines](CLAUDE.md), and [architecture decisions](docs/adr/0001-explainery-architecture.md).
 
@@ -58,6 +58,7 @@ pnpm exec explainery scenes film-example
 pnpm exec explainery focus film-example --scene "Introduction"
 pnpm exec explainery preview film-example
 pnpm exec explainery render film-example
+pnpm exec explainery snapshot film-example --at checkout:merge+2
 pnpm exec explainery focus film-example --film
 ```
 
@@ -252,6 +253,19 @@ Open the Studio URL printed by `preview`; its default starting port is 3002. Exp
 For a silent draft, use `pnpm exec explainery preview --narration` to show what the voice would say. This optional overlay takes wording from `story.yaml` and estimates cue times between existing beat markers, leaving authored holds empty. It follows scene focus and seeking, and is labelled “Draft narration · estimated timing”. It is created only in the disposable preview; renders and exports remain unchanged. For a full-film narration preview, include `--film --narration` on start, status and stop commands. These draft cues do not replace voice-aligned [subtitle sidecars](#generate-optional-subtitles); see [ADR 0008](docs/adr/0008-preview-narration.md).
 
 `validate` checks project files without executing scenes. `check` also runs the scene scripts and samples layout and motion; it catches unknown beats and timeline overruns that `lint` cannot. Use `--no-contrast` because accessibility auditing of produced animations is outside this project's scope. Browser capture and video encoding are separate: `--no-browser-gpu` forces software capture, while GPU encoding requires `--gpu`.
+
+## Snapshot a beat
+
+Capture still frames by narration beat instead of by computed seconds:
+
+```bash
+pnpm exec explainery snapshot --at checkout:merge,checkout:merge+2,checkout:retry-0.5
+pnpm exec explainery snapshot --at payments,12.5 --out renders/snapshots/payments --zoom '#pay-ledger'
+```
+
+Each `--at` item is absolute film seconds, a composition (its start), or `composition:beat`; any of the named forms takes a signed offset in seconds, so `checkout+1` is one second into `checkout`. Addresses resolve through `timing.json` as composition start plus local beat seconds plus offset; an unknown composition or beat fails with its name and the composition's beats. When an id itself ends in a number, such as a beat `step-2`, the id as written wins over reading `-2` as an offset. Snapshots always address the full film's clock and ignore focus, so an address names the same instant in every session; `--scene` and `--film` are rejected. Run `assemble` first: the command refuses a stale `index.html`, whose times would not match `timing.json`.
+
+The command prints each frame's index, resolved second and address, then runs the pinned `hyperframes snapshot` with only those times (`--no-end`), software browser capture, and `--describe false`, because HyperFrames otherwise sends snapshot frames to Gemini whenever `GEMINI_API_KEY` is set. PNGs land in `renders/snapshots/` in the working directory unless `--out` names another directory; `--zoom` passes a CSS selector or `x,y,w,h` region through to HyperFrames. For a review sheet of every beat in a scene, with the words spoken in each beat, use [`verify --quick`](docs/production.md#record-and-verify).
 
 ## MP4 scene chapters
 

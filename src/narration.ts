@@ -84,3 +84,12 @@ export function spokenWords(narration: string): { words: string[]; markers: { be
   }));
   return { words, markers };
 }
+
+/**
+ * The written words spoken from each {beat} marker up to the next marker, keyed by beat id, so review evidence can
+ * show what the voice says over a beat. Words keep their punctuation, as in `spokenWords`.
+ */
+export function beatNarration(narration: string): Record<string, string> {
+  const { words, markers } = spokenWords(narration);
+  return Object.fromEntries(markers.map((marker, index) => [marker.beat, words.slice(marker.before, markers[index + 1]?.before ?? words.length).join(' ')]));
+}

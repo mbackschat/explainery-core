@@ -14,13 +14,14 @@ import { alignTimingWithReport, type AlignmentOptions, type AudioSegment } from 
 import { generateVoice } from '../src/voice.ts';
 import { productionPreflight, recordProduction, renderFingerprint, reusableRender, recordRender } from '../src/production.ts';
 import { verifyFilm, verifyVideo } from '../src/verification.ts';
+import { snapshotTimes } from '../src/snapshot.ts';
 import { formatRenderProgress, parseRenderProgress } from '../src/render-progress.ts';
 
-const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --film] [--narration] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --film] [--quality draft|looks|delivery] [--out <file>] [--workers <number>] [--reuse]\n       explainery chapters [project-dir] --video <file.mp4> [--scene <id,...> | --film]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--transcript-mode canonical|spoken] [--segments <file.json>] [--report <file.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>] [--subtitles <file.vtt>]\n       explainery export [project-dir] --single-file [--out <file.html>] [--subtitles <file.vtt>]';
-const PRODUCTION_USAGE = '\n       explainery voice [project-dir] [--sample <composition>] [--voice <name>] [--lang <locale>] [--speed <number>] [--gap <seconds>] [--out <relative.wav>]\n       explainery production [project-dir] --transcript <relative.json> [--segments <relative.json>] [--transcript-mode canonical|spoken]\n       explainery preflight [project-dir]\n       explainery verify [project-dir] [--scene <id,...> | --film] [--out <directory>] [--pixel-tolerance <0..255>]\n       explainery deliver [project-dir] [--out <prefix>] [--workers <number>]\n       explainery youtube [project-dir] --metadata <file.json> [--out <prefix>]';
+const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --film] [--narration] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --film] [--quality draft|looks|delivery] [--out <file>] [--workers <number>] [--reuse]\n       explainery chapters [project-dir] --video <file.mp4> [--scene <id,...> | --film]\n       explainery snapshot [project-dir] --at <seconds|composition[:beat][±seconds],...> [--out <directory>] [--zoom <selector|x,y,w,h>]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--transcript-mode canonical|spoken] [--segments <file.json>] [--report <file.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>] [--subtitles <file.vtt>]\n       explainery export [project-dir] --single-file [--out <file.html>] [--subtitles <file.vtt>]';
+const PRODUCTION_USAGE = '\n       explainery voice [project-dir] [--sample <composition>] [--voice <name>] [--lang <locale>] [--speed <number>] [--gap <seconds>] [--out <relative.wav>]\n       explainery production [project-dir] --transcript <relative.json> [--segments <relative.json>] [--transcript-mode canonical|spoken]\n       explainery preflight [project-dir]\n       explainery verify [project-dir] [--scene <id,...> | --film] [--composition <id>] [--quick] [--out <directory>] [--pixel-tolerance <0..255>]\n       explainery deliver [project-dir] [--out <prefix>] [--workers <number>]\n       explainery youtube [project-dir] --metadata <file.json> [--out <prefix>]';
 const args = process.argv.slice(2);
-const valueOptions = new Set(['--subtitles', '--video', '--out', '--wps', '--audio', '--transcript', '--scene', '--quality', '--workers', '--voice', '--lang', '--speed', '--gap', '--sample', '--segments', '--transcript-mode', '--report', '--pixel-tolerance', '--metadata']);
-const flagOptions = new Set(['--force', '--check', '--single-file', '--film', '--stop', '--status', '--narration', '--reuse']);
+const valueOptions = new Set(['--subtitles', '--video', '--out', '--wps', '--audio', '--transcript', '--scene', '--quality', '--workers', '--voice', '--lang', '--speed', '--gap', '--sample', '--segments', '--transcript-mode', '--report', '--pixel-tolerance', '--metadata', '--at', '--zoom', '--composition']);
+const flagOptions = new Set(['--force', '--check', '--single-file', '--film', '--stop', '--status', '--narration', '--reuse', '--quick']);
 const options = new Map<string, string>();
 const flags = new Set<string>();
 const positionals: string[] = [];
@@ -273,10 +274,8 @@ async function playback(mode: PlaybackMode) {
   reportScope(story, timing, view);
   const entries = mode === 'render' ? sceneChapters(story, timing, sceneIds) : [];
   if (mode === 'render' && flag('--reuse') && !sceneIds.length) {
-    const html = await readFile(join(project, 'index.html'), 'utf8');
-    const assembled = assembleIndex(html, story, timing);
-    if (assembled.errors.length) return fail(assembled.errors);
-    if (assembled.html !== html) return fail(['index.html is stale; run explainery assemble before reusable rendering']);
+    const stale = await staleIndex(story, timing, 'before reusable rendering');
+    if (stale.length) return fail(stale);
   }
   const settings = { quality, sceneIds, workers: workers() };
   const fingerprint = mode === 'render' && flag('--reuse') ? await renderFingerprint(project, settings) : undefined;
@@ -295,6 +294,35 @@ async function playback(mode: PlaybackMode) {
       }
     }
   }
+}
+
+// Errors when index.html differs from what story.yaml and timing.json assemble, because commands that play the
+// original root would then show other times or copy than the sources name.
+async function staleIndex(story: Story, timing: Timing, purpose: string): Promise<string[]> {
+  const html = await readFile(join(project, 'index.html'), 'utf8');
+  const assembled = assembleIndex(html, story, timing);
+  if (assembled.errors.length) return assembled.errors;
+  return assembled.html === html ? [] : [`index.html is stale; run explainery assemble ${purpose}`];
+}
+
+// Snapshots address the full film's clock so that an address means the same instant whatever the focus; a scene
+// view would start at zero. --describe false keeps frames local: HyperFrames 0.8.142 otherwise sends them to
+// Gemini whenever GEMINI_API_KEY is set (`hyperframes snapshot --help`).
+async function snapshot() {
+  if (option('--scene') !== undefined || flag('--film')) return fail(['snapshot always uses the full-film clock; omit --scene and --film']);
+  const list = option('--at');
+  if (list === undefined) return fail(['snapshot requires --at <seconds|composition[:beat][±seconds],...>']);
+  const validation = await validateProject(project);
+  if (!validation.valid) return fail(validation.errors);
+  const { story, timing } = validation;
+  const stale = await staleIndex(story, timing, 'so snapshot times match timing.json');
+  if (stale.length) return fail(stale);
+  const times = snapshotTimes(timing, list);
+  const out = resolve(option('--out') ?? join('renders', 'snapshots'));
+  const zoom = option('--zoom');
+  // HyperFrames names each file frame-<index>-at-<time>.png in --at order; the index ties a file to its address.
+  for (const [index, time] of times.entries()) report(`frame-${String(index).padStart(2, '0')}\t${time.at.toFixed(3)}s\t${time.address}`);
+  process.exitCode = await runHyperframes(['snapshot', project, '--at', times.map(time => time.at).join(','), '--no-end', '--no-browser-gpu', '--describe', 'false', '--output', out, ...(zoom === undefined ? [] : ['--zoom', zoom])]);
 }
 
 async function validate() {
@@ -372,7 +400,9 @@ async function production() {
 
 async function verify() {
   checkScopeFlags();
-  const receipt = await verifyFilm(project, { out: resolve(option('--out') ?? 'renders/verification'), sceneIds: option('--scene')?.split(',').map(id => id.trim()), isolationTolerance: option('--pixel-tolerance') === undefined ? undefined : Number(option('--pixel-tolerance')) });
+  const quick = flag('--quick');
+  if (quick && option('--pixel-tolerance') !== undefined) return fail(['--pixel-tolerance applies only to the isolation comparisons that --quick skips']);
+  const receipt = await verifyFilm(project, { out: resolve(option('--out') ?? 'renders/verification'), sceneIds: option('--scene')?.split(',').map(id => id.trim()), composition: option('--composition'), quick, isolationTolerance: option('--pixel-tolerance') === undefined ? undefined : Number(option('--pixel-tolerance')) });
   report(`Verification receipt: ${receipt.receiptPath}; contact sheet: ${receipt.contactSheetPath}`);
   if (!receipt.passed) fail(receipt.failures);
 }
@@ -431,6 +461,9 @@ async function main() {
       break;
     case 'chapters':
       await chapters();
+      break;
+    case 'snapshot':
+      await snapshot();
       break;
     case 'narration':
       await narration();

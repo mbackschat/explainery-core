@@ -264,3 +264,48 @@ test('narration preview follows focus, never edits source, and is removed before
   assert.notEqual(full.argv![1], project);
   assert.match(await readFile(join(full.argv![1], 'index.html'), 'utf8'), /data-preview-narration/);
 });
+
+test('snapshot resolves beat addresses on the full-film clock despite focus and never asks for frame descriptions', async t => {
+  const { cwd, project, run } = await fixture(t);
+  assert.equal((await run(['assemble', project])).status, 0);
+  await run(['focus', project, '--scene', 'chapter']);
+  const shot = await run(['snapshot', project, '--at', 'part-a:move+0.5,lead,3']);
+  assert.equal(shot.status, 0, shot.stderr);
+  assert.deepEqual(shot.argv, ['snapshot', project, '--at', '3.5,0,3', '--no-end', '--no-browser-gpu', '--describe', 'false', '--output', join(cwd, 'renders/snapshots')]);
+  assert.match(shot.stdout, /frame-00\t3\.500s\tpart-a:move\+0\.5\nframe-01\t0\.000s\tlead\nframe-02\t3\.000s\t3\n/);
+  const zoomed = await run(['snapshot', project, '--at', 'part-b', '--out', 'review/shots', '--zoom', '#co-ledger']);
+  assert.equal(zoomed.status, 0, zoomed.stderr);
+  assert.deepEqual(zoomed.argv?.slice(2), ['--at', '6', '--no-end', '--no-browser-gpu', '--describe', 'false', '--output', join(cwd, 'review/shots'), '--zoom', '#co-ledger']);
+});
+
+test('snapshot rejects stale assembly, unknown addresses and scene scope before spawning HyperFrames', async t => {
+  const { project, run } = await fixture(t);
+  const stale = await run(['snapshot', project, '--at', '1']);
+  assert.equal(stale.status, 1);
+  assert.match(stale.stderr, /index\.html is stale; run explainery assemble/);
+  assert.equal(stale.argv, undefined);
+  assert.equal((await run(['assemble', project])).status, 0);
+  for (const [args, message] of [
+    [['--at', 'part-a:moev'], /composition "part-a" has no beat "moev"; its beats are move/],
+    [['--at', 'nowhere:move'], /unknown composition "nowhere"/],
+    [['--at', 'final+5'], /resolves to 15s, outside the film \(0–13s\)/],
+    [[], /snapshot requires --at/],
+    [['--at', '1', '--scene', 'chapter'], /snapshot always uses the full-film clock; omit --scene and --film/],
+    [['--at', '1', '--film'], /full-film clock/],
+  ] as const) {
+    const result = await run(['snapshot', project, ...args]);
+    assert.equal(result.status, 1, args.join(' '));
+    assert.match(result.stderr, message, args.join(' '));
+    assert.equal(result.argv, undefined, args.join(' '));
+  }
+});
+
+test('verify rejects a composition outside the selected scene, and a pixel tolerance with --quick, before capturing', async t => {
+  const { project, run } = await fixture(t);
+  const outside = await run(['verify', project, '--scene', 'chapter', '--composition', 'final', '--quick']);
+  assert.equal(outside.status, 1);
+  assert.match(outside.stderr, /composition "final" is not in the selected scene "chapter"/);
+  const tolerance = await run(['verify', project, '--quick', '--pixel-tolerance', '2']);
+  assert.equal(tolerance.status, 1);
+  assert.equal(tolerance.stderr, '--pixel-tolerance applies only to the isolation comparisons that --quick skips\n');
+});

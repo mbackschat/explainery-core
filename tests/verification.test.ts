@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
-import { verifyVideo, verifyFilm, verifyHtml } from '../src/verification.ts';
+import { contactSheet, verifyVideo, verifyFilm, verifyHtml } from '../src/verification.ts';
 import { sceneChapters, writeMp4Chapters } from '../src/chapters.ts';
 import { fixtureProject } from './support/fixture.ts';
 import { exportExplainerFile } from '../src/explainer-file.ts';
@@ -84,6 +84,39 @@ test('source evidence captures every seek direction and HTML evidence opens offl
   assert.equal(checked.passed, true, checked.failures.join('\n'));
   assert.deepEqual(checked.networkRequests, []);
   assert.ok(checked.decodedAudio > 0);
+});
+
+test('beat captions carry the words spoken in that beat, and a quick sheet says which comparisons it skipped', () => {
+  const frame = { composition: 'checkout', context: 'full', at: 5.6, file: '0001-checkout-full.png', sha256: 'x' } as const;
+  const sheet = contactSheet({ quick: true, failures: [], frames: [{ ...frame, cue: 'merge', narration: 'Two <ledgers> merge,' }, { ...frame, cue: 'closing' }] });
+  assert.match(sheet, /<figcaption>checkout · full · merge · 5.600s<br><q>Two &lt;ledgers&gt; merge,<\/q><\/figcaption>/);
+  assert.match(sheet, /<figcaption>checkout · full · closing · 5.600s<\/figcaption>/);
+  assert.match(sheet, /Quick check: beat and closing frames only; no seek-history or isolation comparisons/);
+  assert.doesNotMatch(contactSheet({ quick: false, failures: [], frames: [] }), /Quick check/);
+});
+
+test('an unknown composition filter fails before any capture', async t => {
+  const project = await fixtureProject('scene-runtime');
+  t.after(() => rm(project, { recursive: true, force: true }));
+  const receipt = await verifyFilm(project, { out: join(project, 'verification'), composition: 'missing' });
+  assert.equal(receipt.passed, false);
+  assert.deepEqual(receipt.frames, []);
+  assert.match(receipt.failures.join('\n'), /unknown composition "missing"/);
+});
+
+// Needs the pinned HyperFrames browser, like the seek-history test above.
+test('quick verification of one composition captures only its beat and closing frames with their narration', { timeout: 60000 }, async t => {
+  const project = await fixtureProject('scene-runtime');
+  t.after(() => rm(project, { recursive: true, force: true }));
+  const storyFile = join(project, 'story.yaml');
+  await writeFile(storyFile, (await readFile(storyFile, 'utf8')).replace('Show it {show}.', 'Show {show} the probe.'));
+  const receipt = await verifyFilm(project, { out: join(project, 'verification'), composition: 'probe', quick: true });
+  assert.equal(receipt.passed, true, receipt.failures.join('\n'));
+  assert.equal(receipt.quick, true);
+  assert.equal(receipt.composition, 'probe');
+  assert.deepEqual(receipt.comparisons, []);
+  assert.deepEqual(receipt.frames.map(frame => [frame.cue, frame.context, frame.at, frame.narration]), [['show', 'full', 1.3, 'the probe.'], ['closing', 'full', 2 - 1 / 30, undefined]]);
+  assert.match(await readFile(receipt.contactSheetPath, 'utf8'), /<q>the probe\.<\/q>/);
 });
 
 test('standalone HTML rejects sibling resources and missing or broken images', { timeout: 60000 }, async t => {

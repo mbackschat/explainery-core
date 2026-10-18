@@ -9,9 +9,10 @@ import { chromium } from 'playwright-core';
 import { sceneChapters } from './chapters.ts';
 import { hyperframesDist } from './hyperframes.ts';
 import { prepareSceneProject } from './scene-project.ts';
+import { beatNarration } from './narration.ts';
 import { storyScenes, selectScenes } from './story.ts';
 import { validateProject } from './validate.ts';
-import type { Story, Timing } from './types.ts';
+import type { Scene, Story, Timing } from './types.ts';
 
 const run = promisify(execFile);
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -73,10 +74,20 @@ export async function verifyVideo(video: string, options: { out: string; story: 
   return save(receipt);
 }
 
-interface FrameEvidence { composition: string; context: 'full' | 'isolated'; cue: string; at: number; file: string; sha256: string }
+interface FrameEvidence { composition: string; context: 'full' | 'isolated'; cue: string; at: number; file: string; sha256: string; narration?: string }
 interface Comparison { composition: string; context: 'full' | 'isolated'; forward: boolean; backward: boolean; isolationMaxChannelDifference?: number }
+export interface FilmVerificationOptions {
+  out: string;
+  sceneIds?: string[];
+  /** Captures only this composition's frames; it must belong to a selected scene. */
+  composition?: string;
+  /** Captures only beat and closing frames, skipping the seek-history and isolation comparisons. */
+  quick?: boolean;
+  timeoutMs?: number;
+  isolationTolerance?: number;
+}
 export interface FilmVerificationReceipt extends Receipt {
-  kind: 'film'; project: string; sceneIds: string[]; isolationTolerance: number; frames: FrameEvidence[]; comparisons: Comparison[]; contactSheetPath: string; sourceHashes: Record<string, string>;
+  kind: 'film'; project: string; sceneIds: string[]; composition?: string; quick: boolean; isolationTolerance: number; frames: FrameEvidence[]; comparisons: Comparison[]; contactSheetPath: string; sourceHashes: Record<string, string>;
 }
 // HyperFrames 0.8.142 ships capture helpers only in hashed CLI chunks, just like its bundler (explainer-file.ts).
 async function helper(project: string, symbol: string): Promise<any> {
@@ -103,9 +114,10 @@ async function pixelDifference(left: string, right: string): Promise<number> {
 const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
 /** Captures selected scenes without changing focus, recording the explicit per-channel isolation tolerance. */
-export async function verifyFilm(project: string, options: { out: string; sceneIds?: string[]; timeoutMs?: number; isolationTolerance?: number }): Promise<FilmVerificationReceipt> {
+export async function verifyFilm(project: string, options: FilmVerificationOptions): Promise<FilmVerificationReceipt> {
   const out = resolve(options.out);
-  const receipt: FilmVerificationReceipt = { ...base(out, 'film-receipt'), kind: 'film', project: resolve(project), sceneIds: options.sceneIds ?? [], isolationTolerance: options.isolationTolerance ?? 1, frames: [], comparisons: [], sourceHashes: {}, contactSheetPath: join(out, 'contact-sheet.html') };
+  const quick = options.quick ?? false;
+  const receipt: FilmVerificationReceipt = { ...base(out, 'film-receipt'), kind: 'film', project: resolve(project), sceneIds: options.sceneIds ?? [], ...(options.composition === undefined ? {} : { composition: options.composition }), quick, isolationTolerance: options.isolationTolerance ?? 1, frames: [], comparisons: [], sourceHashes: {}, contactSheetPath: join(out, 'contact-sheet.html') };
   await mkdir(out, { recursive: true });
   try {
     if (!Number.isInteger(receipt.isolationTolerance) || receipt.isolationTolerance < 0 || receipt.isolationTolerance > 255) throw new Error('isolationTolerance must be an integer from 0 to 255');
@@ -113,8 +125,11 @@ export async function verifyFilm(project: string, options: { out: string; sceneI
     if (validated.errors.length || !validated.story || !validated.timing) throw new Error(validated.errors.join('\n') || 'story and timing are required');
     const { story, timing } = validated;
     const scenes = storyScenes(story);
-    if (options.sceneIds?.length) selectScenes(story, timing, options.sceneIds);
-    receipt.sceneIds = options.sceneIds?.length ? options.sceneIds : scenes.map(scene => scene.id);
+    const requested = options.sceneIds ?? [];
+    if (requested.length) selectScenes(story, timing, requested);
+    const selected = requested.length ? scenes.filter(scene => requested.includes(scene.id)) : scenes;
+    const verified = options.composition === undefined ? selected : [compositionScene(selected, scenes, options.composition)];
+    receipt.sceneIds = verified.map(scene => scene.id);
     for (const name of ['story.yaml', 'timing.json', 'index.html']) receipt.sourceHashes[name] = await fileHash(join(project, name));
     const bundle = await helper(project, 'bundleWithLocalizedFonts');
     const serve = await helper(project, 'serveStaticProjectHtml');
@@ -124,70 +139,92 @@ export async function verifyFilm(project: string, options: { out: string; sceneI
     receipt.sourceHashes.bundle = digest(fullHtml);
     const full = await serve(project, fullHtml);
     try {
-      for (const scene of scenes.filter(scene => receipt.sceneIds.includes(scene.id))) {
-        const prepared = await prepareSceneProject(project, [scene.id]);
-        const isolatedHtml = await bundle(prepared.directory);
-        const isolated = await serve(prepared.directory, isolatedHtml);
+      for (const scene of verified) {
+        const compositions = scene.compositions.filter(composition => options.composition === undefined || composition.id === options.composition);
+        // The isolated scene view exists only for the isolation comparison, which a quick check skips.
+        const prepared = quick ? undefined : await prepareSceneProject(project, [scene.id]);
+        const isolatedHtml = prepared && await bundle(prepared.directory);
+        const isolated = prepared && await serve(prepared.directory, isolatedHtml);
+        const views = [
+          { context: 'full' as const, html: fullHtml, url: full.url, offset: 0, end: timing.duration },
+          ...(prepared ? [{ context: 'isolated' as const, html: isolatedHtml, url: isolated.url, offset: prepared.start, end: prepared.duration }] : []),
+        ];
         const fullMidpoints = new Map<string, FrameEvidence>();
         try {
-          for (const context of ['full', 'isolated'] as const) {
-            const { browser, page, renderReadyTimedOut } = await open(context === 'full' ? fullHtml : isolatedHtml, context === 'full' ? full.url : isolated.url, { renderReadyTimeoutMs: 5000, navigationTimeoutMs: 10000, browserGpuMode: 'software', beforeNavigate: (page: { on(event: string, listener: (error: Error) => void): void }) => page.on('pageerror', error => receipt.failures.push(`${scene.id}/${context}: ${message(error)}`)) });
+          for (const { context, html, url, offset, end } of views) {
+            const { browser, page, renderReadyTimedOut } = await open(html, url, { renderReadyTimeoutMs: 5000, navigationTimeoutMs: 10000, browserGpuMode: 'software', beforeNavigate: (page: { on(event: string, listener: (error: Error) => void): void }) => page.on('pageerror', error => receipt.failures.push(`${scene.id}/${context}: ${message(error)}`)) });
             const watchdog = setTimeout(() => browser.process()?.kill('SIGKILL'), options.timeoutMs ?? 60000);
             try {
               if (renderReadyTimedOut) receipt.failures.push(`${scene.id}/${context}: runtime did not become ready`);
               page.setDefaultTimeout(10000);
-              const offset = context === 'full' ? 0 : prepared.start;
-              const end = context === 'full' ? timing.duration : prepared.duration;
               const seek = (at: number) => seekTimeline(page, at, { exactTime: true });
-              const capture = async (composition: string, cue: string, at: number): Promise<FrameEvidence> => {
+              const capture = async (composition: string, cue: string, at: number, narration?: string): Promise<FrameEvidence> => {
                 await seek(at - offset);
                 const data = await page.screenshot({ timeout: 10000 });
                 const file = `${receipt.frames.length.toString().padStart(4, '0')}-${composition}-${context}.png`;
                 await writeFile(join(out, file), data);
-                const frame: FrameEvidence = { composition, context, cue, at, file, sha256: digest(data) };
+                const frame: FrameEvidence = { composition, context, cue, at, file, sha256: digest(data), ...(narration === undefined ? {} : { narration }) };
                 receipt.frames.push(frame);
                 return frame;
               };
-              for (const [compositionIndex, composition] of scene.compositions.entries()) {
-                if (compositionIndex > 0) {
-                  await page.reload({ waitUntil: 'load', timeout: 10000 });
-                  await page.waitForFunction(() => Reflect.get(globalThis, '__renderReady') === true, { timeout: 10000 });
-                }
+              for (const [compositionIndex, composition] of compositions.entries()) {
                 const slot = timing.scenes[composition.id];
-                const at = slot.start + slot.duration / 2;
-                const direct = await capture(composition.id, 'direct', at);
-                await seek(0);
-                await seek(Math.max(0, at - offset - 2));
-                const forward = await capture(composition.id, 'forward', at);
-                await seek(Math.max(0, end - 1 / story.canvas.fps));
-                const backward = await capture(composition.id, 'backward', at);
-                const comparison: Comparison = { composition: composition.id, context, forward: direct.sha256 === forward.sha256, backward: direct.sha256 === backward.sha256 };
-                if (!comparison.forward || !comparison.backward) receipt.failures.push(`${composition.id}/${context}: seek history changes midpoint pixels`);
-                if (context === 'full') fullMidpoints.set(composition.id, direct);
-                else {
-                  const original = fullMidpoints.get(composition.id)!;
-                  comparison.isolationMaxChannelDifference = original.sha256 === direct.sha256 ? 0 : await pixelDifference(join(out, original.file), join(out, direct.file));
-                  if (comparison.isolationMaxChannelDifference > receipt.isolationTolerance) receipt.failures.push(`${composition.id}: isolated/full pixels differ by more than ${receipt.isolationTolerance} channel levels`);
+                if (!quick) {
+                  if (compositionIndex > 0) {
+                    await page.reload({ waitUntil: 'load', timeout: 10000 });
+                    await page.waitForFunction(() => Reflect.get(globalThis, '__renderReady') === true, { timeout: 10000 });
+                  }
+                  const at = slot.start + slot.duration / 2;
+                  const direct = await capture(composition.id, 'direct', at);
+                  await seek(0);
+                  await seek(Math.max(0, at - offset - 2));
+                  const forward = await capture(composition.id, 'forward', at);
+                  await seek(Math.max(0, end - 1 / story.canvas.fps));
+                  const backward = await capture(composition.id, 'backward', at);
+                  const comparison: Comparison = { composition: composition.id, context, forward: direct.sha256 === forward.sha256, backward: direct.sha256 === backward.sha256 };
+                  if (!comparison.forward || !comparison.backward) receipt.failures.push(`${composition.id}/${context}: seek history changes midpoint pixels`);
+                  if (context === 'full') fullMidpoints.set(composition.id, direct);
+                  else {
+                    const original = fullMidpoints.get(composition.id)!;
+                    comparison.isolationMaxChannelDifference = original.sha256 === direct.sha256 ? 0 : await pixelDifference(join(out, original.file), join(out, direct.file));
+                    if (comparison.isolationMaxChannelDifference > receipt.isolationTolerance) receipt.failures.push(`${composition.id}: isolated/full pixels differ by more than ${receipt.isolationTolerance} channel levels`);
+                  }
+                  receipt.comparisons.push(comparison);
                 }
-                receipt.comparisons.push(comparison);
                 if (context === 'full') {
-                  for (const [cue, seconds] of Object.entries(slot.beats)) await capture(composition.id, cue, Math.min(slot.start + seconds + .3, slot.start + slot.duration - 1 / story.canvas.fps));
+                  const spoken = beatNarration(composition.narration);
+                  for (const [cue, seconds] of Object.entries(slot.beats)) await capture(composition.id, cue, Math.min(slot.start + seconds + .3, slot.start + slot.duration - 1 / story.canvas.fps), spoken[cue]);
                   await capture(composition.id, 'closing', slot.start + slot.duration - 1 / story.canvas.fps);
                 }
               }
-              if (context === 'full') {
+              if (context === 'full' && !quick) {
                 const index = scenes.indexOf(scene);
                 const joins = [...scene.compositions.slice(index > 0 ? 0 : 1), ...(scenes[index + 1]?.compositions.slice(0, 1) ?? [])];
-                for (const composition of joins) for (const delta of [-.1, .3]) await capture(composition.id, `join ${delta}`, Math.max(0, Math.min(timing.duration - 1 / story.canvas.fps, timing.scenes[composition.id].start + delta)));
+                for (const composition of joins.filter(composition => options.composition === undefined || composition.id === options.composition)) for (const delta of [-.1, .3]) await capture(composition.id, `join ${delta}`, Math.max(0, Math.min(timing.duration - 1 / story.canvas.fps, timing.scenes[composition.id].start + delta)));
               }
             } finally { try { await browser.close(); } finally { clearTimeout(watchdog); } }
           }
-        } finally { await isolated.close(); }
+        } finally { await isolated?.close(); }
       }
     } finally { await full.close(); }
   } catch (error) { receipt.failures.push(message(error)); }
-  await writeFile(receipt.contactSheetPath, `<!doctype html><meta charset="utf-8"><title>Verification evidence</title><style>body{font:16px sans-serif;background:#eee}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}figure{margin:0}img{width:100%}</style><h1>Machine captures — human review pending</h1><p>${escape(receipt.failures.join('; '))}</p><main>${receipt.frames.map(frame => `<figure><img src="${escape(frame.file)}"><figcaption>${escape(`${frame.composition} · ${frame.context} · ${frame.cue} · ${frame.at.toFixed(3)}s`)}</figcaption></figure>`).join('')}</main>`);
+  await writeFile(receipt.contactSheetPath, contactSheet(receipt));
   return save(receipt);
+}
+
+// The selected scene that owns a composition filter; a composition elsewhere in the film is reported as such.
+function compositionScene(selected: Scene[], scenes: Scene[], composition: string): Scene {
+  const owner = scenes.find(scene => scene.compositions.some(candidate => candidate.id === composition));
+  if (!owner) throw new Error(`unknown composition "${composition}"`);
+  if (!selected.includes(owner)) throw new Error(`composition "${composition}" is not in the selected scene${selected.length === 1 ? '' : 's'} ${selected.map(scene => `"${scene.id}"`).join(', ')}; it belongs to "${owner.id}"`);
+  return owner;
+}
+
+/** The HTML review sheet: one captioned image per frame, with the narration spoken in each beat frame's beat. */
+export function contactSheet(receipt: Pick<FilmVerificationReceipt, 'frames' | 'failures' | 'quick'>): string {
+  const caption = (frame: FrameEvidence) => `${escape(`${frame.composition} · ${frame.context} · ${frame.cue} · ${frame.at.toFixed(3)}s`)}${frame.narration ? `<br><q>${escape(frame.narration)}</q>` : ''}`;
+  const scope = receipt.quick ? '<p>Quick check: beat and closing frames only; no seek-history or isolation comparisons.</p>' : '';
+  return `<!doctype html><meta charset="utf-8"><title>Verification evidence</title><style>body{font:16px sans-serif;background:#eee}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}figure{margin:0}img{width:100%}</style><h1>Machine captures — human review pending</h1>${scope}<p>${escape(receipt.failures.join('; '))}</p><main>${receipt.frames.map(frame => `<figure><img src="${escape(frame.file)}"><figcaption>${caption(frame)}</figcaption></figure>`).join('')}</main>`;
 }
 
 export interface HtmlVerificationReceipt extends Receipt { kind: 'html'; file: string; sha256?: string; networkRequests: string[]; nonEmbeddedRequests: string[]; players: number; chapters: number; embeddedAudio: number; decodedAudio: number; subtitles: boolean }
