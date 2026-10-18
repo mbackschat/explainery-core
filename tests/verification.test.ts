@@ -134,6 +134,18 @@ test('quick verification of one composition captures only its beat and closing f
   assert.match(await readFile(receipt.contactSheetPath, 'utf8'), /<q>the probe\.<\/q>/);
 });
 
+// Locks the one-line headline rule (docs/authoring.md#write-headlines-that-state-the-claim); the oracle is the browser's own line boxes.
+test('verification fails a composition whose headline wraps onto a second line', { timeout: 60000 }, async t => {
+  const long = 'A headline long enough to wrap onto a second line in this small probe frame';
+  const project = await fixtureProject('scene-runtime', html => html.replace('"headline":"Story copy"', `"headline":"${long}"`));
+  t.after(() => rm(project, { recursive: true, force: true }));
+  const storyFile = join(project, 'story.yaml');
+  await writeFile(storyFile, (await readFile(storyFile, 'utf8')).replace('headline: Story copy', `headline: ${long}`));
+  const receipt = await verifyFilm(project, { out: join(project, 'verification'), composition: 'probe', quick: true });
+  assert.equal(receipt.passed, false);
+  assert.deepEqual(receipt.failures, ['probe: headline wraps onto 2 lines; shorten it to fit one line']);
+});
+
 test('standalone HTML rejects sibling resources and missing or broken images', { timeout: 60000 }, async t => {
   const project = await fixtureProject('scene-runtime');
   t.after(() => rm(project, { recursive: true, force: true }));

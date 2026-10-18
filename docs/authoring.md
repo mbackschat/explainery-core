@@ -54,11 +54,17 @@ A chapter card shows the scene's number and title, its question and the roadmap,
         overlap: 0.6
       - id: storage-tree
         copy:
-          headline: Change one path. Share the rest.
+          headline: An edit copies one tree path and shares the rest
         narration: "{tree} The state lives in a persistent tree."
 ```
 
 A chapter card must be the first composition of its scene and be followed by content. A scene of agenda cards alone is allowed: a closing recap in its own scene gets its own MP4 and HTML chapter. A topic that needs two compositions, such as reading and then saving, stays one numbered scene; open its later composition with a spoken question instead of a second chapter card. Remember that YouTube chapters need at least ten seconds, so a short agenda card belongs inside the hook scene rather than in a scene of its own. A card fades in over the previous composition's overlap and out over its own. Mount the card layer once in the root, as described in [the README](../README.md#add-chapter-and-agenda-cards). [ADR 0010](adr/0010-presentation-structure-and-cards.md) records the decision.
+
+### Write headlines that state the claim
+
+A composition's `copy.headline` stays over its diagram for the whole composition, so it tells the viewer what the diagram shows. State the claim the diagram demonstrates, with its concrete subject and the names the diagram and narration use: “Save commits one Activity's holders atomically”, not “One Save. One transaction.” Slogan fragments, rhetorical pairs and teasers such as “More than a shape.” sound like marketing and give the viewer nothing to check against the picture. Put qualifiers and evidence limits in the support line, and end a headline without a period. A chapter card's headline is the scene's question and keeps its question mark.
+
+A headline fits on one line. The dark theme sets it at 65 px in a 1500 px copy block; on 18 October 2026 about 50 characters fit with the bundled font, and a long final word wraps sooner. A wrapped headline pushes the support line out of the copy block, so `explainery verify` fails a composition whose headline wraps. Shorten the claim or move a qualifier into the support line rather than shrinking the type.
 
 ## Show the mechanism and let motion tell it
 
@@ -212,12 +218,12 @@ scenes:
     compositions:
       - id: problem
         copy:
-          headline: Separate inboxes duplicate work.
+          headline: Separate inboxes let two people take one task
         narration: "{arrive} Requests arrive in separate inboxes."
         hold: 1
       - id: solution
         copy:
-          headline: One queue keeps the work together.
+          headline: One shared queue gives each task one owner
         narration: "{route} Route each task through one shared queue."
         hold: 1
 ```

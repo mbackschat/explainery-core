@@ -111,6 +111,18 @@ async function pixelDifference(left: string, right: string): Promise<number> {
   for (let index = 0; index < a.length; index++) maximum = Math.max(maximum, Math.abs(a[index] - b[index]));
   return maximum;
 }
+/**
+ * Counts the rendered lines of a composition's headline from its text's line boxes, which neither the copy wipe's
+ * clip-path nor stage transforms change. A wrapped headline pushes the support line out of the theme's copy block.
+ */
+const headlineLines = (page: any, composition: string): Promise<number> => page.evaluate((id: string) => {
+  const document = Reflect.get(globalThis, 'document');
+  const element = document.querySelector(`[data-composition-id="${id}"] [data-copy="headline"]`);
+  if (!element) return 0;
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  return new Set([...range.getClientRects()].filter((rect: any) => rect.width > 0).map((rect: any) => Math.round(rect.top))).size;
+}, composition);
 const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
 /** Captures selected scenes without changing focus, recording the explicit per-channel isolation tolerance. */
@@ -195,6 +207,8 @@ export async function verifyFilm(project: string, options: FilmVerificationOptio
                   const spoken = beatNarration(composition.narration);
                   for (const [cue, seconds] of Object.entries(slot.beats)) await capture(composition.id, cue, Math.min(slot.start + seconds + .3, slot.start + slot.duration - 1 / story.canvas.fps), spoken[cue]);
                   await capture(composition.id, 'closing', slot.start + slot.duration - 1 / story.canvas.fps);
+                  const lines = await headlineLines(page, composition.id);
+                  if (lines > 1) receipt.failures.push(`${composition.id}: headline wraps onto ${lines} lines; shorten it to fit one line`);
                 }
               }
               if (context === 'full' && !quick) {
