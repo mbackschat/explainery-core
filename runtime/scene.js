@@ -94,20 +94,20 @@
     function drawCard(layer, slot, scenes, timeline) {
         const chapter = slot.kind === 'chapter';
         const current = slot.scene === undefined ? -1 : slot.scene;
-        const card = append(layer, 'div', 'card ' + slot.kind);
+        const card = append(layer, 'div', 'explainery-card ' + slot.kind);
         append(card, 'div', 'background');
-        const main = append(card, 'div', 'card-main');
+        const main = append(card, 'div', 'explainery-card-main');
         append(main, 'div', 'accent-rule');
         if (slot.copy.category)
             append(main, 'p', 'category', slot.copy.category);
         if (chapter)
-            append(append(main, 'p', 'card-number', pad(current + 1)), 'span', 'card-count', ' / ' + pad(scenes.length));
-        const title = append(main, 'h1', 'card-title', chapter ? scenes[current] : slot.copy.headline);
-        const question = chapter && slot.copy.headline ? append(main, 'p', 'card-question', slot.copy.headline) : undefined;
+            append(append(main, 'p', 'explainery-card-number', pad(current + 1)), 'span', 'explainery-card-count', ' / ' + pad(scenes.length));
+        const title = append(main, 'h1', 'explainery-card-title', chapter ? scenes[current] : slot.copy.headline);
+        const question = chapter && slot.copy.headline ? append(main, 'p', 'explainery-card-question', slot.copy.headline) : undefined;
         if (slot.copy.support)
             append(main, 'p', 'support', slot.copy.support);
         // On an agenda the list follows the headline, so a headline of any length pushes it down instead of overlapping.
-        const roadmap = append(chapter ? card : main, 'ol', 'card-roadmap');
+        const roadmap = append(chapter ? card : main, 'ol', 'explainery-card-roadmap');
         scenes.forEach(function (name, index) {
             const state = !chapter ? 'next' : index < current ? 'past' : index === current ? 'current' : 'next';
             append(roadmap, 'li', state, pad(index + 1) + '  ' + name);
@@ -129,7 +129,7 @@
      * explainery assemble passes the cards, every scene title and the layer duration as composition variables. The
      * cards are built here rather than in a core composition file because HyperFrames 0.8.142 skips sub-compositions
      * reached through the node_modules link when it compiles a render, while this script loads like the rest of the
-     * runtime. The theme styles them through the .card classes.
+     * runtime. The theme styles them through the explainery-card classes, prefixed so they never match a story's own markup.
      */
     const defineCards = function (scope, id) {
         return defineScene(scope, id, function (timeline) {

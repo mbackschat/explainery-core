@@ -369,7 +369,7 @@ Mount it once in the root, above the scenes and below the brand frame, and mark 
   data-start="0" data-duration="1" data-width="1920" data-height="1080" data-track-index="8" data-story-span data-story-cards></div>
 ```
 
-The layer file must live inside the project. HyperFrames 0.8.142 leaves out sub-compositions reached through the `node_modules` link when it compiles a render, so `defineCards` in the runtime draws the cards and the file only calls it. Assembly writes the cards, their crossfades and the numbered roadmap (the scenes that open with a chapter card) into the layer; a scene preview shows only its own cards. The theme's `.card` classes and the `--type-card-*`, `--type-roadmap` and `--type-agenda` tokens style them. See the [card fixture](tests/fixtures/cards/index.html) and [ADR 0010](docs/adr/0010-presentation-structure-and-cards.md).
+The layer file must live inside the project. HyperFrames 0.8.142 leaves out sub-compositions reached through the `node_modules` link when it compiles a render, so `defineCards` in the runtime draws the cards and the file only calls it. Assembly writes the cards, their crossfades and the numbered roadmap (the scenes that open with a chapter card) into the layer; a scene preview shows only its own cards. The theme's `explainery-card` classes (prefixed so they never match a story's own markup) and the `--type-card-*`, `--type-roadmap` and `--type-agenda` tokens style them. See the [card fixture](tests/fixtures/cards/index.html) and [ADR 0010](docs/adr/0010-presentation-structure-and-cards.md).
 
 ## Themes and components
 

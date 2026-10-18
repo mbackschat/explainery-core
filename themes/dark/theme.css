@@ -61,17 +61,17 @@ body { background: var(--canvas); color: var(--text); font-family: var(--font-fa
 
 /* Cards (cards.html): a chapter card opens a scene with its number, title and question beside the film's roadmap;
    an agenda card lists every scene. Both cover the scenes beneath them while they show. */
-.card { position: absolute; inset: 0; background: var(--canvas); opacity: 0; }
-.card-main { position: absolute; left: var(--copy-left); top: 290px; width: 1060px; }
-.card .accent-rule { margin-bottom: 28px; }
-.card-number { margin: 0 0 18px; color: var(--accent); font-size: var(--type-card-number); font-weight: 900; line-height: 1; letter-spacing: -3px; }
-.card-count { color: var(--text-muted); font-size: calc(var(--type-card-number) / 3); font-weight: 300; letter-spacing: 0; }
-.card-title { margin: 0 0 22px; font-size: var(--type-headline); font-weight: 900; line-height: 1.1; letter-spacing: -1.1px; }
-.card-question { margin: 0 0 16px; color: var(--text-secondary); font-size: var(--type-card-question); font-weight: 300; line-height: 1.3; }
-.card-roadmap { position: absolute; left: 1290px; top: 330px; width: 520px; margin: 0; padding: 0; list-style: none; font-size: var(--type-roadmap); }
-.card-roadmap li { height: 44px; padding-left: 22px; line-height: 44px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card-roadmap li.past { color: var(--text-muted); opacity: .5; }
-.card-roadmap li.current { color: var(--accent); font-weight: 700; box-shadow: inset 5px 0 var(--accent); }
-.card.agenda .card-main { top: 160px; width: var(--copy-width); }
-.card.agenda .card-roadmap { position: static; margin-top: 56px; width: auto; font-size: var(--type-agenda); }
-.card.agenda .card-roadmap li { height: 62px; line-height: 62px; }
+.explainery-card { position: absolute; inset: 0; background: var(--canvas); opacity: 0; }
+.explainery-card-main { position: absolute; left: var(--copy-left); top: 290px; width: 1060px; }
+.explainery-card .accent-rule { margin-bottom: 28px; }
+.explainery-card-number { margin: 0 0 18px; color: var(--accent); font-size: var(--type-card-number); font-weight: 900; line-height: 1; letter-spacing: -3px; }
+.explainery-card-count { color: var(--text-muted); font-size: calc(var(--type-card-number) / 3); font-weight: 300; letter-spacing: 0; }
+.explainery-card-title { margin: 0 0 22px; font-size: var(--type-headline); font-weight: 900; line-height: 1.1; letter-spacing: -1.1px; }
+.explainery-card-question { margin: 0 0 16px; color: var(--text-secondary); font-size: var(--type-card-question); font-weight: 300; line-height: 1.3; }
+.explainery-card-roadmap { position: absolute; left: 1290px; top: 330px; width: 520px; margin: 0; padding: 0; list-style: none; font-size: var(--type-roadmap); }
+.explainery-card-roadmap li { height: 44px; padding-left: 22px; line-height: 44px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.explainery-card-roadmap li.past { color: var(--text-muted); opacity: .5; }
+.explainery-card-roadmap li.current { color: var(--accent); font-weight: 700; box-shadow: inset 5px 0 var(--accent); }
+.explainery-card.agenda .explainery-card-main { top: 160px; width: var(--copy-width); }
+.explainery-card.agenda .explainery-card-roadmap { position: static; margin-top: 56px; width: auto; font-size: var(--type-agenda); }
+.explainery-card.agenda .explainery-card-roadmap li { height: 62px; line-height: 62px; }
