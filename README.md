@@ -417,7 +417,7 @@ Apache-2.0, see [LICENSE](LICENSE). GSAP is a peer dependency and is never redis
 
 ## Production automation
 
-The [local voice and delivery workflow](docs/production.md) adds composition voice caching, pronunciation-aware alignment, production provenance, verification receipts and a single delivery command. Start with a short sample and scene verification; `deliver` reuses a matching verified MP4 so caption and HTML refreshes do not repeat capture.
+The [local voice and delivery workflow](docs/production.md) adds voice settings in `story.yaml`, composition voice caching, per-clip recognition, pronunciation-aware alignment, production provenance, verification receipts and a single delivery command. Start with a short sample and scene verification; `deliver` reuses a matching verified MP4 so caption and HTML refreshes do not repeat capture.
 
 ## Prepare YouTube title and description
 

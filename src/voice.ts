@@ -155,7 +155,8 @@ async function synthesize(text: string, settings: VoiceSettings, adapter: VoiceA
   }
 }
 
-async function atomicWrite(path: string, value: string | Buffer): Promise<void> {
+/** Replaces a file by rename, so an interrupted run never leaves a truncated cache entry or manifest behind. */
+export async function atomicWrite(path: string, value: string | Buffer): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
   try {
@@ -166,10 +167,16 @@ async function atomicWrite(path: string, value: string | Buffer): Promise<void> 
   }
 }
 
-/** Generates local voice with content-addressed composition audio and measured sample offsets. */
+/**
+ * Generates local voice with content-addressed composition audio and measured sample offsets.
+ *
+ * Each option falls back to the story's `voice` settings, then to the built-in default, so a film keeps its pacing
+ * without a wrapper script. With `out`, the manifest is written beside the audio as `<out>.voice.json`, so a tracked
+ * audio file carries its tracked segments; without it, both stay in the ignored `.explainery/voice` destination.
+ */
 export async function generateVoice(projectDir: string, story: Story, options: VoiceOptions = {}): Promise<VoiceManifest> {
-  const voice = options.voice ?? 'af_heart';
-  const settings: VoiceSettings = { voice, lang: options.lang ?? languages[voice[0].toLowerCase()] ?? 'en-us', speed: options.speed ?? 1, gap: options.gap ?? 0.4 };
+  const voice = options.voice ?? story.voice?.name ?? 'af_heart';
+  const settings: VoiceSettings = { voice, lang: options.lang ?? languages[voice[0].toLowerCase()] ?? 'en-us', speed: options.speed ?? story.voice?.speed ?? 1, gap: options.gap ?? story.voice?.gap ?? 0.4 };
   if (!voice || !Object.values(languages).includes(settings.lang) || !Number.isFinite(settings.speed) || settings.speed < 0.1 || settings.speed > 3 || !Number.isFinite(settings.gap) || settings.gap < 0) throw new Error('invalid voice, language, speed (0.1–3), or gap (nonnegative seconds)');
   const all = storyCompositions(story);
   const compositions = options.sample ? all.filter(part => part.id === options.sample) : all;
@@ -226,7 +233,7 @@ export async function generateVoice(projectDir: string, story: Story, options: V
     schemaVersion: 1, engine, settings,
     scriptHash: hash(JSON.stringify(compositions.map(part => ({ id: part.id, narration: part.narration })))),
     voiceInputHash: hash(JSON.stringify(compositions.map(part => ({ id: part.id, text: voicedText(part.narration, story.pronunciations) })))),
-    audio, audioSha256: hash(bytes), manifestFile: join(destination, 'manifest.json'),
+    audio, audioSha256: hash(bytes), manifestFile: options.out ? `${audio}.voice.json` : join(destination, 'manifest.json'),
     duration: samples / rate, ...(options.sample ? { sample: options.sample } : {}), segments,
   };
   await atomicWrite(join(projectDir, audio), bytes);

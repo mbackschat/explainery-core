@@ -12,13 +12,14 @@ import { hyperframesDist } from '../src/hyperframes.ts';
 import { prepareSceneProject } from '../src/scene-project.ts';
 import { alignTimingWithReport, type AlignmentOptions, type AudioSegment } from '../src/align.ts';
 import { generateVoice } from '../src/voice.ts';
+import { transcribeSegments } from '../src/transcribe.ts';
 import { productionPreflight, recordProduction, renderFingerprint, reusableRender, recordRender } from '../src/production.ts';
 import { verifyFilm, verifyVideo } from '../src/verification.ts';
 import { snapshotTimes } from '../src/snapshot.ts';
 import { formatRenderProgress, parseRenderProgress } from '../src/render-progress.ts';
 
 const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --film] [--narration] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --film] [--quality draft|looks|delivery] [--out <file>] [--workers <number>] [--reuse]\n       explainery chapters [project-dir] --video <file.mp4> [--scene <id,...> | --film]\n       explainery snapshot [project-dir] --at <seconds|composition[:beat][±seconds],...> [--out <directory>] [--zoom <selector|x,y,w,h>]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--transcript-mode canonical|spoken] [--segments <file.json>] [--report <file.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>] [--subtitles <file.vtt>]\n       explainery export [project-dir] --single-file [--out <file.html>] [--subtitles <file.vtt>]';
-const PRODUCTION_USAGE = '\n       explainery voice [project-dir] [--sample <composition>] [--voice <name>] [--lang <locale>] [--speed <number>] [--gap <seconds>] [--out <relative.wav>]\n       explainery production [project-dir] --transcript <relative.json> [--segments <relative.json>] [--transcript-mode canonical|spoken]\n       explainery preflight [project-dir]\n       explainery verify [project-dir] [--scene <id,...> | --film] [--composition <id>] [--quick] [--out <directory>] [--pixel-tolerance <0..255>]\n       explainery deliver [project-dir] [--out <prefix>] [--workers <number>]\n       explainery youtube [project-dir] --metadata <file.json> [--out <prefix>]';
+const PRODUCTION_USAGE = '\n       explainery voice [project-dir] [--sample <composition>] [--voice <name>] [--lang <locale>] [--speed <number>] [--gap <seconds>] [--out <relative.wav>]\n       explainery transcribe [project-dir] --segments <voice-manifest.json> [--out <transcript.json>]\n       explainery production [project-dir] --transcript <relative.json> [--segments <relative.json>] [--transcript-mode canonical|spoken]\n       explainery preflight [project-dir]\n       explainery verify [project-dir] [--scene <id,...> | --film] [--composition <id>] [--quick] [--out <directory>] [--pixel-tolerance <0..255>]\n       explainery deliver [project-dir] [--out <prefix>] [--workers <number>]\n       explainery youtube [project-dir] --metadata <file.json> [--out <prefix>]';
 const args = process.argv.slice(2);
 const valueOptions = new Set(['--subtitles', '--video', '--out', '--wps', '--audio', '--transcript', '--scene', '--quality', '--workers', '--voice', '--lang', '--speed', '--gap', '--sample', '--segments', '--transcript-mode', '--report', '--pixel-tolerance', '--metadata', '--at', '--zoom', '--composition']);
 const flagOptions = new Set(['--force', '--check', '--single-file', '--film', '--stop', '--status', '--narration', '--reuse', '--quick']);
@@ -389,6 +390,17 @@ async function voice() {
   report(`Generated ${manifest.duration.toFixed(3)}s to ${join(project, manifest.audio)}; manifest ${join(project, manifest.manifestFile)}`);
 }
 
+async function transcribeClips() {
+  const segments = option('--segments');
+  if (!segments) return fail(['transcribe requires --segments <voice-manifest.json>']);
+  const manifest = JSON.parse(await readFile(resolve(segments), 'utf8'));
+  const { words, recognized } = await transcribeSegments(project, manifest);
+  const out = resolve(option('--out') ?? join(project, '.explainery/transcribe/transcript.json'));
+  await mkdir(dirname(out), { recursive: true });
+  await writeFile(out, `${JSON.stringify(words, null, 2)}\n`);
+  report(`Transcribed ${words.length} words to ${out}; recognized ${recognized.length} of ${manifest.segments.length} clips, reused the rest`);
+}
+
 async function production() {
   const transcript = option('--transcript');
   if (!transcript) return fail(['production requires --transcript <project-relative.json>']);
@@ -439,6 +451,7 @@ async function main() {
       break;
     }
     case 'voice': await voice(); break;
+    case 'transcribe': await transcribeClips(); break;
     case 'production': await production(); break;
     case 'preflight': {
       const result = await productionPreflight(project);

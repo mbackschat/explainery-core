@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -66,11 +67,13 @@ async function fixture(t: test.TestContext) {
   await writeFile(join(fake, 'dist/cli.js'), `
     import { readFileSync, writeFileSync } from 'node:fs';
     import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
     import { join } from 'node:path';
     const args = process.argv.slice(2);
     writeFileSync(process.env.HF_CAPTURE, JSON.stringify(args));
     console.log('Fake HyperFrames: ' + args.join(' '));
     if (Number(process.env.HF_EXIT ?? 0)) process.exit(Number(process.env.HF_EXIT));
+    if (args[0] === 'transcribe') writeFileSync(join(args[args.indexOf('--dir') + 1], 'transcript.json'), JSON.stringify([{ text: 'Lead.', start: 0.1, end: 0.4 }]));
     if (args[0] === 'render') {
       const duration = readFileSync(join(args[1], 'index.html'), 'utf8').match(/data-duration="([^"]+)"/)[1];
       const output = args[args.indexOf('--output') + 1];
@@ -92,6 +95,32 @@ async function fixture(t: test.TestContext) {
   }
   return { cwd, project, run };
 }
+
+test('transcribe recognizes each voice manifest clip once with the pinned HyperFrames and writes the shifted transcript', async t => {
+  const { project, run } = await fixture(t);
+  await mkdir(join(project, '.explainery/voice/cache'), { recursive: true });
+  await mkdir(join(project, 'assets'));
+  const segments = [];
+  for (const [id, start] of [['lead', 0.25], ['final', 3]] as const) {
+    const clip = Buffer.from(`${id} clip`);
+    await writeFile(join(project, `.explainery/voice/cache/${id}.wav`), clip);
+    segments.push({ id, start, end: start + 1, audio: `.explainery/voice/cache/${id}.wav`, audioSha256: createHash('sha256').update(clip).digest('hex') });
+  }
+  await writeFile(join(project, 'assets/narration.wav.voice.json'), JSON.stringify({ segments }));
+  const args = ['transcribe', project, '--segments', 'film/assets/narration.wav.voice.json', '--out', 'film/drafts/transcript.json'];
+  const first = await run(args);
+  assert.equal(first.status, 0, first.stderr);
+  assert.deepEqual(first.argv?.slice(0, 2), ['transcribe', join(project, '.explainery/voice/cache/final.wav')]);
+  assert.match(first.stdout, /recognized 2 of 2 clips/);
+  assert.deepEqual(JSON.parse(await readFile(join(project, 'drafts/transcript.json'), 'utf8')), [{ text: 'Lead.', start: 0.35, end: 0.65 }, { text: 'Lead.', start: 3.1, end: 3.4 }]);
+  const again = await run(args);
+  assert.equal(again.status, 0, again.stderr);
+  assert.equal(again.argv, undefined);
+  assert.match(again.stdout, /recognized 0 of 2 clips/);
+  const missing = await run(['transcribe', project]);
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /--segments/);
+});
 
 test('scenes lists editorial titles and ranges, and narration traverses grouped compositions', async t => {
   const { project, run } = await fixture(t);

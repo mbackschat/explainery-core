@@ -28,7 +28,14 @@ export interface Story {
   theme: string;
   canvas: { width: number; height: number; fps: number };
   pronunciations?: Record<string, string>;
+  voice?: StoryVoice;
   scenes: (Composition | Scene)[];
+}
+
+export interface StoryVoice {
+  name?: string;
+  speed?: number;
+  gap?: number;
 }
 
 export interface SceneTiming {

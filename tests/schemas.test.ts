@@ -68,3 +68,14 @@ test('an audio length is recorded only together with its audio', () => {
   assert.notDeepEqual(checkTiming({ ...timing(), audioDuration: 3.5 }), []);
   assert.notDeepEqual(checkTiming({ ...timing(), audio: 'assets/narration.wav', audioDuration: 0 }), []);
 });
+
+test('voice settings keep a film\'s synthetic voice and pacing in the story', () => {
+  assert.deepEqual(checkStory({ ...story(), voice: { name: 'af_heart', speed: 0.9, gap: 0.6 } }), []);
+  assert.deepEqual(checkStory({ ...story(), voice: { gap: 0 } }), []);
+  assert.notDeepEqual(checkStory({ ...story(), voice: { name: '' } }), []);
+  assert.notDeepEqual(checkStory({ ...story(), voice: { speed: 0 } }), []);
+  assert.notDeepEqual(checkStory({ ...story(), voice: { speed: 3.5 } }), []);
+  assert.notDeepEqual(checkStory({ ...story(), voice: { gap: -0.1 } }), []);
+  // The language follows from the voice name, so a stored one could only contradict it.
+  assert.deepEqual(checkStory({ ...story(), voice: { name: 'af_heart', lang: 'en-us' } } as Story), ['/voice: must NOT have additional property "lang"']);
+});

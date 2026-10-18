@@ -24,6 +24,16 @@
       "description": "Spellings a synthetic draft voice speaks in place of a written word, for example \"SQL\": \"S-Q-L\". Whole, case-sensitive words; on-screen text, transcripts and recordings keep the written word.",
       "additionalProperties": { "type": "string", "minLength": 1 }
     },
+    "voice": {
+      "type": "object",
+      "description": "Settings `explainery voice` uses for the local synthetic voice when its command-line options do not name them. The language follows from the voice name.",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "description": "Kokoro voice, for example \"af_heart\"; its first letter selects the language." },
+        "speed": { "type": "number", "minimum": 0.1, "maximum": 3, "description": "Speaking rate; 1 is the voice's own pace." },
+        "gap": { "type": "number", "minimum": 0, "description": "Seconds of silence added after each composition's hold minus overlap." }
+      }
+    },
     "scenes": {
       "type": "array",
       "minItems": 1,

@@ -88,6 +88,24 @@ test('sample synthesis is isolated from film output and reuses the same composit
   await assert.rejects(generateVoice(dir, story, { adapter, sample: 'unknown' }), /unknown composition/);
 });
 
+test('story voice settings apply when no option names them, and options override them one by one', async t => {
+  const { dir, adapter } = await fixture(t);
+  const paced: Story = { ...story, voice: { name: 'bf_emma', speed: 0.9, gap: 0.6 } };
+  assert.deepEqual((await generateVoice(dir, paced, { adapter })).settings, { voice: 'bf_emma', lang: 'en-gb', speed: 0.9, gap: 0.6 });
+  assert.deepEqual((await generateVoice(dir, paced, { adapter, speed: 1.1, gap: 0 })).settings, { voice: 'bf_emma', lang: 'en-gb', speed: 1.1, gap: 0 });
+  assert.deepEqual((await generateVoice(dir, paced, { adapter, voice: 'af_heart' })).settings, { voice: 'af_heart', lang: 'en-us', speed: 0.9, gap: 0.6 });
+});
+
+test('an explicit output keeps its manifest beside the audio and leaves the default film manifest alone', async t => {
+  const { dir, adapter } = await fixture(t);
+  const manifest = await generateVoice(dir, story, { adapter, out: 'assets/narration.wav' });
+  assert.equal(manifest.audio, 'assets/narration.wav');
+  assert.equal(manifest.manifestFile, 'assets/narration.wav.voice.json');
+  assert.deepEqual(JSON.parse(await readFile(join(dir, 'assets/narration.wav.voice.json'), 'utf8')), manifest);
+  await assert.rejects(readFile(join(dir, '.explainery/voice/film/manifest.json')), { code: 'ENOENT' });
+  assert.equal((await generateVoice(dir, story, { adapter })).manifestFile, '.explainery/voice/film/manifest.json');
+});
+
 test('chunking preserves all words and bounds long text, including a single oversized token', () => {
   for (const text of ['A sentence. '.repeat(200), 'x'.repeat(1200), '🙂'.repeat(700)]) {
     const chunks = splitVoiceText(text);

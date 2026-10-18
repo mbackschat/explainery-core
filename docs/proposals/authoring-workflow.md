@@ -66,9 +66,9 @@ Excluded: a lint for beats whose only change is a fade. A lexical scan cannot ma
 - `story.yaml` gains `voice: { name, speed, gap }`, so `explainery voice <film>` needs no wrapper script and every film keeps its pacing.
 - `voice` writes its manifest beside `--out`, so the tracked copy is no longer a manual step.
 - `explainery transcribe <film> --segments <manifest>` recognizes each manifest clip separately, caches the result by clip hash, and writes the shifted transcript. Re-voicing one composition then re-recognizes one clip.
-- Post-processed audio (loudness normalization) changes the audio hash, so `production --segments` rejects it today. The voice settings therefore include optional loudness targets that `voice` applies before hashing, so the manifest describes the delivered audio.
+- Segments describe the audio `voice` wrote. Post-processed audio, such as a loudness-normalized delivery file, has another hash, so `production` records it without `--segments`, as today; `docs/production.md` states this.
 
-Excluded: automatic retry after a synthesizer crash. One onnxruntime abort occurred and the rerun succeeded, but a retry would also hide real failures. The cache already makes a manual rerun cheap.
+Excluded: automatic retry after a synthesizer crash, because a retry would also hide real failures, and one onnxruntime abort reran fine from the cache. Also excluded: loudness normalization inside `voice`, which would let segments survive into a delivery file but adds encoding to the voice contract.
 
 ### P4 — Select compositions for preview and render (optional)
 
