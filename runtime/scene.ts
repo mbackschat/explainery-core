@@ -147,8 +147,9 @@ declare var defineCards: DefineCards;
 
   const pad = (number: number) => String(number).padStart(2, '0');
 
-  // A chapter card shows its scene's number, title and question beside the roadmap of all scenes; an agenda card
-  // shows its headline above that roadmap. Text the story leaves out is not drawn.
+  // A chapter card shows its scene's number, title and question beside the roadmap of all scenes, marking where the
+  // film stands. An agenda card shows its headline above the same list unmarked, so it serves as the route at the
+  // start and as the recap at the end. Text the story leaves out is not drawn.
   function drawCard(layer: HTMLElement, slot: CardSlot, scenes: string[], timeline: gsap.core.Timeline) {
     const chapter = slot.kind === 'chapter';
     const card = append(layer, 'div', 'card ' + slot.kind);
@@ -162,7 +163,8 @@ declare var defineCards: DefineCards;
     if (slot.copy.support) append(main, 'p', 'support', slot.copy.support);
     const roadmap = append(card, 'ol', 'card-roadmap');
     scenes.forEach(function (name, index) {
-      append(roadmap, 'li', index < slot.scene ? 'past' : index === slot.scene ? 'current' : 'next', pad(index + 1) + '  ' + name);
+      const state = !chapter ? 'next' : index < slot.scene ? 'past' : index === slot.scene ? 'current' : 'next';
+      append(roadmap, 'li', state, pad(index + 1) + '  ' + name);
     });
 
     // Seconds on the layer clock. The lead line's wipe shrinks on a short card so nothing outlasts the card.

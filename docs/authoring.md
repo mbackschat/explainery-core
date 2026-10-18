@@ -32,14 +32,14 @@ A viewer cannot ask where they are, so the film signposts its structure the way 
 - **Open each scene with its question.** The question that motivates a scene belongs at its start, not at the end of the previous scene. MP4 and HTML chapter navigation seeks to a scene's first frame, so a question parked in the scene before is skipped. A chapter card asks it in one spoken sentence.
 - **Close each scene with its takeaway.** End on the one statement the viewer should keep, spoken and visible on screen. Put qualifications, limits and status labels before it. Viewers remember the end of a section best, and a scene that ends on a caveat leaves the caveat as its message. A short bridge may follow; the next scene's opening asks the question.
 - **Make scene changes visible.** A change of scene should look different from a change of composition within a scene. A chapter card marks the boundary; without one, use a deliberately different transition.
-- **Close the film with a recap and a next step.** Return to the hook and restate the takeaways in the film's own structure. Name one concrete next step only when the audience has a real destination; do not invent one.
+- **Close the film with a recap and a next step.** Return to the hook and restate the takeaways in the film's own structure, for example over a closing agenda card. Name one concrete next step only when the audience has a real destination; do not invent one.
 - **Scale the signposting to the film.** Each card costs a few seconds. Keep its narration to one sentence and its whole slot to about three to six seconds. A short film needs a shorter question, not fewer rules. When scenes last only seconds, consider fewer, larger scenes rather than a card every few seconds.
 
 The hook scene usually has no chapter card; an agenda card can follow the hook inside that scene. Later scenes open with chapter cards when the film has more than a few scenes.
 
 ### Open scenes with cards
 
-A chapter card shows the scene's number and title, its question and the roadmap of all scenes, with the current one marked. An agenda card shows its headline above the same roadmap. Declare a card as a composition with `card: chapter` or `card: agenda`. Its narration, hold and overlap work like any composition's; its `copy.headline` is the question or agenda heading, and optional `category` and `support` are shown too. A card has no composition file and no root host. Every word comes from the story; the framework adds only digits.
+A chapter card shows the scene's number and title, its question and the roadmap of all scenes, with the current one marked. An agenda card shows its headline above the list of all scenes, none marked, so it serves both as the route after the hook and as the recap at the end. Declare a card as a composition with `card: chapter` or `card: agenda`. Its narration, hold and overlap work like any composition's; its `copy.headline` is the question or agenda heading, and optional `category` and `support` are shown too. A card has no composition file and no root host. Every word comes from the story; the framework adds only digits.
 
 ```yaml
   - id: storage
