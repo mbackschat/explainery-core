@@ -101,8 +101,54 @@ async function checkCompositions(dir: string, story: Story): Promise<string[]> {
     }
     // HyperFrames looks a scene's timeline up by this id; a mismatch only surfaces as a 45-second render stall.
     if (!new RegExp(`data-composition-id=["']${id}["']`).test(html)) errors.push(`${file}: no element with data-composition-id="${id}"`);
+    errors.push(...deferredReveals(html).map(({ line, property }) => `${file}:${line}: a deferred fromTo (immediateRender: false) sets ${property} in its from-state, which HyperFrames renders ignore; set it with tl.set at the tween start instead`));
   }
   return errors;
+}
+
+/**
+ * Finds fromTo calls that defer their from-state and set opacity in it.
+ *
+ * Inside a sub-composition, HyperFrames 0.8.142 applies that opacity in snapshots but ignores it in MP4 renders, so a
+ * line or token revealed this way is missing from the video while every frame check shows it; a minimal fixture
+ * reproduced it on 2026-10-18. Transform- and dash-only deferred calls render correctly. The scan is lexical: it
+ * splits each call's arguments at top-level commas and follows spreads of option objects declared in the file.
+ */
+function deferredReveals(html: string): { line: number; property: string }[] {
+  const found: { line: number; property: string }[] = [];
+  const deferring = /\bimmediateRender\s*:\s*false\b/;
+  // Shared option objects such as `const later = { immediateRender: false }` defer every call that spreads them.
+  const options = [...html.matchAll(/\b(?:const|let|var)\s+(\w+)\s*=\s*(\{[^{}]*\})/g)].filter(match => deferring.test(match[2])).map(match => match[1]);
+  const defers = (vars: string) => deferring.test(vars) || options.some(name => new RegExp(`\\.\\.\\.${name}\\b`).test(vars));
+  for (const match of html.matchAll(/\.fromTo\(/g)) {
+    const args = callArguments(html, match.index + match[0].length);
+    if (args.length < 3 || !defers(args[2])) continue;
+    const property = /\b(opacity|autoAlpha)\s*:/.exec(args[1])?.[1];
+    if (property) found.push({ line: html.slice(0, match.index).split('\n').length, property });
+  }
+  return found;
+}
+
+function callArguments(source: string, start: number): string[] {
+  const args: string[] = [];
+  let depth = 0;
+  let quote = '';
+  let from = start;
+  for (let index = start; index < source.length; index++) {
+    const char = source[index];
+    if (quote) {
+      if (char === '\\') index++;
+      else if (char === quote) quote = '';
+    } else if (`"'\``.includes(char)) quote = char;
+    else if ('([{'.includes(char)) depth++;
+    else if (')]}'.includes(char) && depth > 0) depth--;
+    else if (depth === 0 && (char === ',' || char === ')')) {
+      args.push(source.slice(from, index));
+      if (char === ')') break;
+      from = index + 1;
+    }
+  }
+  return args;
 }
 
 /** Reads a project's story.yaml; the story is present only when it parses and passes its schema. */

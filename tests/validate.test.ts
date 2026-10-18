@@ -144,3 +144,23 @@ test('the validate command exits non-zero and prints each error', async () => {
   const { stdout } = await run(process.execPath, [cli, 'validate', dir]);
   assert.match(stdout, /1 scene/);
 });
+
+// Locks the render-only defect documented on deferredReveals in src/validate.ts. Transform- or dash-only deferred fromTo
+// calls render correctly, so they stay allowed.
+test('a deferred fromTo that sets opacity in its from-state fails, because renders ignore it', async () => {
+  const html = (script: string) => `<template><div data-composition-id="intro"></div><script>${script}</script></template>`;
+  const reveal = `const draw = (target, at) => tl.fromTo(target, { opacity: 1, strokeDashoffset: (i, line) => line.getTotalLength() }, { strokeDashoffset: 0, duration: .6, immediateRender: false }, at);
+  tl.fromTo('#a', { autoAlpha: 1, x: 0 }, { x: 40, immediateRender: false }, 2);`;
+  assert.deepEqual((await validateProject(await project({ storyYaml, timingJson, compositions: { intro: html(reveal) } }))).errors, [
+    'compositions/intro.html:1: a deferred fromTo (immediateRender: false) sets opacity in its from-state, which HyperFrames renders ignore; set it with tl.set at the tween start instead',
+    'compositions/intro.html:2: a deferred fromTo (immediateRender: false) sets autoAlpha in its from-state, which HyperFrames renders ignore; set it with tl.set at the tween start instead',
+  ]);
+  const spread = `const later = { immediateRender: false };
+  tl.fromTo('#a', { opacity: 0 }, { opacity: 1, ...later }, 2);`;
+  assert.deepEqual((await validateProject(await project({ storyYaml, timingJson, compositions: { intro: html(spread) } }))).errors, [
+    'compositions/intro.html:2: a deferred fromTo (immediateRender: false) sets opacity in its from-state, which HyperFrames renders ignore; set it with tl.set at the tween start instead',
+  ]);
+  const allowed = `tl.fromTo('#a', { x: 0 }, { x: 40, immediateRender: false }, 2);
+  tl.fromTo('#b', { opacity: 0 }, { opacity: 1 }, 1);`;
+  assert.deepEqual((await validateProject(await project({ storyYaml, timingJson, compositions: { intro: html(allowed) } }))).errors, []);
+});
