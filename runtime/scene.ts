@@ -137,10 +137,15 @@ declare var defineCards: DefineCards;
     return timeline;
   };
 
+  // Card text deliberately covers whatever scene lies beneath the opaque card. HyperFrames' layout audit exempts only
+  // text blocks that carry data-layout-allow-overlap themselves, so each one is marked rather than the card.
   function append(parent: HTMLElement, tag: string, className: string, text?: string): HTMLElement {
     const child = parent.ownerDocument.createElement(tag);
     child.className = className;
-    if (text !== undefined) child.textContent = text;
+    if (text !== undefined) {
+      child.textContent = text;
+      child.setAttribute('data-layout-allow-overlap', '');
+    }
     parent.appendChild(child);
     return child;
   }

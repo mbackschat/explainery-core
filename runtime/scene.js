@@ -75,11 +75,15 @@
         scope.window.__timelines[id] = timeline;
         return timeline;
     };
+    // Card text deliberately covers whatever scene lies beneath the opaque card. HyperFrames' layout audit exempts only
+    // text blocks that carry data-layout-allow-overlap themselves, so each one is marked rather than the card.
     function append(parent, tag, className, text) {
         const child = parent.ownerDocument.createElement(tag);
         child.className = className;
-        if (text !== undefined)
+        if (text !== undefined) {
             child.textContent = text;
+            child.setAttribute('data-layout-allow-overlap', '');
+        }
         parent.appendChild(child);
         return child;
     }

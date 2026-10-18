@@ -64,7 +64,8 @@ test('the card layer covers the scenes only while a card shows, and a chapter ca
   assert.deepEqual(await at(2, '3.9', 960, 1060), [0, 255, 0], 'the scene shows between cards');
   assert.deepEqual(await at(3, '5.5', 1292, 396), [0xa9, 0xbf, 0xdc], 'the chapter card marks the second scene');
   assert.notDeepEqual(await at(3, '5.5', 960, 1060), [0, 255, 0], 'the chapter card covers the scene');
-  await hyperframes(dir, 'check', '--no-browser-gpu', '--no-contrast', '--samples', '4');
+  // Strict, because a card covering scene text is intended layering, not a layout warning.
+  await hyperframes(dir, 'check', '--no-browser-gpu', '--no-contrast', '--samples', '8', '--strict');
 });
 
 test('transcription removes its temporary folder, even when HyperFrames fails', { timeout: 60000 }, async () => {
