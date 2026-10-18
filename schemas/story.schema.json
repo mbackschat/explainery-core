@@ -55,7 +55,8 @@
         },
         "narration": { "type": "string", "description": "Spoken text; {beat-id} markers name the beats that composition tweens anchor to." },
         "hold": { "type": "number", "minimum": 0, "description": "Seconds the composition stays after its narration ends." },
-        "overlap": { "type": "number", "minimum": 0, "description": "Seconds of crossfade into the next composition." }
+        "overlap": { "type": "number", "minimum": 0, "description": "Seconds of crossfade into the next composition." },
+        "card": { "enum": ["chapter", "agenda"], "description": "Drawn by the theme's card layer instead of compositions/<id>.html. A chapter card opens its scene with the scene's number and title and this copy's headline as its question; an agenda card lists every scene title." }
       }
     },
     "scene": {

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>Card layer fixture</title>
+    <script src="node_modules/gsap/dist/gsap.min.js"></script>
+    <script src="node_modules/explainery-core/runtime/scene.js"></script>
+    <link rel="stylesheet" href="node_modules/explainery-core/themes/dark/theme.css">
+    <style>
+      html, body { width: 1920px; height: 1080px; margin: 0; overflow: hidden; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; }
+      .clip { position: absolute; inset: 0; width: 100%; height: 100%; }
+      #scene-under { background: #00ff00; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="8" data-width="1920" data-height="1080">
+      <div id="scene-under" class="clip" data-start="0" data-duration="8" data-track-index="1"></div>
+      <div id="cards" class="clip" data-composition-id="explainery-cards" data-composition-src="compositions/cards.html" data-start="0" data-duration="8" data-width="1920" data-height="1080" data-track-index="2" data-story-span data-story-cards
+        data-variable-values='{"duration":8,"scenes":["Why it matters","How data is stored","Where it runs"],"cards":[{"kind":"agenda","scene":0,"start":1,"duration":2,"fadeIn":0.5,"fadeOut":0.5,"copy":{"headline":"What follows"}},{"kind":"chapter","scene":1,"start":4,"duration":3,"fadeIn":0.5,"fadeOut":0.5,"copy":{"headline":"Where does the state live?"}}]}'></div>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines['main'] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>

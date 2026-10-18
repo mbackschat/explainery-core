@@ -13,6 +13,7 @@ export interface Composition {
   narration: string;
   hold?: number;
   overlap?: number;
+  card?: 'chapter' | 'agenda';
 }
 
 export interface Scene {

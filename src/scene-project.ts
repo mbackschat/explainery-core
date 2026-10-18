@@ -4,6 +4,7 @@ import { parseHTML } from 'linkedom';
 import { assembleIndex } from './assemble.ts';
 import { addPreviewNarration } from './preview-narration.ts';
 import { audioDuration } from './hyperframes.ts';
+import { cardLayerVariables } from './cards.ts';
 import { checkTiming } from './schemas.ts';
 import { selectScenes, storyCompositions, type SceneSelection } from './story.ts';
 import { loadStory, validateStoryTiming } from './validate.ts';
@@ -111,6 +112,10 @@ function retimeSharedElements(document: Page, { duration }: SceneSelection): voi
   }
 }
 
+function retimeCards(document: Page, story: Story, timing: Timing, selection: SceneSelection): void {
+  for (const layer of document.querySelectorAll('[data-story-cards]')) layer.setAttribute('data-variable-values', JSON.stringify(cardLayerVariables(story, timing, selection)));
+}
+
 // The local file behind a clip, or undefined when it names none.
 function localAudioPath(project: string, audio: PageElement): string | undefined {
   const src = audio.getAttribute('src') ?? audio.querySelector('source[src]')?.getAttribute('src');
@@ -174,6 +179,7 @@ export async function prepareSceneProject(projectDir: string, sceneIds: string[]
   retimeRoot(document, selection);
   retimeHosts(document, story, timing, selection);
   retimeSharedElements(document, selection);
+  retimeCards(document, story, timing, selection);
   await retimeAudio(document, project, selection);
 
   if (narration) addPreviewNarration(document, story, timing, selection);

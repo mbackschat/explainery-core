@@ -75,5 +75,63 @@
         scope.window.__timelines[id] = timeline;
         return timeline;
     };
+    function append(parent, tag, className, text) {
+        const child = parent.ownerDocument.createElement(tag);
+        child.className = className;
+        if (text !== undefined)
+            child.textContent = text;
+        parent.appendChild(child);
+        return child;
+    }
+    const pad = (number) => String(number).padStart(2, '0');
+    // A chapter card shows its scene's number, title and question beside the roadmap of all scenes; an agenda card
+    // shows its headline above that roadmap. Text the story leaves out is not drawn.
+    function drawCard(layer, slot, scenes, timeline) {
+        const chapter = slot.kind === 'chapter';
+        const card = append(layer, 'div', 'card ' + slot.kind);
+        append(card, 'div', 'background');
+        const main = append(card, 'div', 'card-main');
+        append(main, 'div', 'accent-rule');
+        if (slot.copy.category)
+            append(main, 'p', 'category', slot.copy.category);
+        if (chapter)
+            append(append(main, 'p', 'card-number', pad(slot.scene + 1)), 'span', 'card-count', ' / ' + pad(scenes.length));
+        const title = append(main, 'h1', 'card-title', chapter ? scenes[slot.scene] : slot.copy.headline);
+        const question = chapter && slot.copy.headline ? append(main, 'p', 'card-question', slot.copy.headline) : undefined;
+        if (slot.copy.support)
+            append(main, 'p', 'support', slot.copy.support);
+        const roadmap = append(card, 'ol', 'card-roadmap');
+        scenes.forEach(function (name, index) {
+            append(roadmap, 'li', index < slot.scene ? 'past' : index === slot.scene ? 'current' : 'next', pad(index + 1) + '  ' + name);
+        });
+        // Seconds on the layer clock. The lead line's wipe shrinks on a short card so nothing outlasts the card.
+        const end = slot.start + slot.duration;
+        const fadeIn = Math.max(slot.fadeIn, .01);
+        const fadeOut = Math.max(slot.fadeOut, .01);
+        const settle = Math.min(slot.fadeIn + .15, slot.duration * .3);
+        const wipe = Math.max(Math.min(.6, slot.duration - slot.fadeOut - settle), .01);
+        timeline.fromTo(card, { opacity: 0 }, { opacity: 1, duration: fadeIn }, slot.start);
+        timeline.fromTo(question || title, { clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)', duration: wipe, ease: 'power1.out' }, slot.start + settle);
+        // Not rendered at build time: the card must stay hidden until its fade-in.
+        timeline.fromTo(card, { opacity: 1 }, { opacity: 0, duration: fadeOut, immediateRender: false }, end - fadeOut);
+    }
+    /**
+     * Draws the story's cards into the card layer composition `id` and registers its timeline through defineScene.
+     *
+     * explainery assemble passes the cards, every scene title and the layer duration as composition variables. The
+     * cards are built here rather than in a core composition file because HyperFrames 0.8.142 skips sub-compositions
+     * reached through the node_modules link when it compiles a render, while this script loads like the rest of the
+     * runtime. The theme styles them through the .card classes.
+     */
+    const defineCards = function (scope, id) {
+        return defineScene(scope, id, function (timeline) {
+            const variables = scope.window.__hyperframes.getVariables();
+            const layer = scope.document.querySelector('[data-composition-id="' + id + '"]');
+            if (!layer)
+                throw new Error('card layer "' + id + '" has no element with its data-composition-id');
+            (variables.cards || []).forEach(function (slot) { drawCard(layer, slot, variables.scenes || [], timeline); });
+        });
+    };
     globalThis.defineScene = defineScene;
+    globalThis.defineCards = defineCards;
 })();

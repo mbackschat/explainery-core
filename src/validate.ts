@@ -13,8 +13,9 @@ const seconds = (value: number) => `${Number(value.toFixed(6))}s`;
 /**
  * Checks that a schema-valid story and timing describe the same compositions and beats.
  *
- * Editorial scene IDs and composition IDs are unique within their own namespaces. Compositions must start in story
- * order and end within the story; beats must follow their narration markers and lie within their composition.
+ * Editorial scene IDs and composition IDs are unique within their own namespaces. A chapter card opens its scene,
+ * and no scene consists of cards alone. Compositions must start in story order and end within the story; beats must
+ * follow their narration markers and lie within their composition.
  */
 export function validateStoryTiming(story: Story, timing: Timing): string[] {
   const errors: string[] = [];
@@ -25,6 +26,13 @@ export function validateStoryTiming(story: Story, timing: Timing): string[] {
   for (const id of new Set(ids.filter((id, index) => ids.indexOf(id) !== index))) errors.push(`story.yaml: composition id "${id}" is used twice`);
   for (const id of ids) if (!timing.scenes[id]) errors.push(`timing.json: no timing for scene "${id}"`);
   for (const id of Object.keys(timing.scenes)) if (!ids.includes(id)) errors.push(`timing.json: scene "${id}" is not in the story`);
+
+  for (const scene of storyScenes(story)) {
+    scene.compositions.forEach((composition, index) => {
+      if (composition.card === 'chapter' && index > 0) errors.push(`story.yaml scene "${composition.id}": a chapter card must be the first composition of its scene`);
+    });
+    if (scene.compositions.every(composition => composition.card)) errors.push(`story.yaml scene "${scene.id}": needs a composition besides its cards`);
+  }
 
   let previous: { id: string; slot: SceneTiming } | undefined;
   for (const scene of compositions) {
@@ -77,7 +85,8 @@ async function load<T>(dir: string, file: string, parse: (text: string) => unkno
 
 async function checkCompositions(dir: string, story: Story): Promise<string[]> {
   const errors: string[] = [];
-  for (const id of new Set(storyCompositions(story).map(composition => composition.id))) {
+  // The card layer draws cards, so they have no composition file.
+  for (const id of new Set(storyCompositions(story).filter(composition => !composition.card).map(composition => composition.id))) {
     const file = `compositions/${id}.html`;
     let html;
     try {

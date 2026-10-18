@@ -1,4 +1,5 @@
 import type { Story, Timing } from './types.ts';
+import { cardLayerVariables } from './cards.ts';
 import { storyCompositions } from './story.ts';
 
 interface Attribute {
@@ -32,18 +33,25 @@ function setAttribute(attributes: Attribute[], name: string, value: string) {
  * data-start, data-duration, and data-variable-values {copy, beats, duration}; the root composition and every
  * element marked data-story-span get the story duration; an element marked data-story-audio gets timing.audio as
  * its src and ends with timing.audioDuration when the audio is shorter than the film, because HyperFrames' strict
- * check rejects a media slot longer than its media. Everything else in the file is preserved byte for byte, so assembling twice changes nothing.
+ * check rejects a media slot longer than its media. Cards have no host: the one element marked data-story-cards gets
+ * the card layer's variables instead. Everything else in the file is preserved byte for byte, so assembling twice
+ * changes nothing.
  */
 export function assembleIndex(html: string, story: Story, timing: Timing): { html: string; errors: string[] } {
-  const scenes = new Map(storyCompositions(story).map(composition => [composition.id, composition]));
+  const compositions = storyCompositions(story);
+  const scenes = new Map(compositions.filter(composition => !composition.card).map(composition => [composition.id, composition]));
+  const cards = new Set(compositions.filter(composition => composition.card).map(composition => composition.id));
   const hosts = new Map<string, number>();
+  const hostedCards = new Set<string>();
+  let cardLayers = 0;
+  const linkedLayers: string[] = [];
   const total = String(timing.duration);
   let rootSeen = false;
   const assembled = html.replace(TAG, (tag, name: string, attributeText: string, closing: string) => {
     const attributes = parseAttributes(attributeText);
     const has = (attributeName: string) => attributes.some(attribute => attribute.name === attributeName);
     const compositionId = attributes.find(attribute => attribute.name === 'data-composition-id')?.value;
-    if (compositionId === undefined && !has('data-story-span') && !has('data-story-audio')) return tag;
+    if (compositionId === undefined && !has('data-story-span') && !has('data-story-audio') && !has('data-story-cards')) return tag;
     if (compositionId !== undefined && !has('data-composition-src') && !rootSeen) {
       rootSeen = true;
       setAttribute(attributes, 'data-duration', total);
@@ -55,6 +63,13 @@ export function assembleIndex(html: string, story: Story, timing: Timing): { htm
       setAttribute(attributes, 'data-start', String(slot.start));
       setAttribute(attributes, 'data-duration', String(slot.duration));
       setAttribute(attributes, 'data-variable-values', JSON.stringify({ copy: scene.copy, beats: slot.beats, duration: slot.duration }));
+    }
+    if (has('data-composition-src') && compositionId !== undefined && cards.has(compositionId)) hostedCards.add(compositionId);
+    if (has('data-story-cards')) {
+      cardLayers++;
+      const src = attributes.find(attribute => attribute.name === 'data-composition-src')?.value ?? '';
+      if (src.startsWith('node_modules/')) linkedLayers.push(src);
+      setAttribute(attributes, 'data-variable-values', JSON.stringify(cardLayerVariables(story, timing)));
     }
     if (has('data-story-span')) {
       setAttribute(attributes, 'data-start', '0');
@@ -72,5 +87,11 @@ export function assembleIndex(html: string, story: Story, timing: Timing): { htm
     if (count === 0) errors.push(`index.html: no host with data-composition-src for scene "${id}"`);
     if (count > 1) errors.push(`index.html: scene "${id}" has ${count} hosts`);
   }
+  for (const id of hostedCards) errors.push(`index.html: card "${id}" is drawn by the card layer; remove its host`);
+  if (cards.size && !cardLayers) errors.push('index.html: the story has cards but no data-story-cards layer');
+  if (cardLayers > 1) errors.push(`index.html: ${cardLayers} data-story-cards layers; keep one`);
+  // HyperFrames 0.8.142 compiles a render without sub-compositions whose real path leaves the project, as the
+  // node_modules link does, so a linked layer would preview but render without cards.
+  for (const src of linkedLayers) errors.push(`index.html: load the card layer from a file inside the project, not ${src}`);
   return { html: assembled, errors };
 }

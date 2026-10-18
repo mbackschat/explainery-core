@@ -1,5 +1,6 @@
 export { alignTiming, type Silence, type TranscriptWord } from './align.ts';
 export { assembleIndex } from './assemble.ts';
+export { cardLayerVariables, type CardLayerVariables, type CardSlot } from './cards.ts';
 export { DEFAULT_WORDS_PER_SECOND, estimateTiming } from './estimate.ts';
 export { explainerPage, exportExplainer } from './explainer.ts';
 export { exportExplainerFile } from './explainer-file.ts';

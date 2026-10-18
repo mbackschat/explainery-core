@@ -10,6 +10,7 @@ This repository, `explainery-core`, is the framework. Each film lives in its own
 - Start a story: [project setup](#use-in-a-project).
 - Use shared agent skills: [choose skills for scene work](docs/authoring.md#use-hyperframes-skills-in-scene-work) and [Claude Code and Codex setup](#shared-authoring-skills).
 - Describe or revise a scene: [scene authoring guideline](docs/authoring.md), covering file ownership, visual beats, a story example, and review criteria.
+- Structure the film like a presentation: [hook, questions, takeaways and recap](docs/authoring.md#structure-the-film-like-a-presentation), with [chapter and agenda cards](#add-chapter-and-agenda-cards).
 - Navigate MP4s with [automatic scene chapters](#mp4-scene-chapters), or refresh chapters in an existing render.
 - Generate [optional SRT and WebVTT subtitles](#generate-optional-subtitles), or review the [background sound proposal](docs/proposals/background-sound.md).
 - Time narration: [estimate](#estimate-timing-before-a-voice-exists), [draft a voice](#draft-a-voice), or [align a recording](#align-timing-to-a-recorded-voice).
@@ -91,8 +92,8 @@ The rest of this README explains each step in detail. The design decisions behin
 | --- | --- |
 | [`schemas/`](schemas/) | JSON Schemas for `story.yaml` and `timing.json`, also usable for editor validation. |
 | [`src/`](src/), [`bin/explainery.ts`](bin/explainery.ts) | The validator, the assembler, the explainer export, and the `explainery` command, in TypeScript that Node runs directly. |
-| [`runtime/scene.ts`](runtime/scene.ts) | `defineScene`, the browser runtime that scenes call. Browsers load the generated [`runtime/scene.js`](runtime/scene.js). |
-| [`themes/dark/`](themes/dark/) | The default theme: tokens, Roboto, texture, and the brand-frame slot. |
+| [`runtime/scene.ts`](runtime/scene.ts) | `defineScene` and `defineCards`, the browser runtime that scenes and the card layer call. Browsers load the generated [`runtime/scene.js`](runtime/scene.js). |
+| [`themes/dark/`](themes/dark/) | The default theme: tokens, Roboto, texture, card styles, and the brand-frame slot. |
 | [`components/`](components/) | Shared SVG components that take colour only from tokens. |
 | [`tests/`](tests/) | `node:test` suites, plus HyperFrames fixture projects that prove rendering behaviour. |
 
@@ -215,7 +216,7 @@ See [ADR 0005](docs/adr/0005-optional-subtitles.md) for the contract. Background
 pnpm exec explainery validate
 ```
 
-This checks `story.yaml` and `timing.json` against [their](schemas/story.schema.json) [schemas](schemas/timing.schema.json), then checks that they agree with each other. Editorial scene IDs and flattened composition IDs must each be unique. Every composition must have timing that starts in story order and ends within the film. Every `{beat}` marked in its narration must have a time, in narration order and within the composition. Each composition must also have a `compositions/<id>.html` declaring `data-composition-id="<id>"`; editorial scenes need no additional HTML file or timing entry. The command prints each error and exits with status 1.
+This checks `story.yaml` and `timing.json` against [their](schemas/story.schema.json) [schemas](schemas/timing.schema.json), then checks that they agree with each other. Editorial scene IDs and flattened composition IDs must each be unique. Every composition must have timing that starts in story order and ends within the film. Every `{beat}` marked in its narration must have a time, in narration order and within the composition. Each composition except a [card](#add-chapter-and-agenda-cards) must also have a `compositions/<id>.html` declaring `data-composition-id="<id>"`; editorial scenes need no additional HTML file or timing entry. A chapter card must open its scene, and every scene needs a composition besides its cards. The command prints each error and exits with status 1.
 
 ## Assemble the root composition
 
@@ -228,6 +229,7 @@ pnpm exec explainery assemble --check  # exit 1 when index.html is out of date
 
 - **Composition hosts:** the element with `data-composition-src` and the composition's `data-composition-id` gets `data-start`, `data-duration`, and `data-variable-values` holding `{copy, beats, duration}`.
 - **Story duration:** the root composition and every element marked `data-story-span` get the story duration.
+- **Card layer:** the element marked `data-story-cards` gets the story's cards and every scene title. Cards have no host of their own; assembly reports a host for a card, a missing or repeated layer, and a layer loaded from `node_modules`.
 - **Narration track:** the element marked `data-story-audio` gets `timing.audio` as its `src`, and ends at `timing.audioDuration` when the audio is shorter than the film, as it is when the last composition holds after the final word.
 
 Everything else in the file is left byte for byte. `story.yaml` and `timing.json` remain the authoritative inputs for composition copy, beat times, and composition duration.
@@ -349,6 +351,26 @@ The composition passes `{ window, document, gsap }` because HyperFrames scopes t
 
 The existing helper name `defineScene` is retained for compatibility. It fills each `data-copy` slot from the story, removes slots whose copy the story leaves out, and registers the paused timeline under the composition ID. An unknown beat, or a timeline that runs past the composition's duration, throws instead. The [preview and render checks](#preview-and-render) execute this guard after narration or copy changes.
 
+## Add chapter and agenda cards
+
+[Chapter and agenda cards](docs/authoring.md#open-scenes-with-cards) are story compositions marked `card: chapter` or `card: agenda`, drawn by one card layer instead of their own files. Add the layer file to the project, for example `compositions/cards.html`:
+
+```html
+<template id="explainery-cards-template">
+  <div id="explainery-cards" data-composition-id="explainery-cards" data-width="1920" data-height="1080" data-layout-ignore=""></div>
+  <script>defineCards({ window, document, gsap }, 'explainery-cards');</script>
+</template>
+```
+
+Mount it once in the root, above the scenes and below the brand frame, and mark it as spanning the story:
+
+```html
+<div id="explainery-cards" class="clip" data-composition-id="explainery-cards" data-composition-src="compositions/cards.html"
+  data-start="0" data-duration="1" data-width="1920" data-height="1080" data-track-index="8" data-story-span data-story-cards></div>
+```
+
+The layer file must live inside the project. HyperFrames 0.8.142 leaves out sub-compositions reached through the `node_modules` link when it compiles a render, so `defineCards` in the runtime draws the cards and the file only calls it. Assembly writes the cards, their crossfades and the scene titles into the layer; a scene preview shows only its own cards. The theme's `.card` classes and the `--type-card-*`, `--type-roadmap` and `--type-agenda` tokens style them. See the [card fixture](tests/fixtures/cards/index.html) and [ADR 0010](docs/adr/0010-presentation-structure-and-cards.md).
+
 ## Themes and components
 
 Load a theme before the project's own styles, then override its tokens. The cascade runs core → theme → project:
@@ -360,7 +382,7 @@ Load a theme before the project's own styles, then override its tokens. The casc
 </style>
 ```
 
-[`themes/dark`](themes/dark/theme.css) is the default theme. It provides a black canvas with a sparse square texture (`.background`), a generic hue palette (`--hue-pale-blue`, `--hue-lime`, `--hue-gold`, `--hue-cyan`), text colours, and a type scale set in bundled Roboto 2.137 (© 2011 Google Inc., Apache-2.0). It also provides the low-left copy block (`.copy`, `.accent-rule`, `.category`, `h1`, `.support`), diagram labels, and an empty [brand-frame slot](themes/dark/brand-frame.html). A project brands the video by pointing its `brand-frame` host at its own composition. [`scripts/build-texture.ts`](scripts/build-texture.ts) regenerates the texture.
+[`themes/dark`](themes/dark/theme.css) is the default theme. It provides a black canvas with a sparse square texture (`.background`), a generic hue palette (`--hue-pale-blue`, `--hue-lime`, `--hue-gold`, `--hue-cyan`), text colours, and a type scale set in bundled Roboto 2.137 (© 2011 Google Inc., Apache-2.0). It also provides the low-left copy block (`.copy`, `.accent-rule`, `.category`, `h1`, `.support`), diagram labels, [card styles](#add-chapter-and-agenda-cards), and an empty [brand-frame slot](themes/dark/brand-frame.html). A project brands the video by pointing its `brand-frame` host at its own composition. [`scripts/build-texture.ts`](scripts/build-texture.ts) regenerates the texture.
 
 Components such as the [isometric cube](components/isometric.svg) take colour only from tokens (`--cube-top`, `--cube-left`, `--cube-right`, `--cube-edge`). Recolour a single cube by overriding the tokens on its element. Keep every SVG well-formed XML: Chrome silently draws nothing from a malformed sprite or texture, and a `--` inside an XML comment is already enough.
 

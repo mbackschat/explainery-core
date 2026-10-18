@@ -4,6 +4,7 @@ Author one editorial scene at a time, using one or more self-contained HTML comp
 
 - [Author one scene and integrate it](#author-one-scene-at-a-time).
 - [Research content and prepare a proposal for review](#research-and-review-a-film-proposal).
+- [Structure the film like a presentation](#structure-the-film-like-a-presentation), with [chapter and agenda cards](#open-scenes-with-cards).
 - [Choose HyperFrames skills for the current task](#use-hyperframes-skills-in-scene-work).
 - [Understand the concepts](#concepts) and [timing](#timing-and-playback).
 - [Find the owning file](#where-a-scene-is-described) and [write a scene description](#write-a-useful-scene-description).
@@ -17,11 +18,47 @@ Plan the film's argument before implementing its scenes. Research and proposals 
 - **Brief and state:** preserve the user's required topics, audience and constraints; distinguish confirmed decisions from recommendations. Record open questions and the next concrete research step.
 - **Sources and claims:** for each material factual claim and meaningful visual relationship, link the exact document heading, code symbol/test, slide or timestamp that supports it. Record repository revision or source date and inspection scope. Distinguish source inspection, test assertions read, tests actually run, historical evidence, illustrative examples and planned behavior. Respect source-selection restrictions such as named speakers or excluded material.
 - **Editorial rationale:** explain why each scene, example, order and visual mechanism serves the viewer's understanding. Separate that judgment from evidence about the subject. Record material omissions and tradeoffs with their basis; do not invent reasons or repeat the same justification in several documents.
-- **Film proposal:** state the viewer's takeaway, scene sequence and joins, required/optional/excluded content, and any provisional audience, duration or language. Estimates are planning assumptions, not measured timings. Give reviewers one entry point to the scene briefs and evidence.
-- **Scene briefs:** describe the content to communicate and the visible starting state, change and settled state per beat; attach source references and rationale. Mark composition IDs as proposed until their files and story entries exist. Include questions a reviewer can answer from the evidence, not just requests for general impressions.
+- **Film proposal:** state the viewer's takeaway, the promise made after the hook, scene sequence and joins, required/optional/excluded content, and any provisional audience, duration or language. Estimates are planning assumptions, not measured timings. Give reviewers one entry point to the scene briefs and evidence.
+- **Scene briefs:** state the scene's opening question and closing takeaway, then describe the content to communicate and the visible starting state, change and settled state per beat; attach source references and rationale. Mark composition IDs as proposed until their files and story entries exist. Include questions a reviewer can answer from the evidence, not just requests for general impressions.
 - **Review record:** when external review is requested, prepare a self-contained review brief with reading order, scope, evidence boundaries and requested finding format. Record actual findings and dispositions when received. Preparation is not review approval, and a source-backed plan is not verified rendering. Do not contact a reviewer unless instructed to send it.
 
 Prefer concise claim IDs and links when several beats share evidence. Maintain one current statement of each decision; use research notes for discovery and unresolved discrepancies, the proposal for film-wide choices, and scene descriptions for their content. Proposed content summaries may live in briefs before implementation. Once narration and copy become executable, their owner is `story.yaml`; link to them rather than maintaining a second script. Resolve source disagreements explicitly or narrow the claim before using it.
+
+## Structure the film like a presentation
+
+A viewer cannot ask where they are, so the film signposts its structure the way a good presenter does. Plan this structure in the proposal and scene briefs, and check it in every review of the script.
+
+- **Open with a hook, then the promise and the route.** Start on a concrete problem the viewer recognises. Then say what they will understand by the end, and show the route through the scenes, for example with an agenda card.
+- **Open each scene with its question.** The question that motivates a scene belongs at its start, not at the end of the previous scene. MP4 and HTML chapter navigation seeks to a scene's first frame, so a question parked in the scene before is skipped. A chapter card asks it in one spoken sentence.
+- **Close each scene with its takeaway.** End on the one statement the viewer should keep, spoken and visible on screen. Put qualifications, limits and status labels before it. Viewers remember the end of a section best, and a scene that ends on a caveat leaves the caveat as its message. A short bridge may follow; the next scene's opening asks the question.
+- **Make scene changes visible.** A change of scene should look different from a change of composition within a scene. A chapter card marks the boundary; without one, use a deliberately different transition.
+- **Close the film with a recap and a next step.** Return to the hook and restate the takeaways in the film's own structure. Name one concrete next step only when the audience has a real destination; do not invent one.
+- **Scale the signposting to the film.** Each card costs a few seconds. Keep its narration to one sentence and its whole slot to about three to six seconds. A short film needs a shorter question, not fewer rules. When scenes last only seconds, consider fewer, larger scenes rather than a card every few seconds.
+
+The hook scene usually has no chapter card; an agenda card can follow the hook inside that scene. Later scenes open with chapter cards when the film has more than a few scenes.
+
+### Open scenes with cards
+
+A chapter card shows the scene's number and title, its question and the roadmap of all scenes, with the current one marked. An agenda card shows its headline above the same roadmap. Declare a card as a composition with `card: chapter` or `card: agenda`. Its narration, hold and overlap work like any composition's; its `copy.headline` is the question or agenda heading, and optional `category` and `support` are shown too. A card has no composition file and no root host. Every word comes from the story; the framework adds only digits.
+
+```yaml
+  - id: storage
+    title: How data is stored
+    compositions:
+      - id: storage-question
+        card: chapter
+        copy:
+          headline: Where does the state live?
+        narration: Where does the state live?
+        hold: 1
+        overlap: 0.6
+      - id: storage-tree
+        copy:
+          headline: Change one path. Share the rest.
+        narration: "{tree} The state lives in a persistent tree."
+```
+
+A chapter card must be the first composition of its scene, and every scene needs a composition besides its cards. A card fades in over the previous composition's overlap and out over its own. Mount the card layer once in the root, as described in [the README](../README.md#add-chapter-and-agenda-cards). [ADR 0010](adr/0010-presentation-structure-and-cards.md) records the decision.
 
 ## Author one scene at a time
 
@@ -120,7 +157,7 @@ Start with the idea the viewer should understand, then describe what they will s
 
 Use the story's existing scene document or proposal. Give each editorial scene a heading with its stable ID and title, and link it from the story README's scene map. Keep the description sufficient to implement and review:
 
-- **Purpose:** the one idea the viewer should take away, and why this scene follows the previous one.
+- **Purpose:** the question that opens the scene, the one idea the viewer should take away, and why this scene follows the previous one.
 - **Sources:** links to the claim's evidence or reference frames; distinguish observations, intended changes, and approximations.
 - **Rationale:** why the example and visual sequence explain the intended idea; link shared decisions from the film proposal instead of repeating them.
 - **Composition mapping:** ordered composition IDs with links to their HTML files; point to `story.yaml` for spoken and on-screen copy.
