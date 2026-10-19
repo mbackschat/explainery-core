@@ -15,7 +15,7 @@ import { alignTimingWithReport, type AlignmentOptions, type AudioSegment } from 
 import { generateVoice } from '../src/voice.ts';
 import { transcribeSegments } from '../src/transcribe.ts';
 import { productionPreflight, recordProduction, renderFingerprint, reusableRender, recordRender } from '../src/production.ts';
-import { verifyFilm, verifyVideo } from '../src/verification.ts';
+import { staticBeatWarning, verifyFilm, verifyVideo } from '../src/verification.ts';
 import { snapshotTimes } from '../src/snapshot.ts';
 import { formatRenderProgress, parseRenderProgress } from '../src/render-progress.ts';
 
@@ -431,6 +431,7 @@ async function verify() {
   if (quick && option('--pixel-tolerance') !== undefined) return fail(['--pixel-tolerance applies only to the isolation comparisons that --quick skips']);
   const receipt = await verifyFilm(project, { out: resolve(option('--out') ?? 'renders/verification'), sceneIds: option('--scene')?.split(',').map(id => id.trim()), composition: option('--composition'), quick, isolationTolerance: option('--pixel-tolerance') === undefined ? undefined : Number(option('--pixel-tolerance')) });
   report(`Verification receipt: ${receipt.receiptPath}; contact sheet: ${receipt.contactSheetPath}`);
+  for (const beat of receipt.staticBeats) report(`Warning: ${staticBeatWarning(beat)}`);
   if (!receipt.passed) fail(receipt.failures);
 }
 

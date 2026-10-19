@@ -203,6 +203,28 @@ scenes:
   assert.equal(receipt.failures[1], `question: roadmap entry "01  ${title}" is cut off; shorten that scene title`);
 });
 
+// A beat whose picture never changes while the narration moves on reads as a frozen film. The oracle is the scene's own
+// registered timeline: the probe tweens only on `show`, so the five-second `idle` beat is static. Static beats are
+// warnings, not failures, because a deliberate hold on a settled diagram is legitimate.
+test('quick verification warns about a long beat in which no tween starts', { timeout: 60000 }, async t => {
+  const project = await fixtureProject('scene-runtime', html => html.replaceAll('data-duration="2"', 'data-duration="8"'));
+  t.after(() => rm(project, { recursive: true, force: true }));
+  const composition = join(project, 'compositions/probe.html');
+  await writeFile(composition, (await readFile(composition, 'utf8')).replace('data-duration="2"', 'data-duration="8"'));
+  const storyFile = join(project, 'story.yaml');
+  await writeFile(storyFile, (await readFile(storyFile, 'utf8')).replace('Show it {show}.', 'Show it {show}. Then nothing moves {idle} for a while.'));
+  const timing: Timing = { source: 'imported', duration: 8, scenes: { probe: { start: 0, duration: 8, beats: { show: 1, idle: 3 } } } };
+  await writeFile(join(project, 'timing.json'), JSON.stringify(timing));
+  const index = join(project, 'index.html');
+  const assembled = assembleIndex(await readFile(index, 'utf8'), (await loadStory(project)).value!, timing);
+  assert.deepEqual(assembled.errors, []);
+  await writeFile(index, assembled.html);
+  const receipt = await verifyFilm(project, { out: join(project, 'verification'), composition: 'probe', quick: true });
+  assert.equal(receipt.passed, true, receipt.failures.join('\n'));
+  assert.deepEqual(receipt.staticBeats, [{ composition: 'probe', cue: 'idle', start: 3, seconds: 5 }]);
+  assert.match(await readFile(receipt.contactSheetPath, 'utf8'), /probe · idle: 5\.0 s without a visual change/);
+});
+
 test('standalone HTML rejects sibling resources and missing or broken images', { timeout: 60000 }, async t => {
   const project = await fixtureProject('scene-runtime');
   t.after(() => rm(project, { recursive: true, force: true }));

@@ -86,8 +86,10 @@ export interface FilmVerificationOptions {
   timeoutMs?: number;
   isolationTolerance?: number;
 }
+/** A beat that lasts at least STATIC_BEAT_SECONDS while the scene's timeline starts no tween; `start` is film time. */
+export interface StaticBeat { composition: string; cue: string; start: number; seconds: number }
 export interface FilmVerificationReceipt extends Receipt {
-  kind: 'film'; project: string; sceneIds: string[]; composition?: string; quick: boolean; isolationTolerance: number; frames: FrameEvidence[]; comparisons: Comparison[]; contactSheetPath: string; sourceHashes: Record<string, string>;
+  kind: 'film'; project: string; sceneIds: string[]; composition?: string; quick: boolean; isolationTolerance: number; frames: FrameEvidence[]; comparisons: Comparison[]; staticBeats: StaticBeat[]; contactSheetPath: string; sourceHashes: Record<string, string>;
 }
 // HyperFrames 0.8.142 ships capture helpers only in hashed CLI chunks, just like its bundler (explainer-file.ts).
 async function helper(project: string, symbol: string): Promise<any> {
@@ -138,13 +140,42 @@ const cardFit = (page: any, index: number): Promise<{ titleLines: number; cutEnt
   const cutEntries = [...card.querySelectorAll('.explainery-card-roadmap li')].filter((item: any) => item.scrollWidth > item.clientWidth).map((item: any) => item.textContent);
   return { titleLines, cutEntries };
 }, index);
+/**
+ * The film-local start of every tween and set in a composition's registered timeline, including nested timelines.
+ * Reading the timeline rather than comparing frames matters: a beat can change the picture and return to it, which
+ * identical endpoint frames would misreport as static.
+ */
+const tweenStarts = (page: any, composition: string): Promise<number[]> => page.evaluate((id: string) => {
+  const starts: number[] = [];
+  const walk = (timeline: any, offset: number) => {
+    for (const child of timeline.getChildren(false, true, true)) {
+      const at = offset + child.startTime();
+      if (typeof child.getChildren === 'function') walk(child, at); else starts.push(at);
+    }
+  };
+  const timeline = Reflect.get(globalThis, '__timelines')?.[id];
+  if (timeline) walk(timeline, 0);
+  return starts;
+}, composition);
+// Beats shorter than this may hold a settled diagram while the sentence ends; longer ones read as a frozen picture.
+const STATIC_BEAT_SECONDS = 4;
+// A tween that starts shortly before its beat, so it lands on the spoken word, still belongs to that beat.
+const BEAT_LEAD_SECONDS = .5;
+function staticBeats(composition: string, slot: Timing['scenes'][string], starts: number[]): StaticBeat[] {
+  const beats = Object.entries(slot.beats).sort((left, right) => left[1] - right[1]);
+  return beats.flatMap(([cue, at], index) => {
+    const end = beats[index + 1]?.[1] ?? slot.duration;
+    const moves = starts.some(start => start >= at - BEAT_LEAD_SECONDS && start < end);
+    return end - at >= STATIC_BEAT_SECONDS && !moves ? [{ composition, cue, start: Number((slot.start + at).toFixed(3)), seconds: Number((end - at).toFixed(3)) }] : [];
+  });
+}
 const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
 /** Captures selected scenes without changing focus, recording the explicit per-channel isolation tolerance. */
 export async function verifyFilm(project: string, options: FilmVerificationOptions): Promise<FilmVerificationReceipt> {
   const out = resolve(options.out);
   const quick = options.quick ?? false;
-  const receipt: FilmVerificationReceipt = { ...base(out, 'film-receipt'), kind: 'film', project: resolve(project), sceneIds: options.sceneIds ?? [], ...(options.composition === undefined ? {} : { composition: options.composition }), quick, isolationTolerance: options.isolationTolerance ?? 1, frames: [], comparisons: [], sourceHashes: {}, contactSheetPath: join(out, 'contact-sheet.html') };
+  const receipt: FilmVerificationReceipt = { ...base(out, 'film-receipt'), kind: 'film', project: resolve(project), sceneIds: options.sceneIds ?? [], ...(options.composition === undefined ? {} : { composition: options.composition }), quick, isolationTolerance: options.isolationTolerance ?? 1, frames: [], comparisons: [], staticBeats: [], sourceHashes: {}, contactSheetPath: join(out, 'contact-sheet.html') };
   await mkdir(out, { recursive: true });
   try {
     if (!Number.isInteger(receipt.isolationTolerance) || receipt.isolationTolerance < 0 || receipt.isolationTolerance > 255) throw new Error('isolationTolerance must be an integer from 0 to 255');
@@ -232,6 +263,7 @@ export async function verifyFilm(project: string, options: FilmVerificationOptio
                     if (titleLines > 1) receipt.failures.push(`${composition.id}: card title wraps onto ${titleLines} lines; shorten it to fit one line`);
                     for (const entry of cutEntries) receipt.failures.push(`${composition.id}: roadmap entry "${entry}" is cut off; shorten that scene title`);
                   }
+                  receipt.staticBeats.push(...staticBeats(composition.id, slot, await tweenStarts(page, composition.id)));
                 }
               }
               if (context === 'full' && !quick) {
@@ -257,11 +289,15 @@ function compositionScene(selected: Scene[], scenes: Scene[], composition: strin
   return owner;
 }
 
+/** One line per static beat for the contact sheet and the CLI. */
+export const staticBeatWarning = (beat: StaticBeat) => `${beat.composition} · ${beat.cue}: ${beat.seconds.toFixed(1)} s without a visual change from ${beat.start.toFixed(1)} s; move or transform something on the spoken words`;
+
 /** The HTML review sheet: one captioned image per frame, with the narration spoken in each beat frame's beat. */
-export function contactSheet(receipt: Pick<FilmVerificationReceipt, 'frames' | 'failures' | 'quick'>): string {
+export function contactSheet(receipt: Pick<FilmVerificationReceipt, 'frames' | 'failures' | 'quick'> & Partial<Pick<FilmVerificationReceipt, 'staticBeats'>>): string {
   const caption = (frame: FrameEvidence) => `${escape(`${frame.composition} · ${frame.context} · ${frame.cue} · ${frame.at.toFixed(3)}s`)}${frame.narration ? `<br><q>${escape(frame.narration)}</q>` : ''}`;
   const scope = receipt.quick ? '<p>Quick check: beat and closing frames only; no seek-history or isolation comparisons.</p>' : '';
-  return `<!doctype html><meta charset="utf-8"><title>Verification evidence</title><style>body{font:16px sans-serif;background:#eee}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}figure{margin:0}img{width:100%}</style><h1>Machine captures — human review pending</h1>${scope}<p>${escape(receipt.failures.join('; '))}</p><main>${receipt.frames.map(frame => `<figure><img src="${escape(frame.file)}"><figcaption>${caption(frame)}</figcaption></figure>`).join('')}</main>`;
+  const statics = receipt.staticBeats?.length ? `<h2>Static beats</h2><ul>${receipt.staticBeats.map(beat => `<li>${escape(staticBeatWarning(beat))}</li>`).join('')}</ul>` : '';
+  return `<!doctype html><meta charset="utf-8"><title>Verification evidence</title><style>body{font:16px sans-serif;background:#eee}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}figure{margin:0}img{width:100%}</style><h1>Machine captures — human review pending</h1>${scope}<p>${escape(receipt.failures.join('; '))}</p>${statics}<main>${receipt.frames.map(frame => `<figure><img src="${escape(frame.file)}"><figcaption>${caption(frame)}</figcaption></figure>`).join('')}</main>`;
 }
 
 export interface HtmlVerificationReceipt extends Receipt { kind: 'html'; file: string; sha256?: string; networkRequests: string[]; nonEmbeddedRequests: string[]; players: number; chapters: number; embeddedAudio: number; decodedAudio: number; subtitles: boolean }
