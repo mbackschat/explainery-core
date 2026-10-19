@@ -6,6 +6,7 @@ import { fixtureProject } from './support/fixture.ts';
 import { assembleIndex } from '../src/assemble.ts';
 import { validateProject } from '../src/validate.ts';
 import { recordProduction, productionPreflight, renderFingerprint, reusableRender, recordRender } from '../src/production.ts';
+import { recordLabelAudit } from '../src/label-audit.ts';
 
 async function fixture() {
   const dir = await fixtureProject('scene-runtime');
@@ -19,6 +20,8 @@ async function fixture() {
   const root = join(dir, 'index.html');
   const html = (await readFile(root, 'utf8')).replace('</body>', '<audio src="voice.wav" data-story-audio data-story-span data-start="0"></audio></body>');
   await writeFile(root, assembleIndex(html, validated.story, validated.timing).html);
+  await writeFile(join(dir, 'label-audit.md'), 'No findings.\n');
+  await recordLabelAudit(dir, { report: 'label-audit.md', reviewer: 'fixture reviewer' });
   return dir;
 }
 
@@ -40,6 +43,33 @@ test('production preflight rejects missing provenance and changed narration, aud
     assert.match((await productionPreflight(dir)).errors.join(), expected, file);
     await writeFile(join(dir, file), original);
   }
+});
+
+// A label that states a domain fact was once drawn from a review comment's wording and never checked against the
+// source; three more such labels shipped before a read-only audit found them. The guard cannot judge facts, so it locks
+// that an audit was recorded for exactly the on-screen text that ships: compositions and story copy, not narration.
+test('preflight requires a label audit recorded for the current on-screen text', async t => {
+  const dir = await fixture();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await recordProduction(dir, { transcript: 'transcript.json' });
+  assert.deepEqual((await productionPreflight(dir)).errors, []);
+  for (const [file, change] of [
+    ['compositions/probe.html', (text: string) => text.replace('Fallback copy', 'Another label')],
+    ['story.yaml', (text: string) => text.replace('headline: Story copy', 'headline: Other copy')],
+  ] as const) {
+    const original = await readFile(join(dir, file), 'utf8');
+    await writeFile(join(dir, file), change(original));
+    assert.match((await productionPreflight(dir)).errors.join('\n'), /on-screen text changed since the label audit recorded on \d{4}-\d{2}-\d{2}/, file);
+    await writeFile(join(dir, file), original);
+  }
+  const storyFile = join(dir, 'story.yaml');
+  const story = await readFile(storyFile, 'utf8');
+  await writeFile(storyFile, story.replace('Show it', 'Explain it'));
+  assert.doesNotMatch((await productionPreflight(dir)).errors.join('\n'), /label audit/, 'narration is not on-screen text');
+  await writeFile(storyFile, story);
+  await rm(join(dir, 'label-audit.json'));
+  assert.match((await productionPreflight(dir)).errors.join('\n'), /label-audit\.json missing; audit on-screen facts against the sources/);
+  await assert.rejects(recordLabelAudit(dir, { report: 'missing.md', reviewer: 'fixture reviewer' }), /audit report missing\.md not found/);
 });
 
 // Wording and the film frame gate production and delivery, not previews, which must work on unfinished films.

@@ -56,6 +56,16 @@ Verification writes JSON receipts and an HTML contact sheet. Isolated/full compa
 
 Each beat frame is captured 0.3 s after its beat, and its caption on the contact sheet carries the narration words written between that beat's marker and the next. `--composition <id>` limits every capture to one composition; it must belong to a selected scene (any scene when `--scene` is omitted), and verification then opens only that scene. `--quick` captures only beat and closing frames: it skips the seek-history and isolation comparisons and the join frames, records `"quick": true` in the receipt, and so rejects `--pixel-tolerance`. Use it while revising a scene; run full verification before recording or delivery. Both modes read each composition's headline and support line at its closing frame and fail a headline that wraps onto a second line or a support line that runs past two, and fail a card whose title wraps or whose roadmap entry is cut off; [the authoring guide](authoring.md#write-headlines-that-state-the-claim) explains the one-line rule. Both modes also warn about a static stretch: at least 6 seconds inside one beat in which nothing new starts or finishes moving in the composition's timeline. A tween longer than 6 seconds, such as a camera drift, counts only where it starts, because a slow drift does not change what the viewer reads. The CLI prints each one, the receipt lists them under `staticBeats` and the contact sheet names them; they do not fail verification, because a deliberate hold on a settled diagram is legitimate. Check each against the [motion rule](authoring.md#show-the-mechanism-and-let-motion-tell-it) and either add motion on the spoken words or keep the hold on purpose.
 
+## Audit on-screen facts before delivery
+
+A diagram label or copy line that names a language, concept, model, field, identifier, value or owner is a factual claim, and no automated check can tell a true one from a false one. On 19 October 2026 such labels had shipped unchecked: one was drawn from the wording of a review comment, and a later audit of two films found thirteen more that the sources contradicted or did not support. Before a delivery render, have a fresh-context reviewer at the HIGH tier audit every on-screen fact against the sources with the [label audit prompt](templates/label-audit.md), fix or record a disposition for each finding in the story repository, and record the audit:
+
+```sh
+pnpm exec explainery label-audit <project-dir> --report <findings-file-relative-to-project> --reviewer "<who audited>"
+```
+
+`label-audit.json` fingerprints every composition file and the story without its narration, so `explainery preflight` and `deliver` reject on-screen text that changed after the recorded audit; a narration change alone does not. The record says an audit happened for exactly this text; it does not prove that the audit was thorough.
+
 ## Deliver and reuse
 
 ```bash

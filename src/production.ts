@@ -9,6 +9,7 @@ import { storyPronunciations, voicedText } from './narration.ts';
 import { storyCompositions } from './story.ts';
 import { validateProject } from './validate.ts';
 import { editorialErrors } from './slop.ts';
+import { labelAuditErrors } from './label-audit.ts';
 import type { Story } from './types.ts';
 import { alignStoryWords, type AudioSegment, type TranscriptWord } from './align.ts';
 import { parseHTML } from 'linkedom';
@@ -101,6 +102,7 @@ export async function productionPreflight(project: string): Promise<{ errors: st
     if (!validated.valid) return { errors: validated.errors };
     const { story, timing } = validated;
     errors.push(...editorialErrors(story));
+    errors.push(...await labelAuditErrors(project));
     errors.push(...await assembled(project, story, timing));
     let record: ProductionRecord;
     try { record = JSON.parse(await readFile(join(project, 'production.json'), 'utf8')); }
