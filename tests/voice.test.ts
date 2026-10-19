@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { generateVoice, splitVoiceText, voiceCommandError } from '../src/voice.ts';
+import { generateVoice, splitVoiceText, voiceCommandError, voiceRuntime } from '../src/voice.ts';
 import type { Story } from '../src/types.ts';
 import type { VoiceAdapter } from '../src/voice.ts';
 
@@ -158,4 +158,20 @@ test('voice command failures keep non-JSON output and token overflow details ava
   assert.match(failure.message, /index 511 is out of bounds for axis 0 with size 510/);
   assert.match(voiceCommandError(new Error('spawn ENOENT')).message, /spawn ENOENT/);
   assert.match(voiceCommandError('unexpected rejection').message, /unexpected rejection/);
+});
+
+// A missing Kokoro package once surfaced as a bare PackageNotFoundError; the message must name the fix.
+test('a Python without the Kokoro packages or a missing interpreter fails with the HYPERFRAMES_PYTHON hint', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'explainery-python-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const python = join(dir, 'python3');
+  await writeFile(python, '#!/bin/sh\necho "importlib.metadata.PackageNotFoundError: No package metadata was found for kokoro-onnx" >&2\nexit 1\n');
+  await chmod(python, 0o755);
+  await assert.rejects(voiceRuntime(python), (error: Error) => {
+    assert.match(error.message, /kokoro-onnx/);
+    assert.match(error.message, new RegExp(`${python.replaceAll('/', '\\/')}`));
+    assert.match(error.message, /HYPERFRAMES_PYTHON/);
+    return true;
+  });
+  await assert.rejects(voiceRuntime(join(dir, 'missing-python')), /not found.*HYPERFRAMES_PYTHON/);
 });

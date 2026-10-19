@@ -111,11 +111,30 @@ async function fileHash(path: string): Promise<string> {
   return digest.digest('hex');
 }
 
+const VOICE_PACKAGES = ['kokoro-onnx', 'onnxruntime', 'soundfile', 'phonemizer', 'espeakng-loader', 'numpy'];
+
+/**
+ * Reads the Python version and the voice packages' versions, which identify the synthesis runtime in the cache key.
+ * A missing interpreter or package fails with the fix, because the bare PackageNotFoundError never named
+ * HYPERFRAMES_PYTHON, the variable that points synthesis at the Python that has Kokoro installed.
+ */
+export async function voiceRuntime(python: string): Promise<string> {
+  try {
+    const { stdout } = await run(python, ['-c', `import sys, importlib.metadata as m; print(sys.version); print([(n,m.version(n)) for n in ${JSON.stringify(VOICE_PACKAGES)}])`], { timeout: 10000 });
+    return stdout.trim();
+  } catch (error) {
+    const detail = error as { code?: unknown; stderr?: unknown };
+    if (detail.code === 'ENOENT') throw new Error(`voice: Python interpreter "${python}" not found; set HYPERFRAMES_PYTHON to the Python that has the Kokoro packages installed`, { cause: error });
+    const missing = /No package metadata was found for (\S+)/.exec(String(detail.stderr ?? ''))?.[1];
+    throw new Error(`voice: ${missing ? `package ${missing} is missing` : 'the voice packages cannot be read'} in Python "${python}"; install ${VOICE_PACKAGES.join(', ')} there, or set HYPERFRAMES_PYTHON to a Python that has them`, { cause: error });
+  }
+}
+
 async function localAdapter(projectDir: string): Promise<VoiceAdapter> {
   const dist = hyperframesDist(projectDir);
   const { version } = JSON.parse(await readFile(join(dist, '../package.json'), 'utf8'));
   const python = process.env.HYPERFRAMES_PYTHON ?? 'python3';
-  const { stdout: runtime } = await run(python, ['-c', 'import sys, importlib.metadata as m; print(sys.version); print([(n,m.version(n)) for n in ["kokoro-onnx","onnxruntime","soundfile","phonemizer","espeakng-loader","numpy"]])'], { timeout: 10000 });
+  const runtime = await voiceRuntime(python);
   const cache = join(homedir(), '.cache/hyperframes/tts');
   let models: string[];
   try {

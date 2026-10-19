@@ -4,7 +4,7 @@ Use this workflow after the story's [pronunciation and sample review](authoring.
 
 ## Generate and align
 
-The installed HyperFrames Kokoro models and Python runtime are prerequisites. Set `HYPERFRAMES_PYTHON` to that runtime when it is not the shell's `python3`. No model or dependency installation is performed by `voice`.
+The installed HyperFrames Kokoro models and Python runtime are prerequisites. Set `HYPERFRAMES_PYTHON` to that runtime when it is not the shell's `python3`. `explainery voice` checks that runtime first and names a missing interpreter or package together with this variable. No model or dependency installation is performed by `voice`.
 
 Keep the film's voice settings in `story.yaml`, so every run of `voice` keeps the same pacing:
 
