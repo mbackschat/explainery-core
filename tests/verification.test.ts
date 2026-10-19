@@ -9,6 +9,8 @@ import { contactSheet, verifyVideo, verifyFilm, verifyHtml } from '../src/verifi
 import { sceneChapters, writeMp4Chapters } from '../src/chapters.ts';
 import { fixtureProject } from './support/fixture.ts';
 import { exportExplainerFile } from '../src/explainer-file.ts';
+import { assembleIndex } from '../src/assemble.ts';
+import { loadStory } from '../src/validate.ts';
 import type { Story, Timing } from '../src/types.ts';
 
 const story: Story = { id: 'probe', title: 'Probe', theme: 'dark', canvas: { width: 32, height: 32, fps: 30 }, scenes: [{ id: 'a', copy: { headline: 'First' }, narration: 'First.' }] };
@@ -144,6 +146,48 @@ test('verification fails a composition whose headline wraps onto a second line',
   const receipt = await verifyFilm(project, { out: join(project, 'verification'), composition: 'probe', quick: true });
   assert.equal(receipt.passed, false);
   assert.deepEqual(receipt.failures, ['probe: headline wraps onto 2 lines; shorten it to fit one line']);
+});
+
+// Card titles follow the same one-line rule; a chapter card once wrapped a scene title and a roadmap cut another off
+// while every composition headline passed. The oracle is the theme's own card layout in the browser.
+test('verification fails a card whose title wraps or whose roadmap entry is cut off', { timeout: 60000 }, async t => {
+  const title = 'A scene title long enough to wrap onto a second line on its chapter card';
+  const project = await fixtureProject('scene-runtime', html => html
+    .replace('</head>', '  <link rel="stylesheet" href="node_modules/explainery-core/themes/dark/theme.css">\n  </head>')
+    .replace('    </div>\n    <script>', '      <div id="explainery-cards" class="clip" data-composition-id="explainery-cards" data-composition-src="compositions/cards.html" data-start="0" data-duration="3" data-width="640" data-height="360" data-track-index="2" data-story-span data-story-cards></div>\n    </div>\n    <script>'));
+  t.after(() => rm(project, { recursive: true, force: true }));
+  await writeFile(join(project, 'compositions/cards.html'), `<template id="explainery-cards-template">
+  <div id="explainery-cards-layer" data-composition-id="explainery-cards" data-width="640" data-height="360" data-layout-ignore=""></div>
+  <script>defineCards({ window, document, gsap }, 'explainery-cards');</script>
+</template>
+`);
+  await writeFile(join(project, 'story.yaml'), `id: scene-runtime-fixture
+title: Scene runtime fixture
+theme: dark
+canvas: { width: 640, height: 360, fps: 30 }
+scenes:
+  - id: part
+    title: ${title}
+    compositions:
+      - id: question
+        card: chapter
+        copy: { headline: Why? }
+        narration: Why?
+      - id: probe
+        copy: { headline: Story copy }
+        narration: Show it {show}.
+`);
+  const timing: Timing = { source: 'imported', duration: 3, scenes: { question: { start: 0, duration: 1, beats: {} }, probe: { start: 1, duration: 2, beats: { show: 1 } } } };
+  await writeFile(join(project, 'timing.json'), JSON.stringify(timing));
+  const index = join(project, 'index.html');
+  const assembled = assembleIndex(await readFile(index, 'utf8'), (await loadStory(project)).value!, timing);
+  assert.deepEqual(assembled.errors, []);
+  await writeFile(index, assembled.html);
+  const receipt = await verifyFilm(project, { out: join(project, 'verification'), composition: 'question', quick: true });
+  // The line count depends on font metrics, so only the wrap itself is asserted.
+  assert.equal(receipt.failures.length, 2, receipt.failures.join('\n'));
+  assert.match(receipt.failures[0], /^question: card title wraps onto \d lines; shorten it to fit one line$/);
+  assert.equal(receipt.failures[1], `question: roadmap entry "01  ${title}" is cut off; shorten that scene title`);
 });
 
 test('standalone HTML rejects sibling resources and missing or broken images', { timeout: 60000 }, async t => {

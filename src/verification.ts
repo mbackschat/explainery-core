@@ -10,7 +10,7 @@ import { renderChapters } from './chapters.ts';
 import { hyperframesDist } from './hyperframes.ts';
 import { prepareSceneProject } from './scene-project.ts';
 import { beatNarration } from './narration.ts';
-import { storyScenes, selectScenes } from './story.ts';
+import { storyCompositions, storyScenes, selectScenes } from './story.ts';
 import { validateProject } from './validate.ts';
 import type { Scene, Story, Timing } from './types.ts';
 
@@ -123,6 +123,20 @@ const headlineLines = (page: any, composition: string): Promise<number> => page.
   range.selectNodeContents(element);
   return new Set([...range.getClientRects()].filter((rect: any) => rect.width > 0).map((rect: any) => Math.round(rect.top))).size;
 }, composition);
+/**
+ * Measures the card a card composition draws: its title's line count and the roadmap entries the theme cuts off with
+ * an ellipsis. The layer draws one card per card composition in story order, so `index` counts card compositions.
+ */
+const cardFit = (page: any, index: number): Promise<{ titleLines: number; cutEntries: string[] }> => page.evaluate((index: number) => {
+  const document = Reflect.get(globalThis, 'document');
+  const card = document.querySelectorAll('.explainery-card')[index];
+  if (!card) return { titleLines: 0, cutEntries: [] };
+  const range = document.createRange();
+  range.selectNodeContents(card.querySelector('.explainery-card-title')!);
+  const titleLines = new Set([...range.getClientRects()].filter((rect: any) => rect.width > 0).map((rect: any) => Math.round(rect.top))).size;
+  const cutEntries = [...card.querySelectorAll('.explainery-card-roadmap li')].filter((item: any) => item.scrollWidth > item.clientWidth).map((item: any) => item.textContent);
+  return { titleLines, cutEntries };
+}, index);
 const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
 /** Captures selected scenes without changing focus, recording the explicit per-channel isolation tolerance. */
@@ -137,6 +151,7 @@ export async function verifyFilm(project: string, options: FilmVerificationOptio
     if (validated.errors.length || !validated.story || !validated.timing) throw new Error(validated.errors.join('\n') || 'story and timing are required');
     const { story, timing } = validated;
     const scenes = storyScenes(story);
+    const cards = storyCompositions(story).filter(composition => composition.card).map(composition => composition.id);
     const requested = options.sceneIds ?? [];
     if (requested.length) selectScenes(story, timing, requested);
     const selected = requested.length ? scenes.filter(scene => requested.includes(scene.id)) : scenes;
@@ -209,6 +224,11 @@ export async function verifyFilm(project: string, options: FilmVerificationOptio
                   await capture(composition.id, 'closing', slot.start + slot.duration - 1 / story.canvas.fps);
                   const lines = await headlineLines(page, composition.id);
                   if (lines > 1) receipt.failures.push(`${composition.id}: headline wraps onto ${lines} lines; shorten it to fit one line`);
+                  if (composition.card) {
+                    const { titleLines, cutEntries } = await cardFit(page, cards.indexOf(composition.id));
+                    if (titleLines > 1) receipt.failures.push(`${composition.id}: card title wraps onto ${titleLines} lines; shorten it to fit one line`);
+                    for (const entry of cutEntries) receipt.failures.push(`${composition.id}: roadmap entry "${entry}" is cut off; shorten that scene title`);
+                  }
                 }
               }
               if (context === 'full' && !quick) {
