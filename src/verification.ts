@@ -86,7 +86,7 @@ export interface FilmVerificationOptions {
   timeoutMs?: number;
   isolationTolerance?: number;
 }
-/** A beat that lasts at least STATIC_BEAT_SECONDS while the scene's timeline starts no tween; `start` is film time. */
+/** A stretch of at least STATIC_SECONDS inside a beat in which nothing new moves; `start` is film time. */
 export interface StaticBeat { composition: string; cue: string; start: number; seconds: number }
 export interface FilmVerificationReceipt extends Receipt {
   kind: 'film'; project: string; sceneIds: string[]; composition?: string; quick: boolean; isolationTolerance: number; frames: FrameEvidence[]; comparisons: Comparison[]; staticBeats: StaticBeat[]; contactSheetPath: string; sourceHashes: Record<string, string>;
@@ -141,32 +141,40 @@ const cardFit = (page: any, index: number): Promise<{ titleLines: number; cutEnt
   return { titleLines, cutEntries };
 }, index);
 /**
- * The film-local start of every tween and set in a composition's registered timeline, including nested timelines.
- * Reading the timeline rather than comparing frames matters: a beat can change the picture and return to it, which
- * identical endpoint frames would misreport as static.
+ * The composition-local start and total duration of every tween and set in a composition's registered timeline,
+ * including nested timelines. Reading the timeline rather than comparing frames matters: a beat can change the
+ * picture and return to it, which identical endpoint frames would misreport as static.
  */
-const tweenStarts = (page: any, composition: string): Promise<number[]> => page.evaluate((id: string) => {
-  const starts: number[] = [];
+const tweenTimes = (page: any, composition: string): Promise<Array<{ start: number; duration: number }>> => page.evaluate((id: string) => {
+  const times: Array<{ start: number; duration: number }> = [];
   const walk = (timeline: any, offset: number) => {
     for (const child of timeline.getChildren(false, true, true)) {
       const at = offset + child.startTime();
-      if (typeof child.getChildren === 'function') walk(child, at); else starts.push(at);
+      if (typeof child.getChildren === 'function') walk(child, at); else times.push({ start: at, duration: child.totalDuration() });
     }
   };
   const timeline = Reflect.get(globalThis, '__timelines')?.[id];
   if (timeline) walk(timeline, 0);
-  return starts;
+  return times;
 }, composition);
-// Beats shorter than this may hold a settled diagram while the sentence ends; longer ones read as a frozen picture.
-const STATIC_BEAT_SECONDS = 4;
-// A tween that starts shortly before its beat, so it lands on the spoken word, still belongs to that beat.
-const BEAT_LEAD_SECONDS = .5;
-function staticBeats(composition: string, slot: Timing['scenes'][string], starts: number[]): StaticBeat[] {
+// A still stretch shorter than this lets a settled diagram hold while a sentence ends; a longer one reads as a frozen
+// picture. Measured against both films on 19 October 2026, a beat-level rule of four seconds found no case at all.
+const STATIC_SECONDS = 6;
+/**
+ * The longest stretch inside each beat in which nothing new starts or finishes moving, reported when it reaches
+ * STATIC_SECONDS. A tween counts at its start and, when shorter than STATIC_SECONDS, at its end, so a long draw does
+ * not open a false gap; a longer tween, such as a camera drift through the whole scene, counts only where it starts,
+ * because a slow drift does not change what the viewer reads.
+ */
+function staticBeats(composition: string, slot: Timing['scenes'][string], tweens: Array<{ start: number; duration: number }>): StaticBeat[] {
+  const events = tweens.flatMap(({ start, duration }) => duration < STATIC_SECONDS ? [start, start + duration] : [start]);
   const beats = Object.entries(slot.beats).sort((left, right) => left[1] - right[1]);
   return beats.flatMap(([cue, at], index) => {
     const end = beats[index + 1]?.[1] ?? slot.duration;
-    const moves = starts.some(start => start >= at - BEAT_LEAD_SECONDS && start < end);
-    return end - at >= STATIC_BEAT_SECONDS && !moves ? [{ composition, cue, start: Number((slot.start + at).toFixed(3)), seconds: Number((end - at).toFixed(3)) }] : [];
+    const marks = [at, ...events.filter(event => event > at && event < end).sort((left, right) => left - right), end];
+    let from = at, seconds = 0;
+    for (let mark = 1; mark < marks.length; mark++) if (marks[mark] - marks[mark - 1] > seconds) [from, seconds] = [marks[mark - 1], marks[mark] - marks[mark - 1]];
+    return seconds >= STATIC_SECONDS ? [{ composition, cue, start: Number((slot.start + from).toFixed(3)), seconds: Number(seconds.toFixed(3)) }] : [];
   });
 }
 const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
@@ -263,7 +271,7 @@ export async function verifyFilm(project: string, options: FilmVerificationOptio
                     if (titleLines > 1) receipt.failures.push(`${composition.id}: card title wraps onto ${titleLines} lines; shorten it to fit one line`);
                     for (const entry of cutEntries) receipt.failures.push(`${composition.id}: roadmap entry "${entry}" is cut off; shorten that scene title`);
                   }
-                  receipt.staticBeats.push(...staticBeats(composition.id, slot, await tweenStarts(page, composition.id)));
+                  receipt.staticBeats.push(...staticBeats(composition.id, slot, await tweenTimes(page, composition.id)));
                 }
               }
               if (context === 'full' && !quick) {

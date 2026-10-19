@@ -203,17 +203,20 @@ scenes:
   assert.equal(receipt.failures[1], `question: roadmap entry "01  ${title}" is cut off; shorten that scene title`);
 });
 
-// A beat whose picture never changes while the narration moves on reads as a frozen film. The oracle is the scene's own
-// registered timeline: the probe tweens only on `show`, so the five-second `idle` beat is static. Static beats are
-// warnings, not failures, because a deliberate hold on a settled diagram is legitimate.
-test('quick verification warns about a long beat in which no tween starts', { timeout: 60000 }, async t => {
-  const project = await fixtureProject('scene-runtime', html => html.replaceAll('data-duration="2"', 'data-duration="8"'));
+// A picture that stops changing while the narration moves on reads as a frozen film. The oracle is the scene's own
+// registered timeline: the probe flashes once on `show` and then holds for eight seconds before `idle`. A slow drift that
+// runs through the whole scene must not hide that hold, so the fixture adds one. Static stretches are warnings, not
+// failures, because a deliberate hold on a settled diagram is legitimate.
+test('quick verification warns about a long stretch inside a beat in which nothing new moves', { timeout: 60000 }, async t => {
+  const project = await fixtureProject('scene-runtime', html => html.replaceAll('data-duration="2"', 'data-duration="12"'));
   t.after(() => rm(project, { recursive: true, force: true }));
   const composition = join(project, 'compositions/probe.html');
-  await writeFile(composition, (await readFile(composition, 'utf8')).replace('data-duration="2"', 'data-duration="8"'));
+  await writeFile(composition, (await readFile(composition, 'utf8'))
+    .replace('data-duration="2"', 'data-duration="12"')
+    .replace("}, beat('show'));", "}, beat('show'));\n      tl.to('#flash', { x: 10, duration: 11, ease: 'none' }, 0);"));
   const storyFile = join(project, 'story.yaml');
-  await writeFile(storyFile, (await readFile(storyFile, 'utf8')).replace('Show it {show}.', 'Show it {show}. Then nothing moves {idle} for a while.'));
-  const timing: Timing = { source: 'imported', duration: 8, scenes: { probe: { start: 0, duration: 8, beats: { show: 1, idle: 3 } } } };
+  await writeFile(storyFile, (await readFile(storyFile, 'utf8')).replace('Show it {show}.', 'Show it {show} and keep talking for a long while. Then {idle} stop.'));
+  const timing: Timing = { source: 'imported', duration: 12, scenes: { probe: { start: 0, duration: 12, beats: { show: 1, idle: 9 } } } };
   await writeFile(join(project, 'timing.json'), JSON.stringify(timing));
   const index = join(project, 'index.html');
   const assembled = assembleIndex(await readFile(index, 'utf8'), (await loadStory(project)).value!, timing);
@@ -221,8 +224,8 @@ test('quick verification warns about a long beat in which no tween starts', { ti
   await writeFile(index, assembled.html);
   const receipt = await verifyFilm(project, { out: join(project, 'verification'), composition: 'probe', quick: true });
   assert.equal(receipt.passed, true, receipt.failures.join('\n'));
-  assert.deepEqual(receipt.staticBeats, [{ composition: 'probe', cue: 'idle', start: 3, seconds: 5 }]);
-  assert.match(await readFile(receipt.contactSheetPath, 'utf8'), /probe · idle: 5\.0 s without a visual change/);
+  assert.deepEqual(receipt.staticBeats, [{ composition: 'probe', cue: 'show', start: 1.01, seconds: 7.99 }]);
+  assert.match(await readFile(receipt.contactSheetPath, 'utf8'), /probe · show: 8\.0 s without a visual change from 1\.0 s/);
 });
 
 test('standalone HTML rejects sibling resources and missing or broken images', { timeout: 60000 }, async t => {
