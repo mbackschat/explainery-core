@@ -72,12 +72,29 @@ test('a film of more than three scenes opens with a route, opens each scene with
     scene('four', composition('d', 'The queue keeps a history')),
   );
   assert.deepEqual(frameErrors(bare), [
-    'story.yaml: a film of 4 scenes needs an agenda card in its first scene to show the route',
+    'story.yaml: a film of 4 scenes needs an opening agenda card in its first scene to show the route',
     'story.yaml: a film of 4 scenes needs a closing recap scene of agenda cards alone',
     'story.yaml scene "two": needs a chapter card first, asking the scene\'s question',
     'story.yaml scene "three": needs a chapter card first, asking the scene\'s question',
   ]);
   assert.deepEqual(frameErrors(film(scene('one', composition('a', 'A')), scene('two', composition('b', 'B')), scene('three', composition('c', 'C')))), []);
+});
+
+// At most one hook may precede the route: a closer look inserted before it once pushed a film's route past its
+// first minute while the earlier presence-only check still passed.
+test('the opening agenda card comes first or after one hook', () => {
+  const rest = [
+    scene('one', card('one-question', 'chapter', 'Why do requests get lost?'), composition('one-diagram', 'Requests wait in two inboxes')),
+    scene('two', card('two-question', 'chapter', 'Who owns a request?'), composition('two-diagram', 'A shared queue assigns one owner')),
+    scene('recap', card('recap-card', 'agenda', 'Recap of the two parts')),
+  ];
+  const route = card('route', 'agenda', 'The two parts of this film');
+  assert.deepEqual(frameErrors(film(scene('intro', route), ...rest)), []);
+  assert.deepEqual(frameErrors(film(scene('intro', composition('hook', 'Two inboxes duplicate each request'), route), ...rest)), []);
+  const late = film(scene('intro', composition('hook', 'Two inboxes duplicate each request'), composition('detail', 'Each inbox keeps its own copy'), route), ...rest);
+  assert.deepEqual(frameErrors(late), [
+    'story.yaml scene "intro": the opening agenda card follows 2 compositions; show the route first or after one short hook',
+  ]);
 });
 
 // The guide's good examples are the reference wording, so the lexical check must never reject one of them.

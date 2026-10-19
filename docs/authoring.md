@@ -28,7 +28,7 @@ Prefer concise claim IDs and links when several beats share evidence. Maintain o
 
 A viewer cannot ask where they are, so the film signposts its structure the way a good presenter does. Plan this structure in the proposal and scene briefs, and check it in every review of the script.
 
-- **Open with a hook, then the promise and the route.** Start on a concrete problem the viewer recognises. Then say what they will understand by the end, and show the route through the scenes, for example with an agenda card.
+- **Open with a hook, then the promise and the route.** Start on a concrete problem the viewer recognises, in one short composition. Then name the topic, say what they will understand by the end, and show the route through the scenes, before any mechanism is explained.
 - **Open each scene with its question.** The question that motivates a scene belongs at its start, not at the end of the previous scene. MP4 and HTML chapter navigation seeks to a scene's first frame, so a question parked in the scene before is skipped. A chapter card asks it in one spoken sentence.
 - **Close each scene with its takeaway.** End on the one statement the viewer should keep, spoken and visible on screen. Put qualifications, limits and status labels before it. Viewers remember the end of a section best, and a scene that ends on a caveat leaves the caveat as its message. A short bridge may follow; the next scene's opening asks the question.
 - **Make scene changes visible.** A change of scene should look different from a change of composition within a scene. A chapter card marks the boundary; without one, use a deliberately different transition.
@@ -39,7 +39,7 @@ A viewer cannot ask where they are, so the film signposts its structure the way 
 
 A film of more than three editorial scenes uses one frame. `explainery validate`, `explainery production` and `preflight`, and therefore `deliver`, enforce it; previews, snapshots and verification do not, so a film can be built before its frame exists:
 
-- **The first scene orients.** It names the topic, says what the viewer will understand, and shows the route on an agenda card. A short hook problem may come first; the scene is unnumbered and has no chapter card.
+- **The first scene orients.** Its opening agenda card names the topic, says what the viewer will understand and shows the route. At most one hook composition may come before it, and that hook stays short, under about 30 seconds; content that explains a mechanism belongs after the route. The scene is unnumbered and has no chapter card.
 - **Every scene in between opens with a chapter card** that asks the scene's question.
 - **The last scene is the recap**, made of agenda cards alone, and nothing follows it.
 

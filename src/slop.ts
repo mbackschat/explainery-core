@@ -23,15 +23,20 @@ export function slopErrors(story: Story): string[] {
 
 /**
  * Requires a film of more than three editorial scenes to frame its structure the way a presenter would: the first
- * scene shows the route on an agenda card, every scene in between opens with a chapter card that asks its question,
- * and the film ends on a recap scene of agenda cards alone. Shorter films need no frame.
+ * scene shows the route on an opening agenda card, every scene in between opens with a chapter card that asks its
+ * question, and the film ends on a recap scene of agenda cards alone. Shorter films need no frame.
+ *
+ * The opening agenda card may follow at most one hook composition. Counting compositions keeps the check usable on
+ * silent drafts, which have no voice timing; it cannot bound how long that hook runs, so the guide states the length.
  */
 export function frameErrors(story: Story): string[] {
   const scenes = storyScenes(story);
   if (scenes.length <= 3) return [];
   const errors: string[] = [];
   const size = `a film of ${scenes.length} scenes`;
-  if (!scenes[0].compositions.some(composition => composition.card === 'agenda')) errors.push(`story.yaml: ${size} needs an agenda card in its first scene to show the route`);
+  const opening = scenes[0].compositions.findIndex(composition => composition.card === 'agenda');
+  if (opening < 0) errors.push(`story.yaml: ${size} needs an opening agenda card in its first scene to show the route`);
+  else if (opening > 1) errors.push(`story.yaml scene "${scenes[0].id}": the opening agenda card follows ${opening} compositions; show the route first or after one short hook`);
   if (!scenes.at(-1)!.compositions.every(composition => composition.card === 'agenda')) errors.push(`story.yaml: ${size} needs a closing recap scene of agenda cards alone`);
   for (const scene of scenes.slice(1, -1)) if (scene.compositions[0].card !== 'chapter') errors.push(`story.yaml scene "${scene.id}": needs a chapter card first, asking the scene's question`);
   return errors;
