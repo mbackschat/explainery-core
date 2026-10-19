@@ -148,6 +148,19 @@ test('verification fails a composition whose headline wraps onto a second line',
   assert.deepEqual(receipt.failures, ['probe: headline wraps onto 2 lines; shorten it to fit one line']);
 });
 
+// Locks the two-line support rule (docs/authoring.md#write-headlines-that-state-the-claim): a third line overflows the
+// theme's copy block. The line count depends on font metrics, so only the overflow itself is asserted.
+test('verification fails a composition whose support line runs past two lines', { timeout: 60000 }, async t => {
+  const long = 'A support line long enough to run past two lines in this small probe frame, because it keeps adding qualifiers that belong in the narration instead';
+  const project = await fixtureProject('scene-runtime', html => html.replace('"headline":"Story copy"', `"headline":"Story copy","support":"${long}"`));
+  t.after(() => rm(project, { recursive: true, force: true }));
+  const storyFile = join(project, 'story.yaml');
+  await writeFile(storyFile, (await readFile(storyFile, 'utf8')).replace('copy: { headline: Story copy }', `copy: { headline: Story copy, support: "${long}" }`));
+  const receipt = await verifyFilm(project, { out: join(project, 'verification'), composition: 'probe', quick: true });
+  assert.equal(receipt.failures.length, 1, receipt.failures.join('\n'));
+  assert.match(receipt.failures[0], /^probe: support line wraps onto \d lines; shorten it to fit two lines$/);
+});
+
 // Card titles follow the same one-line rule; a chapter card once wrapped a scene title and a roadmap cut another off
 // while every composition headline passed. The oracle is the theme's own card layout in the browser.
 test('verification fails a card whose title wraps or whose roadmap entry is cut off', { timeout: 60000 }, async t => {

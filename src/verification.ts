@@ -112,17 +112,18 @@ async function pixelDifference(left: string, right: string): Promise<number> {
   return maximum;
 }
 /**
- * Counts the rendered lines of a composition's headline from its text's line boxes, which neither the copy wipe's
- * clip-path nor stage transforms change. A wrapped headline pushes the support line out of the theme's copy block.
+ * Counts the rendered lines of a composition's copy slot from its text's line boxes, which neither the copy wipe's
+ * clip-path nor stage transforms change. The theme's copy block holds a one-line headline and a support line of at
+ * most two lines; more pushes the copy out of the block.
  */
-const headlineLines = (page: any, composition: string): Promise<number> => page.evaluate((id: string) => {
+const copyLines = (page: any, composition: string, slot: 'headline' | 'support'): Promise<number> => page.evaluate((id: string, slot: string) => {
   const document = Reflect.get(globalThis, 'document');
-  const element = document.querySelector(`[data-composition-id="${id}"] [data-copy="headline"]`);
+  const element = document.querySelector(`[data-composition-id="${id}"] [data-copy="${slot}"]`);
   if (!element) return 0;
   const range = document.createRange();
   range.selectNodeContents(element);
   return new Set([...range.getClientRects()].filter((rect: any) => rect.width > 0).map((rect: any) => Math.round(rect.top))).size;
-}, composition);
+}, composition, slot);
 /**
  * Measures the card a card composition draws: its title's line count and the roadmap entries the theme cuts off with
  * an ellipsis. The layer draws one card per card composition in story order, so `index` counts card compositions.
@@ -222,8 +223,10 @@ export async function verifyFilm(project: string, options: FilmVerificationOptio
                   const spoken = beatNarration(composition.narration);
                   for (const [cue, seconds] of Object.entries(slot.beats)) await capture(composition.id, cue, Math.min(slot.start + seconds + .3, slot.start + slot.duration - 1 / story.canvas.fps), spoken[cue]);
                   await capture(composition.id, 'closing', slot.start + slot.duration - 1 / story.canvas.fps);
-                  const lines = await headlineLines(page, composition.id);
+                  const lines = await copyLines(page, composition.id, 'headline');
                   if (lines > 1) receipt.failures.push(`${composition.id}: headline wraps onto ${lines} lines; shorten it to fit one line`);
+                  const supportLines = await copyLines(page, composition.id, 'support');
+                  if (supportLines > 2) receipt.failures.push(`${composition.id}: support line wraps onto ${supportLines} lines; shorten it to fit two lines`);
                   if (composition.card) {
                     const { titleLines, cutEntries } = await cardFit(page, cards.indexOf(composition.id));
                     if (titleLines > 1) receipt.failures.push(`${composition.id}: card title wraps onto ${titleLines} lines; shorten it to fit one line`);
