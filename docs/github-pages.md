@@ -9,7 +9,7 @@ Generated HTML must never be Git tracked, including on a deployment branch. Keep
 1. Copy the [caller template](templates/pages.yml) to `.github/workflows/pages.yml` in the story. It works with any Explainery film. For reproducible deployments, replace `@main` with the full core commit SHA you have verified.
 2. Keep `renders/` in the story's `.gitignore`. Commit and push the caller workflow to the story's default branch.
 3. In the story repository's **Settings → Pages → Build and deployment**, select **GitHub Actions**. The workflow needs the declared `contents: read`, `pages: write` and `id-token: write` permissions; the normal GitHub token suffices, including for private release attachments. GitHub Pages must be available on the repository's plan.
-4. After the first successful deployment, set the repository's **About → Website** field to the returned Pages URL and add the README badge below. Keep a YouTube link alongside it when one exists.
+4. After the first successful deployment, set the repository's **About → Website** field to the returned Pages URL and add the clickable README thumbnail below. Keep a YouTube link alongside it when one exists.
 
 Pages normally makes the film public even when its source repository is private. A private repository's release attachment remains private; it is not a public offline-download link.
 
@@ -38,11 +38,16 @@ Check the completed run and the hosted page: confirm the downloaded HTML's SHA-2
 
 ## README link
 
+Choose an interesting existing film capture and add a large, high-contrast play button at its center. Save it as a compressed static image at `docs/assets/film-preview.jpg`; 1120 × 630 pixels displays sharply at 560 pixels wide. Both the image and the explicit caption are links, so the preview clearly invites a click.
+
+Track this small documentation image and refresh it manually when needed. Generated film HTML remains untracked. Reuse existing captures; no animated preview or automatic thumbnail pipeline is needed.
+
 Use the actual Pages URL in place of `PAGES_URL`:
 
 ```html
 <p>
-  <a href="PAGES_URL"><img alt="Watch in browser" src="https://img.shields.io/badge/Watch%20in%20browser-8055c9?style=for-the-badge"></a>
+  <a href="PAGES_URL"><img alt="Play the film — scene preview" src="docs/assets/film-preview.jpg" width="560"></a><br>
+  <a href="PAGES_URL"><strong>▶ Click to watch the film</strong></a>
 </p>
 ```
 

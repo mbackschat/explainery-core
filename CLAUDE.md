@@ -81,7 +81,7 @@ Explainery preview and render honor local focus; use `--film` to override it. Di
 
 Standalone HTML deliveries default to `renders/<story-id>-full.html` in the working directory, alongside MP4s and subtitle sidecars. Ignore the entire `renders/` directory in every repository; retain source inputs and durable verification notes outside it; use `--out` for an explicit delivery filename.
 
-For requested GitHub Pages publication, use the [shared publishing workflow](docs/github-pages.md). Generated HTML must never enter Git history, including deployment branches. Export and verify locally, then explicitly deploy a selected release attachment through Pages artifacts. Keep each story's site URL, badge and delivery evidence in that story; core owns the reusable workflow and template.
+For requested GitHub Pages publication, use the [shared publishing workflow](docs/github-pages.md). Generated HTML must never enter Git history, including deployment branches. Export and verify locally, then explicitly deploy a selected release attachment through Pages artifacts. Keep each story's site URL, clickable thumbnail and delivery evidence in that story; core owns the reusable workflow and template.
 
 ## Scope
 
