@@ -37,11 +37,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
           RELEASE_TAG: ${{ inputs.release }}
           EXPECTED_SHA256: ${{ inputs.sha256 }}
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "${REPOSITORY_PRIVATE:-}" != "false" ]]; then
+            echo "Private films require access-controlled hosting; this public Pages workflow cannot publish them." >&2
+            exit 1
+          fi
           if [[ ! "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
             echo "Provide a lowercase SHA-256 for the verified HTML." >&2
             exit 1

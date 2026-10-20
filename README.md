@@ -336,7 +336,7 @@ The bundler is not part of HyperFrames' public interface: it lives in `dist/comp
 
 ## Publish on GitHub Pages
 
-Use the [shared Pages publishing workflow](docs/github-pages.md) to publish a selected, locally verified single-file export as a story repository's website. A small caller workflow supplies a release tag and SHA-256; core downloads the release attachment and deploys it as `index.html`. Generated HTML stays outside Git history. Publishing is explicit, and each story can link its Pages URL from the repository website field and a clickable README thumbnail with a play button, alongside an optional YouTube link.
+Use the [shared Pages publishing workflow](docs/github-pages.md) to publish a selected, locally verified single-file export from a public story repository as its website. A small caller workflow supplies a release tag and SHA-256; core downloads the release attachment and deploys it as `index.html`. Generated HTML stays outside Git history. A private repository's film and previews must remain private: this public workflow refuses private callers, and private films require verified access-controlled hosting. Once hosting is ready, link its URL from the repository website field and a clickable README thumbnail with a play button, alongside an optional YouTube link.
 
 ## Write a scene
 

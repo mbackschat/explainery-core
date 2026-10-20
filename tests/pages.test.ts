@@ -10,7 +10,7 @@ import { parse } from 'yaml';
 const delivery = '<!doctype html><title>Film</title><p>Selected delivery</p>';
 const digest = createHash('sha256').update(delivery).digest('hex');
 
-async function prepare(t: test.TestContext, sha256: string) {
+async function prepare(t: test.TestContext, sha256: string, repositoryPrivate = 'false') {
   const cwd = await mkdtemp(join(tmpdir(), 'explainery-pages-'));
   t.after(() => rm(cwd, { recursive: true, force: true }));
   const bin = join(cwd, 'bin');
@@ -22,7 +22,7 @@ async function prepare(t: test.TestContext, sha256: string) {
   await writeFile(join(cwd, 'prepare.sh'), step.run);
   const result = spawnSync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', 'prepare.sh'], {
     cwd, encoding: 'utf8', timeout: 5000,
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_REPO: 'owner/story', RELEASE_TAG: 'film-v1', EXPECTED_SHA256: sha256 },
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_REPO: 'owner/story', RELEASE_TAG: 'film-v1', EXPECTED_SHA256: sha256, REPOSITORY_PRIVATE: repositoryPrivate },
   });
   return { cwd, result };
 }
@@ -48,3 +48,12 @@ test('Pages requires a SHA-256 before downloading an attachment', async t => {
   assert.notEqual(result.status, 0);
   await assert.rejects(readFile(join(cwd, 'gh-args')), { code: 'ENOENT' });
 });
+
+for (const visibility of ['true', '']) {
+  test(`Pages refuses private or unknown repository visibility (${JSON.stringify(visibility)}) before downloading the film`, async t => {
+    const { cwd, result } = await prepare(t, digest, visibility);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Private films require access-controlled hosting/);
+    await assert.rejects(readFile(join(cwd, 'gh-args')), { code: 'ENOENT' });
+  });
+}
