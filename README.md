@@ -334,6 +334,10 @@ How it works: the film is embedded once, as a string each player receives as inl
 
 The bundler is not part of HyperFrames' public interface: it lives in `dist/compiler-*.js`, and the export fails with a clear message if a HyperFrames upgrade moves it.
 
+## Publish on GitHub Pages
+
+Use the [shared Pages publishing workflow](docs/github-pages.md) to publish a selected, locally verified single-file export as a story repository's website. A small caller workflow supplies a release tag and SHA-256; core downloads the release attachment and deploys it as `index.html`. Generated HTML stays outside Git history. Publishing is explicit, and each story can link its Pages URL from the repository website field and a README badge, alongside an optional YouTube link.
+
 ## Write a scene
 
 Load GSAP and the runtime once in the project's `index.html`:

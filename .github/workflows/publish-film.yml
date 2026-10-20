@@ -1,0 +1,72 @@
+name: Publish film to GitHub Pages
+
+on:
+  workflow_call:
+    inputs:
+      release:
+        description: Release tag in the calling repository containing film.html
+        required: true
+        type: string
+      sha256:
+        description: SHA-256 of the locally verified film.html attachment
+        required: true
+        type: string
+    outputs:
+      page_url:
+        description: Published film URL
+        value: ${{ jobs.deploy.outputs.page_url }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - name: Download and verify the selected delivery
+        id: delivery
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release }}
+          EXPECTED_SHA256: ${{ inputs.sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "Provide a lowercase SHA-256 for the verified HTML." >&2
+            exit 1
+          fi
+          mkdir site
+          gh release download --repo "$GH_REPO" --pattern film.html --dir site -- "$RELEASE_TAG"
+          printf '%s  site/film.html\n' "$EXPECTED_SHA256" | shasum -a 256 -c
+          mv site/film.html site/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

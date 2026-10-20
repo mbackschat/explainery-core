@@ -1,0 +1,25 @@
+name: Publish film
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Release tag containing the verified film.html attachment
+        required: true
+        type: string
+      sha256:
+        description: SHA-256 of the verified HTML
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  publish:
+    uses: mbackschat/explainery-core/.github/workflows/publish-film.yml@main
+    with:
+      release: ${{ inputs.release }}
+      sha256: ${{ inputs.sha256 }}

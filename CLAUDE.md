@@ -41,6 +41,7 @@ Read the [README workflow](README.md#the-workflow-at-a-glance) for authoring com
 | Chapter and agenda cards | [card layer variables](src/cards.ts), [assembler](src/assemble.ts), [runtime `defineCards`](runtime/scene.ts), [dark theme](themes/dark/theme.css), [presentation rules](docs/authoring.md#structure-the-film-like-a-presentation) | [card tests](tests/cards.test.ts), [card fixture](tests/hyperframes.test.ts) |
 | Composition behaviour or theme integration | [runtime source](runtime/scene.ts), [theme selection](src/theme.ts), [shared styles](themes/base.css), [dark](themes/dark/theme.css) and [light](themes/light/theme.css) themes, [authoring contract](docs/authoring.md#author-for-both-themes), [components](components/) | [theme tests](tests/themes.test.ts), [browser export tests](tests/explainer-browser.test.ts), [runtime tests](tests/scene-runtime.test.ts), [build guard](tests/runtime-build.test.ts), [HyperFrames fixtures](tests/hyperframes.test.ts), [SVG guard](tests/svg.test.ts) |
 | Explainer export | [page export](src/explainer.ts), [single-file export](src/explainer-file.ts), [file traversal](src/film-files.ts), [HTML subtitle input](src/export-subtitles.ts) | [subtitle input tests](tests/export-subtitles.test.ts), [export tests](tests/explainer.test.ts), [browser tests](tests/explainer-browser.test.ts), [file tests](tests/film-files.test.ts) |
+| GitHub Pages publication | [shared workflow](.github/workflows/publish-film.yml), [story caller template](docs/templates/pages.yml), [publication contract](docs/github-pages.md) | [delivery selection tests](tests/pages.test.ts), `actionlint`, hosted checksum and playback checks |
 
 Beat anchoring is an authoring convention, not a runtime restriction: compositions also use numeric starts, offsets, and tween durations. The runtime rejects missing beats and timelines longer than their composition; it does not automatically retime tweens or reflow changed copy. Do not describe replacing narration or wording as a guarantee that no composition edits are needed.
 
@@ -79,6 +80,8 @@ pnpm exec explainery preview --stop
 Explainery preview and render honor local focus; use `--film` to override it. Direct HyperFrames commands and the strict check always use their supplied project without consulting focus. Checks, fixture captures, and Explainery renders use software browser capture; this is separate from HyperFrames' optional `--gpu` video encoder. Local execution can still involve browser/model downloads and HyperFrames update or telemetry traffic; it does not imply an offline setup.
 
 Standalone HTML deliveries default to `renders/<story-id>-full.html` in the working directory, alongside MP4s and subtitle sidecars. Ignore the entire `renders/` directory in every repository; retain source inputs and durable verification notes outside it; use `--out` for an explicit delivery filename.
+
+For requested GitHub Pages publication, use the [shared publishing workflow](docs/github-pages.md). Generated HTML must never enter Git history, including deployment branches. Export and verify locally, then explicitly deploy a selected release attachment through Pages artifacts. Keep each story's site URL, badge and delivery evidence in that story; core owns the reusable workflow and template.
 
 ## Scope
 
