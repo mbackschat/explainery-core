@@ -83,7 +83,9 @@ Standalone HTML deliveries default to `renders/<story-id>-full.html` in the work
 
 For requested GitHub Pages publication, use the [shared publishing workflow](docs/github-pages.md). Generated HTML must never enter Git history, including deployment branches. Export and verify locally, then explicitly deploy a selected release attachment through Pages artifacts. Keep each story's site URL, clickable thumbnail and delivery evidence in that story; core owns the reusable workflow and template.
 
-Film privacy follows the source repository: a private repository's film, HTML, audio, downloads, thumbnails and previews must stay private. Publishing authorization never implies making them public. Do not use public companion repositories as a workaround. The shared public Pages workflow refuses private callers; private films need verified access-controlled hosting before any playback URL is added.
+Film privacy follows the source repository: a private repository's film, HTML, audio, downloads, thumbnails and previews must stay private. Publishing authorization never implies making them public. Do not use public companion repositories as a workaround. The shared public Pages workflow refuses private callers.
+
+For private film repositories, use the settled [download-and-play publication contract](docs/private-releases.md): one mutable `film-current` release in the source repository, one current HTML attachment with a stable filename, and no historical attachment copies. Replace the attachment on explicit updates, verify the downloaded SHA-256, and record the actual source/core revisions and verification in release notes. README thumbnails link to the attachment with “Download & play”; the website field links to the release. Generated HTML never enters Git history. Check repository privacy and release mutability before publishing.
 
 ## Scope
 

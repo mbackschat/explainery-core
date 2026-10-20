@@ -334,9 +334,11 @@ How it works: the film is embedded once, as a string each player receives as inl
 
 The bundler is not part of HyperFrames' public interface: it lives in `dist/compiler-*.js`, and the export fails with a clear message if a HyperFrames upgrade moves it.
 
-## Publish on GitHub Pages
+## Publish a film
 
-Use the [shared Pages publishing workflow](docs/github-pages.md) to publish a selected, locally verified single-file export from a public story repository as its website. A small caller workflow supplies a release tag and SHA-256; core downloads the release attachment and deploys it as `index.html`. Generated HTML stays outside Git history. A private repository's film and previews must remain private: this public workflow refuses private callers, and private films require verified access-controlled hosting. Once hosting is ready, link its URL from the repository website field and a clickable README thumbnail with a play button, alongside an optional YouTube link.
+For a private repository, use the [download-and-play release procedure](docs/private-releases.md): one mutable `film-current` release holds the current HTML attachment. Replace that file on updates instead of accumulating releases or versions. The README thumbnail links to the private download; viewers with repository access save it and open it locally. Release notes identify the verified source, core revision and checksum.
+
+For a public repository, use the [shared Pages publishing workflow](docs/github-pages.md). A small caller workflow supplies a release tag and SHA-256; core downloads the release attachment and deploys it as `index.html`. This public workflow refuses private callers. Link the published URL from the repository website field and a clickable README thumbnail with a play button, alongside an optional YouTube link. Generated HTML stays outside Git history in both routes.
 
 ## Write a scene
 
