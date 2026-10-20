@@ -8,7 +8,7 @@
   "properties": {
     "id": { "$ref": "#/definitions/slug" },
     "title": { "type": "string", "minLength": 1 },
-    "theme": { "$ref": "#/definitions/slug", "description": "Theme directory in explainery-core/themes, for example \"dark\"." },
+    "theme": { "type": "string", "pattern": "^(?:[a-z0-9]+(-[a-z0-9]+)*|\\./themes/[a-z0-9]+(-[a-z0-9]+)*/theme\\.css)$", "description": "A bundled theme slug, such as dark or light, or an explicit film-local ./themes/<name>/theme.css. Assembly selects it on the root's data-story-theme stylesheet link." },
     "canvas": {
       "type": "object",
       "required": ["width", "height", "fps"],

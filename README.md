@@ -96,7 +96,7 @@ The rest of this README explains each step in detail. The design decisions behin
 | [`schemas/`](schemas/) | JSON Schemas for `story.yaml` and `timing.json`, also usable for editor validation. |
 | [`src/`](src/), [`bin/explainery.ts`](bin/explainery.ts) | The validator, the assembler, the explainer export, and the `explainery` command, in TypeScript that Node runs directly. |
 | [`runtime/scene.ts`](runtime/scene.ts) | `defineScene` and `defineCards`, the browser runtime that scenes and the card layer call. Browsers load the generated [`runtime/scene.js`](runtime/scene.js). |
-| [`themes/dark/`](themes/dark/) | The default theme: tokens, Roboto, texture, card styles, and the brand-frame slot. |
+| [`themes/`](themes/) | Dark and light palettes with shared typography, layout and card styles. |
 | [`components/`](components/) | Shared SVG components that take colour only from tokens. |
 | [`tests/`](tests/) | `node:test` suites, plus HyperFrames fixture projects that prove rendering behaviour. |
 
@@ -232,6 +232,7 @@ pnpm exec explainery assemble --check  # exit 1 when index.html is out of date
 
 - **Composition hosts:** the element with `data-composition-src` and the composition's `data-composition-id` gets `data-start`, `data-duration`, and `data-variable-values` holding `{copy, beats, duration}`.
 - **Story duration:** the root composition and every element marked `data-story-span` get the story duration.
+- **Theme:** an optional stylesheet link marked `data-story-theme` gets the bundled or film-local stylesheet selected by `story.theme`. Project overlays retain their authored order.
 - **Card layer:** the element marked `data-story-cards` gets the story's cards and every scene title. Cards have no host of their own; assembly reports a host for a card, a missing or repeated layer, and a layer loaded from `node_modules`.
 - **Narration track:** the element marked `data-story-audio` gets `timing.audio` as its `src`, and ends at `timing.audioDuration` when the audio is shorter than the film, as it is when the last composition holds after the final word.
 
@@ -389,16 +390,18 @@ The layer file must live inside the project. HyperFrames 0.8.142 leaves out sub-
 
 ## Themes and components
 
-Load a theme before the project's own styles, then override its tokens. The cascade runs core → theme → project:
+Set `story.yaml`'s `theme` to the bundled `dark` or `light`, or an explicit film-local `./themes/<name>/theme.css`. Load one managed theme stylesheet before project overrides, then run `explainery assemble`. Assembly updates only that link's `href`; the cascade runs shared base → theme → project:
 
 ```html
-<link rel="stylesheet" href="node_modules/explainery-core/themes/dark/theme.css">
+<link rel="stylesheet" data-story-theme href="node_modules/explainery-core/themes/dark/theme.css">
 <style>
   :root { --harvest: var(--hue-lime); }
 </style>
 ```
 
-[`themes/dark`](themes/dark/theme.css) is the default theme. It provides a black canvas with a sparse square texture (`.background`), a generic hue palette (`--hue-pale-blue`, `--hue-lime`, `--hue-gold`, `--hue-cyan`), text colours, and a type scale set in bundled Roboto 2.137 (© 2011 Google Inc., Apache-2.0). It also provides the low-left copy block (`.copy`, `.accent-rule`, `.category`, `h1`, `.support`), diagram labels, [card styles](#add-chapter-and-agenda-cards), and an empty [brand-frame slot](themes/dark/brand-frame.html). A project brands the video by pointing its `brand-frame` host at its own composition. [`scripts/build-texture.ts`](scripts/build-texture.ts) regenerates the texture.
+[`dark`](themes/dark/theme.css) retains its black canvas, sparse square texture and existing type defaults. [`light`](themes/light/theme.css) uses dark ink, tinted surfaces, a grid and lighter typography. Both import [the shared base](themes/base.css): bundled Roboto 2.137 (© 2011 Google Inc., Apache-2.0), copy-block geometry, diagram labels and [card styles](#add-chapter-and-agenda-cards). Existing unmarked stylesheet links keep their authored selection; add `data-story-theme` to opt into selection from the story. Full-film preview, render and exports reject a stale managed link; isolated scene views assemble it from current source.
+
+The [theme authoring contract](docs/authoring.md#author-for-both-themes) describes colour, surface, face and effect tokens, and how a film-local theme imports and overrides a bundled theme. A local file never silently shadows a bundled slug; select its explicit path to use it. There is no runtime registry or theme switcher. A project brands the video with its own overlay and brand-frame composition; the existing empty [brand-frame slot](themes/dark/brand-frame.html) remains available. [`scripts/build-texture.ts`](scripts/build-texture.ts) regenerates the dark texture.
 
 Components such as the [isometric cube](components/isometric.svg) take colour only from tokens (`--cube-top`, `--cube-left`, `--cube-right`, `--cube-edge`). Recolour a single cube by overriding the tokens on its element. Keep every SVG well-formed XML: Chrome silently draws nothing from a malformed sprite or texture, and a `--` inside an XML comment is already enough.
 

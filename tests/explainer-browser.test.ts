@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { extname, join, normalize } from 'node:path';
@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import test from 'node:test';
 import { chromium } from 'playwright-core';
-import { exportExplainer, exportExplainerFile } from '../src/index.ts';
+import { assembleIndex, exportExplainer, exportExplainerFile, validateProject } from '../src/index.ts';
 import { core, fixtureProject } from './support/fixture.ts';
 
 // Proves the exported folder works where it must: served over http and played by HyperFrames' own player in
@@ -18,7 +18,7 @@ const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javas
 // The page callbacks run in the browser. The Node project has no DOM lib, so this module declares only the members
 // they use: HyperFrames' <hyperframes-player> element, the scrubber input, and document lookups.
 interface Player { ready: boolean; currentTime: number; paused: boolean; playbackRate: number; seek(time: number): void; play(): void; pause(): void }
-declare function getComputedStyle(element: unknown): { opacity: string; cursor: string };
+declare function getComputedStyle(element: unknown): { opacity: string; cursor: string; backgroundColor: string; fontFamily: string; filter: string; fontSize: string; fontWeight: string };
 interface Scrubber { value: string; dispatchEvent(event: Event): boolean }
 declare const document: { fullscreenElement: { className: string } | null; querySelector(selector: string): unknown; querySelectorAll(selector: string): Iterable<unknown>; getElementById(id: string): unknown };
 
@@ -26,8 +26,9 @@ function serve(root: string): Promise<Server> {
   const server = createServer(async (request, response) => {
     try {
       const path = normalize(decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname)).replace(/^\/+/, '') || 'index.html';
+      const content = await readFile(join(root, path));
       response.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/octet-stream' });
-      response.end(await readFile(join(root, path)));
+      response.end(content);
     } catch {
       response.writeHead(404).end();
     }
@@ -236,3 +237,80 @@ async function captionFile(project: string): Promise<string> {
   await writeFile(file, 'WEBVTT\n\n00:00.000 --> 00:00.500\nFirst.\n\n00:01.000 --> 00:01.900\nSecond &lt;literal&gt; &amp; line\nContinued.\n');
   return file;
 }
+
+test('bundled and film-local themes retain imported typography, flat sprite fills and local effects in folder and offline exports', { timeout: 120000 }, async () => {
+  const executablePath = (await run(process.execPath, [join(core, 'node_modules/hyperframes/dist/cli.js'), 'browser', 'path'])).stdout.trim().split('\n').pop();
+  const browser = await chromium.launch({ executablePath });
+  try {
+    for (const theme of ['dark', 'light', 'custom']) {
+      const project = await fixtureProject('scene-runtime', html => html
+        .replace('</head>', `<link rel="stylesheet" data-story-theme href="node_modules/explainery-core/themes/${theme}/theme.css"></head>`)
+        .replace('</body>', `<div class="background" style="width:10px;height:10px"></div><div class="copy"><h1 id="theme-copy">Theme</h1></div>
+          <svg id="theme-cube" width="52" height="61" viewBox="0 0 52 61" style="position:absolute;left:290px;top:160px;z-index:20"><use href="node_modules/explainery-core/components/isometric.svg#cube" width="52" height="61"/></svg>
+          <svg width="0" height="0"><defs><filter id="theme-glow"><feGaussianBlur stdDeviation="2"/></filter></defs></svg>
+          <div id="theme-effect" style="filter:var(--glow-filter,url(#theme-glow))"></div></body>`));
+      const storyPath = join(project, 'story.yaml');
+      if (theme === 'custom') {
+        await mkdir(join(project, 'themes/custom'), { recursive: true });
+        await writeFile(join(project, 'themes/custom/theme.css'), '@import "../../node_modules/explainery-core/themes/light/theme.css"; :root { --cube-top: #91a3b5; --accent: #123456; }');
+      }
+      await writeFile(storyPath, (await readFile(storyPath, 'utf8')).replace('theme: dark', `theme: ${theme === 'custom' ? './themes/custom/theme.css' : theme}`));
+      const composition = join(project, 'compositions/probe.html');
+      await writeFile(composition, (await readFile(composition, 'utf8')).replace('<div id="flash">', `<svg width="20" height="20"><defs><filter id="local-theme-glow"><feGaussianBlur stdDeviation="2"/></filter></defs>
+        <rect data-theme-effect width="10" height="10" fill="red" style="filter:var(--glow-filter,url(#local-theme-glow))"/></svg><div id="flash">`));
+      const validation = await validateProject(project);
+      assert.ok(validation.valid);
+      const index = join(project, 'index.html');
+      await writeFile(index, assembleIndex(await readFile(index, 'utf8'), validation.story, validation.timing).html);
+      const folder = join(project, 'export');
+      const single = join(project, 'export.html');
+      await exportExplainer(project, folder);
+      await exportExplainerFile(project, single);
+      const server = await serve(project);
+      try {
+        const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+        for (const [format, url] of [['source', `${origin}/index.html`], ['folder', `${origin}/export/index.html`], ['single', pathToFileURL(single).href]]) {
+          const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+          const failures: string[] = [];
+          page.on('requestfailed', request => failures.push(request.url()));
+          page.on('response', response => { if (response.status() >= 400) failures.push(`${response.status()} ${response.url()}`); });
+          if (format === 'single') await page.route(/^https?:/, route => route.abort());
+          await page.goto(url);
+          const film = format === 'source' ? page.mainFrame() : await (async () => {
+            await page.waitForFunction(() => (document.querySelector('.explainer-film') as Player).ready);
+            return page.frames().find(frame => frame !== page.mainFrame())!;
+          })();
+          await film.locator('#theme-copy').waitFor({ state: 'attached' });
+          const typography = await film.locator('#theme-copy').evaluate(element => {
+            const style = getComputedStyle(element);
+            return { size: style.fontSize, weight: style.fontWeight, font: style.fontFamily };
+          });
+          assert.deepEqual(typography, { size: theme === 'dark' ? '65px' : '62px', weight: theme === 'dark' ? '900' : '700', font: 'Roboto, sans-serif' }, `${theme} ${format} imports its typography`);
+          assert.notEqual(await film.locator('.background').evaluate(element => (getComputedStyle(element) as unknown as { backgroundImage: string }).backgroundImage), 'none', `${theme} ${format}: background texture or grid survives CSS substitution`);
+          const effect = await film.locator('#theme-effect').evaluate(element => getComputedStyle(element).filter);
+          assert.ok(theme === 'dark' ? effect.includes('#theme-glow') : effect === 'none', `${theme} ${format}: ${effect}`);
+          const cube = await film.locator('#theme-cube').screenshot();
+          const png = join(project, `cube-${theme}-${format}.png`);
+          await writeFile(png, cube);
+          const { stdout } = await run('ffmpeg', ['-v', 'error', '-i', png, '-vf', 'crop=1:1:in_w/2:in_h*15/61', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], { encoding: 'buffer' });
+          assert.deepEqual([...stdout], theme === 'dark' ? [0xc5, 0xd9, 0xf0] : theme === 'light' ? [0xe2, 0xea, 0xf1] : [0x91, 0xa3, 0xb5], `${theme} ${format}: external sprite takes the theme's flat fill`);
+          if (format !== 'source') {
+            assert.equal(await page.locator('body').evaluate(element => getComputedStyle(element).fontFamily), 'Roboto, sans-serif', `${theme} ${format}: outer page also imports fonts`);
+            const localEffect = await film.locator('[data-theme-effect]').evaluate(element => {
+              const filter = getComputedStyle(element).filter;
+              const id = /#([^"')]+)/.exec(filter)?.[1];
+              return { filter, resolves: id ? Boolean(document.getElementById(id)) : false };
+            });
+            assert.ok(theme === 'dark' ? localEffect.resolves : localEffect.filter === 'none', `${theme} ${format}: composition-local filter survives SVG ID rewriting: ${JSON.stringify(localEffect)}`);
+          }
+          assert.deepEqual(failures, [], `${theme} ${format}: every resource resolves`);
+          await page.close();
+        }
+      } finally {
+        server.close();
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+});

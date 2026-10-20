@@ -1,0 +1,62 @@
+/* Technical ink and tinted surfaces on a light canvas; geometry comes from the shared base. */
+@import "../base.css";
+
+:root {
+  --hue-pale-blue: #426b91;
+  --hue-lime: #47733a;
+  --hue-gold: #98701d;
+  --hue-cyan: #087a9c;
+  --hue-orange: #bc4924;
+  --hue-lime-top: #edf3e9;
+  --hue-lime-left: #bdcdb5;
+  --hue-lime-right: #9cb08f;
+  --hue-cyan-top: #e4f1f5;
+  --hue-cyan-left: #a2cbd6;
+  --hue-cyan-right: #79afc0;
+  --hue-gold-top: #f6f0df;
+  --hue-gold-left: #d8c795;
+  --hue-gold-right: #c3aa68;
+
+  --canvas: #f5f7f8;
+  --text: #1c2e3d;
+  --text-secondary: #43586a;
+  --text-muted: #526979;
+  --accent: #245c80;
+  --surface: #fff;
+  --surface-raised: #e5edf2;
+  --text-on-accent: #fff;
+  --border: #a9bac6;
+  --stroke-thin: 2;
+  --stroke-strong: 2.5;
+  --grid: #dfe7eb;
+  --texture-opacity: 1;
+  --background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  --background-size: 80px 80px;
+  --background-mask: radial-gradient(ellipse at 65% 38%, #000 0%, transparent 65%);
+  --roadmap-current-background: var(--surface-raised);
+  --glow-filter: none;
+  --ambient-opacity: 0;
+  --brand-image-filter: brightness(0) saturate(100%);
+  --face-top-opacity: .08;
+  --face-left-opacity: .20;
+  --face-right-opacity: .32;
+
+  --type-headline: 62px;
+  --type-card-question: 42px;
+  --headline-weight: 700;
+  --headline-spacing: -1px;
+  --support-weight: 400;
+  --category-spacing: 2.2px;
+  --accent-rule-width: 58px;
+  --accent-rule-height: 3px;
+  --card-number-weight: 300;
+  --card-number-spacing: -5px;
+  --card-count-weight: 400;
+
+  --cube-top: #e2eaf1;
+  --cube-left: #a4bbce;
+  --cube-right: #7896af;
+  --cube-edge: #426b91;
+}
+
+.background { background-image: var(--background-image); }

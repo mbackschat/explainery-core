@@ -1,11 +1,5 @@
-/*
- * Explainery dark theme. A project loads this stylesheet first and overrides tokens after it, so the cascade runs
- * core → theme → project. Components and scenes take colour only from these tokens.
- */
-@font-face { font-family: Roboto; src: url('fonts/roboto-regular.ttf'); font-weight: 400; }
-@font-face { font-family: Roboto; src: url('fonts/roboto-light.ttf'); font-weight: 300; }
-@font-face { font-family: Roboto; src: url('fonts/roboto-bold.ttf'); font-weight: 700; }
-@font-face { font-family: Roboto; src: url('fonts/roboto-black.ttf'); font-weight: 900; }
+/* The legacy entry point remains a complete theme; project overrides load after it. */
+@import "../base.css";
 
 :root {
   /* Generic hue palette. Projects map roles onto it, for example --harvest: var(--hue-lime). */
@@ -13,6 +7,17 @@
   --hue-lime: #b4df40;
   --hue-gold: #f3cd36;
   --hue-cyan: #32c5e8;
+  --hue-orange: #ff713e;
+
+  --hue-lime-top: #d0f458;
+  --hue-lime-left: #829e28;
+  --hue-lime-right: #536d17;
+  --hue-cyan-top: #9be6f7;
+  --hue-cyan-left: #1f86a0;
+  --hue-cyan-right: #135a6c;
+  --hue-gold-top: #f7e07a;
+  --hue-gold-left: #a68a1c;
+  --hue-gold-right: #6f5c12;
 
   --canvas: #000;
   --text: #fff;
@@ -20,23 +25,20 @@
   --text-muted: #aeb5b8;
   --accent: var(--hue-pale-blue);
   --texture-opacity: .38;
-
-  --font-family: Roboto, sans-serif;
-  --type-category: 17px;
-  --type-headline: 65px;
-  --type-support: 28px;
-  --type-diagram-label: 38px;
-  --type-diagram-tag: 15px;
-  --type-card-number: 150px;
-  --type-card-question: 44px;
-  --type-roadmap: 24px;
-  --type-agenda: 36px;
-
-  /* Copy block anchors at 1080p: the block sits low-left, below the diagram. */
-  --copy-left: 110px;
-  --copy-top: 786px;
-  --copy-width: 1500px;
-  --support-width: 650px;
+  --background-image: url('texture.svg');
+  --surface: #000;
+  --surface-raised: #161e26;
+  --text-on-accent: #000;
+  --border: #444;
+  --stroke-thin: 1.6;
+  --stroke-strong: 2;
+  --roadmap-current-background: transparent;
+  --glow-filter: initial;
+  --ambient-opacity: 1;
+  --brand-image-filter: none;
+  --face-top-opacity: .30;
+  --face-left-opacity: .16;
+  --face-right-opacity: .09;
 
   /* Faces of components/isometric.svg#cube. Recolour one cube by overriding these on its element. */
   --cube-top: #c5d9f0;
@@ -45,33 +47,5 @@
   --cube-edge: #b4cce8;
 }
 
-* { box-sizing: border-box; }
-body { background: var(--canvas); color: var(--text); font-family: var(--font-family); }
-
-.background { position: absolute; inset: 0; background: var(--canvas) url('texture.svg'); opacity: var(--texture-opacity); }
-
-.copy { position: absolute; left: var(--copy-left); top: var(--copy-top); width: var(--copy-width); }
-.accent-rule { width: 46px; height: 5px; background: var(--accent); }
-.category { margin: 14px 0 8px; color: var(--accent); font-size: var(--type-category); font-weight: 700; letter-spacing: 3px; }
-.copy h1 { margin: 0 0 10px; font-size: var(--type-headline); font-weight: 900; line-height: 1.1; letter-spacing: -1.1px; }
-.support { margin: 0; max-width: var(--support-width); color: var(--text-secondary); font-size: var(--type-support); line-height: 38px; font-weight: 300; }
-
-.diagram-label { font-size: var(--type-diagram-label); font-weight: 900; fill: var(--accent); text-anchor: middle; }
-.diagram-tag { font-size: var(--type-diagram-tag); font-weight: 700; letter-spacing: 2px; fill: var(--text-muted); text-anchor: middle; }
-
-/* Cards (cards.html): a chapter card opens a scene with its number, title and question beside the film's roadmap;
-   an agenda card lists every scene. Both cover the scenes beneath them while they show. */
-.explainery-card { position: absolute; inset: 0; background: var(--canvas); opacity: 0; }
-.explainery-card-main { position: absolute; left: var(--copy-left); top: 290px; width: 1060px; }
-.explainery-card .accent-rule { margin-bottom: 28px; }
-.explainery-card-number { margin: 0 0 18px; color: var(--accent); font-size: var(--type-card-number); font-weight: 900; line-height: 1; letter-spacing: -3px; }
-.explainery-card-count { color: var(--text-muted); font-size: calc(var(--type-card-number) / 3); font-weight: 300; letter-spacing: 0; }
-.explainery-card-title { margin: 0 0 22px; font-size: var(--type-headline); font-weight: 900; line-height: 1.1; letter-spacing: -1.1px; }
-.explainery-card-question { margin: 0 0 16px; color: var(--text-secondary); font-size: var(--type-card-question); font-weight: 300; line-height: 1.3; }
-.explainery-card-roadmap { position: absolute; left: 1290px; top: 330px; width: 520px; margin: 0; padding: 0; list-style: none; font-size: var(--type-roadmap); }
-.explainery-card-roadmap li { height: 44px; padding-left: 22px; line-height: 44px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.explainery-card-roadmap li.past { color: var(--text-muted); opacity: .5; }
-.explainery-card-roadmap li.current { color: var(--accent); font-weight: 700; box-shadow: inset 5px 0 var(--accent); }
-.explainery-card.agenda .explainery-card-main { top: 160px; width: var(--copy-width); }
-.explainery-card.agenda .explainery-card-roadmap { position: static; margin-top: 56px; width: auto; font-size: var(--type-agenda); }
-.explainery-card.agenda .explainery-card-roadmap li { height: 62px; line-height: 62px; }
+/* tests/explainer-browser.test.ts locks this URL base: browsers resolve substituted URLs at the consumer. */
+.background { background-image: var(--background-image); }

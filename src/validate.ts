@@ -5,6 +5,7 @@ import { narrationBeats, pronunciationErrors } from './narration.ts';
 import { checkStory, checkTiming } from './schemas.ts';
 import { storyCompositions, storyScenes } from './story.ts';
 import type { SceneTiming, Story, Timing } from './types.ts';
+import { validateTheme } from './theme.ts';
 
 // Timing values come from float arithmetic (estimates, alignment offsets); a microsecond is far below one frame.
 const EPSILON = 1e-6;
@@ -178,6 +179,6 @@ export async function validateProject(dir: string): Promise<ProjectValidation> {
   const story = await loadStory(dir);
   const timing = await load<Timing>(dir, 'timing.json', JSON.parse, checkTiming);
   if (!story.value || !timing.value) return { valid: false, errors: [...story.errors, ...timing.errors], story: story.value, timing: timing.value };
-  const errors = [...validateStoryTiming(story.value, timing.value), ...(await checkCompositions(dir, story.value))];
+  const errors = [...validateStoryTiming(story.value, timing.value), ...(await checkCompositions(dir, story.value)), ...(await validateTheme(dir, story.value))];
   return errors.length ? { valid: false, errors, story: story.value, timing: timing.value } : { valid: true, errors, story: story.value, timing: timing.value };
 }

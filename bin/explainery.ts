@@ -10,6 +10,7 @@ import { subtitleCues, formatSubtitles } from '../src/subtitles.ts';
 import { clearFocus, readFocus, writeFocus } from '../src/focus.ts';
 import { hyperframesDist } from '../src/hyperframes.ts';
 import { prepareSceneProject } from '../src/scene-project.ts';
+import { requireAssembledTheme } from '../src/theme.ts';
 import { selectionName } from '../src/story.ts';
 import { alignTimingWithReport, type AlignmentOptions, type AudioSegment } from '../src/align.ts';
 import { generateVoice } from '../src/voice.ts';
@@ -283,6 +284,7 @@ async function playback(mode: PlaybackMode) {
   const sceneIds = compositionIds.length ? [] : await playbackSceneIds(story);
   const narration = mode === 'preview' && flag('--narration');
   const view = sceneIds.length || compositionIds.length || narration ? await prepareSceneProject(project, sceneIds, { narration, compositionIds }) : { directory: project, start: 0, duration: timing.duration, sceneIds, compositionIds };
+  await requireAssembledTheme(view.directory, story);
   reportScope(story, timing, view);
   // A composition selection's scene id stays in sceneIds, so only compositionIds tells it apart from that scene.
   const selection = compositionIds.length ? { compositionIds } : { sceneIds };

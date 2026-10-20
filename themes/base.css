@@ -1,0 +1,65 @@
+/* Shared geometry and typography keep theme changes independent of scene timing and layout. */
+@font-face { font-family: Roboto; src: url('dark/fonts/roboto-regular.ttf'); font-weight: 400; }
+@font-face { font-family: Roboto; src: url('dark/fonts/roboto-light.ttf'); font-weight: 300; }
+@font-face { font-family: Roboto; src: url('dark/fonts/roboto-bold.ttf'); font-weight: 700; }
+@font-face { font-family: Roboto; src: url('dark/fonts/roboto-black.ttf'); font-weight: 900; }
+
+:root {
+  --font-family: Roboto, sans-serif;
+  --type-category: 17px;
+  --type-headline: 65px;
+  --type-support: 28px;
+  --type-diagram-label: 38px;
+  --type-diagram-tag: 15px;
+  --type-card-number: 150px;
+  --type-card-question: 44px;
+  --type-roadmap: 24px;
+  --type-agenda: 36px;
+
+  /* Copy block anchors at 1080p: the block sits low-left, below the diagram. */
+  --copy-left: 110px;
+  --copy-top: 786px;
+  --copy-width: 1500px;
+  --support-width: 650px;
+
+  --headline-weight: 900;
+  --headline-spacing: -1.1px;
+  --support-weight: 300;
+  --category-spacing: 3px;
+  --accent-rule-width: 46px;
+  --accent-rule-height: 5px;
+  --card-number-weight: 900;
+  --card-number-spacing: -3px;
+  --card-count-weight: 300;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--canvas); color: var(--text); font-family: var(--font-family); }
+
+.background { position: absolute; inset: 0; background-color: var(--canvas); background-size: var(--background-size, auto); opacity: var(--texture-opacity); mask-image: var(--background-mask, none); }
+
+.copy { position: absolute; left: var(--copy-left); top: var(--copy-top); width: var(--copy-width); }
+.accent-rule { width: var(--accent-rule-width); height: var(--accent-rule-height); background: var(--accent); }
+.category { margin: 14px 0 8px; color: var(--accent); font-size: var(--type-category); font-weight: 700; letter-spacing: var(--category-spacing); }
+.copy h1 { margin: 0 0 10px; font-size: var(--type-headline); font-weight: var(--headline-weight); line-height: 1.1; letter-spacing: var(--headline-spacing); }
+.support { margin: 0; max-width: var(--support-width); color: var(--text-secondary); font-size: var(--type-support); line-height: 38px; font-weight: var(--support-weight); }
+
+.diagram-label { font-size: var(--type-diagram-label); font-weight: 900; fill: var(--accent); text-anchor: middle; }
+.diagram-tag { font-size: var(--type-diagram-tag); font-weight: 700; letter-spacing: 2px; fill: var(--text-muted); text-anchor: middle; }
+
+/* Cards (cards.html): a chapter card opens a scene with its number, title and question beside the film's roadmap;
+   an agenda card lists every scene. Both cover the scenes beneath them while they show. */
+.explainery-card { position: absolute; inset: 0; background: var(--canvas); opacity: 0; }
+.explainery-card-main { position: absolute; left: var(--copy-left); top: 290px; width: 1060px; }
+.explainery-card .accent-rule { margin-bottom: 28px; }
+.explainery-card-number { margin: 0 0 18px; color: var(--accent); font-size: var(--type-card-number); font-weight: var(--card-number-weight); line-height: 1; letter-spacing: var(--card-number-spacing); }
+.explainery-card-count { color: var(--text-muted); font-size: calc(var(--type-card-number) / 3); font-weight: var(--card-count-weight); letter-spacing: 0; }
+.explainery-card-title { margin: 0 0 22px; font-size: var(--type-headline); font-weight: var(--headline-weight); line-height: 1.1; letter-spacing: var(--headline-spacing); }
+.explainery-card-question { margin: 0 0 16px; color: var(--text-secondary); font-size: var(--type-card-question); font-weight: var(--support-weight); line-height: 1.3; }
+.explainery-card-roadmap { position: absolute; left: 1290px; top: 330px; width: 520px; margin: 0; padding: 0; list-style: none; font-size: var(--type-roadmap); }
+.explainery-card-roadmap li { height: 44px; padding-left: 22px; line-height: 44px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.explainery-card-roadmap li.past { color: var(--text-muted); opacity: .5; }
+.explainery-card-roadmap li.current { color: var(--accent); font-weight: 700; box-shadow: inset 5px 0 var(--accent); background: var(--roadmap-current-background); }
+.explainery-card.agenda .explainery-card-main { top: 160px; width: var(--copy-width); }
+.explainery-card.agenda .explainery-card-roadmap { position: static; margin-top: 56px; width: auto; font-size: var(--type-agenda); }
+.explainery-card.agenda .explainery-card-roadmap li { height: 62px; line-height: 62px; }

@@ -8,6 +8,9 @@ const EXTERNAL = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
 const EMBEDDED = /^(?:data:|#)/i;
 const CSS_REFERENCE = /url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|((?:\\.|[^)"'\\])*))\s*\)|@import\s+(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)')|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/gi;
 
+/** URL query strings and fragments select a resource variant, never its local filename. */
+export const localPathname = (ref: string): string => decodeURIComponent(ref.split(/[?#]/)[0]);
+
 function cssReferences(text: string): string[] {
   const uncommented = text.replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\/\*[\s\S]*?\*\//g, value => value.startsWith('/*') ? '' : value);
   return [...uncommented.matchAll(CSS_REFERENCE)].flatMap(match => {
@@ -187,7 +190,7 @@ export async function filmFiles(projectDir: string, { strict = false }: { strict
         if (EMBEDDED.test(ref)) continue;
         if (EXTERNAL.test(ref)) { unsupported(ref); continue; }
         if (kind === 'modules' && !/^(?:\.{1,2}\/|\/)/.test(ref)) { unsupported(`bare module import "${ref}"`); continue; }
-        const pathname = decodeURIComponent(ref.split(/[?#]/)[0]);
+        const pathname = localPathname(ref);
         await visit(posix.normalize(posix.join(pathname.startsWith('/') ? '' : base, pathname.replace(/^\//, ''))), path);
       }
     }

@@ -9,6 +9,7 @@ import { spokenText } from './narration.ts';
 import { sceneRange, storyScenes } from './story.ts';
 import type { Scene, Story, Timing } from './types.ts';
 import { validateProject } from './validate.ts';
+import { requireAssembledTheme } from './theme.ts';
 
 const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const seconds = (value: number) => String(Number(value.toFixed(6)));
@@ -98,7 +99,7 @@ ${head}
       .explainer-scene-intro p { margin: 0 0 10px; color: var(--text-secondary, #aaa); font-size: 14px; }
       .explainer-scene-index { font-size: 14px; line-height: 1.8; color: var(--text-secondary, #aaa); }
       .explainer-scene-index a { color: inherit; text-underline-offset: 3px; }
-      .explainer-scene-index a:hover, .explainer-scene-index a:focus-visible { color: var(--text-primary, #fff); }
+      .explainer-scene-index a:hover, .explainer-scene-index a:focus-visible { color: var(--text, #fff); }
       .explainer-scene-intro + .explainer-scene { margin-top: 32px; }
       .explainer-scene { scroll-margin-top: 24px; display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 40px; align-items: center; margin: 96px 0; }
       .explainer-scene-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; font-size: 13px; color: var(--text-secondary, #aaa); }
@@ -359,6 +360,7 @@ export async function exportExplainer(projectDir: string, outDir: string, option
   const validation = await validateProject(projectDir);
   if (!validation.valid) throw new Error(`The project does not validate:\n${validation.errors.join('\n')}`);
   const { story, timing } = validation;
+  await requireAssembledTheme(projectDir, story);
   const subtitles = await exportSubtitles(options, timing.duration);
   const files = await filmFiles(projectDir);
   await prepareOutput(outDir);

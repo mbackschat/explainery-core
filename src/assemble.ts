@@ -1,6 +1,7 @@
 import type { Story, Timing } from './types.ts';
 import { cardLayerVariables } from './cards.ts';
 import { storyCompositions } from './story.ts';
+import { themeHref } from './theme.ts';
 
 interface Attribute {
   raw: string;
@@ -29,7 +30,8 @@ function setAttribute(attributes: Attribute[], name: string, value: string) {
 /**
  * Writes the story's timing and copy into a project's index.html and returns the new HTML with any errors.
  *
- * Only managed attributes change: each composition host (data-composition-src plus its data-composition-id) gets
+ * Only managed attributes change: an optional data-story-theme stylesheet gets the story's theme href; each
+ * composition host (data-composition-src plus its data-composition-id) gets
  * data-start, data-duration, and data-variable-values {copy, beats, duration}; the root composition and every
  * element marked data-story-span get the story duration; an element marked data-story-audio gets timing.audio as
  * its src and ends with timing.audioDuration when the audio is shorter than the film, because HyperFrames' strict
@@ -47,11 +49,19 @@ export function assembleIndex(html: string, story: Story, timing: Timing): { htm
   const linkedLayers: string[] = [];
   const total = String(timing.duration);
   let rootSeen = false;
+  let themeLinks = 0;
+  const errors: string[] = [];
   const assembled = html.replace(TAG, (tag, name: string, attributeText: string, closing: string) => {
     const attributes = parseAttributes(attributeText);
     const has = (attributeName: string) => attributes.some(attribute => attribute.name === attributeName);
     const compositionId = attributes.find(attribute => attribute.name === 'data-composition-id')?.value;
-    if (compositionId === undefined && !has('data-story-span') && !has('data-story-audio') && !has('data-story-cards')) return tag;
+    if (has('data-story-theme')) {
+      themeLinks++;
+      if (name.toLowerCase() !== 'link' || attributes.find(attribute => attribute.name === 'rel')?.value !== 'stylesheet') {
+        errors.push('index.html: data-story-theme belongs on a stylesheet link');
+      } else setAttribute(attributes, 'href', themeHref(story.theme));
+    }
+    if (compositionId === undefined && !has('data-story-span') && !has('data-story-audio') && !has('data-story-cards') && !has('data-story-theme')) return tag;
     if (compositionId !== undefined && !has('data-composition-src') && !rootSeen) {
       rootSeen = true;
       setAttribute(attributes, 'data-duration', total);
@@ -81,7 +91,7 @@ export function assembleIndex(html: string, story: Story, timing: Timing): { htm
     }
     return `<${name}${attributes.map(attribute => attribute.raw).join('')}${closing}>`;
   });
-  const errors: string[] = [];
+  if (themeLinks > 1) errors.push('index.html: keep one data-story-theme stylesheet');
   for (const id of scenes.keys()) {
     const count = hosts.get(id) ?? 0;
     if (count === 0) errors.push(`index.html: no host with data-composition-src for scene "${id}"`);

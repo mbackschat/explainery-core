@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve } from 'node:path';
@@ -9,6 +10,8 @@ import { renderExplainerPage, stylesheetsOf } from './explainer.ts';
 import { hyperframesDist } from './hyperframes.ts';
 import { validateProject } from './validate.ts';
 import { storyScenes } from './story.ts';
+import { requireAssembledTheme } from './theme.ts';
+import { localPathname } from './film-files.ts';
 
 const MIME: Record<string, string> = {
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
@@ -21,6 +24,7 @@ const EXTERNAL = /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i;
 const SCRIPT = /<script\b[^>]*>[\s\S]*?<\/script>/g;
 const ATTRIBUTE = /(\s(?:src|href|poster|xlink:href)=")([^"]*)"/g;
 const CSS_URL = /url\(\s*(["']?)([^"')]+)\1\s*\)/g;
+const CSS_IMPORT = /@import\s+(?:url\(\s*(["']?)([^)"']+)\1\s*\)|(["'])([^"']+)\3)\s*([^;]*);|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g;
 
 async function replaceAsync(text: string, pattern: RegExp, replace: (...match: string[]) => Promise<string>): Promise<string> {
   const replacements = await Promise.all([...text.matchAll(pattern)].map(match => replace(...match)));
@@ -36,8 +40,13 @@ async function outsideScripts(html: string, edit: (markup: string) => Promise<st
 
 const scriptText = (code: string) => code.replaceAll('</script', '<\\/script');
 
+function cssFilePath(projectDir: string, folder: string, ref: string): string {
+  const pathname = localPathname(ref);
+  return resolve(pathname.startsWith('/') ? projectDir : folder, pathname.replace(/^\//, ''));
+}
+
 /** HyperFrames' bundler, which 0.8.142 ships only inside its CLI's hashed dist modules, with no public export. */
-async function bundler(projectDir: string): Promise<(projectDir: string) => Promise<string>> {
+async function bundler(projectDir: string): Promise<(projectDir: string, options?: { entryFile: string }) => Promise<string>> {
   const dist = hyperframesDist(projectDir);
   const file = (await readdir(dist)).find(name => /^compiler-[\w-]+\.js$/.test(name));
   const module = file ? await import(pathToFileURL(join(dist, file)).href) : {};
@@ -64,11 +73,30 @@ function embedder(projectDir: string, work: string) {
       return ref;
     }
   };
-  /** Embeds every url() of a stylesheet, resolved relative to the stylesheet's folder. */
-  const css = (text: string, folder: string) => replaceAsync(text, CSS_URL, async (whole, _quote, ref) => {
-    const [path, fragment = ''] = ref.split('#');
-    return EXTERNAL.test(ref) ? whole : `url("${await dataUri(resolve(folder, path), ref)}${fragment && `#${fragment}`}")`;
-  });
+  /** Imports keep their own resource base; flattening them after URL embedding would lose that base. */
+  const css = async (text: string, folder: string, ancestors = new Set<string>()): Promise<string> => {
+    const imported = await replaceAsync(text, CSS_IMPORT, async (whole, _urlQuote, urlPath, _stringQuote, stringPath, condition) => {
+      const ref = urlPath ?? stringPath;
+      if (!ref || EXTERNAL.test(ref)) return whole;
+      const path = cssFilePath(projectDir, folder, ref);
+      if (ancestors.has(path)) return '';
+      let source: string;
+      try {
+        source = await readFile(path, 'utf8');
+      } catch {
+        missing.add(ref);
+        return '';
+      }
+      const media = condition.trim();
+      if (/^(?:layer|supports)\b/.test(media)) throw new Error(`Cannot embed conditional CSS import "${ref}": use a plain import or media query`);
+      const content = await css(source, dirname(path), new Set([...ancestors, path]));
+      return media ? `@media ${media} {\n${content}\n}` : content;
+    });
+    return replaceAsync(imported, CSS_URL, async (whole, _quote, ref) => {
+      const fragment = ref.includes('#') ? ref.slice(ref.indexOf('#')) : '';
+      return EXTERNAL.test(ref) ? whole : `url("${await dataUri(cssFilePath(projectDir, folder, ref), ref)}${fragment}")`;
+    });
+  };
   return { missing, dataUri, css };
 }
 
@@ -80,7 +108,25 @@ function embedder(projectDir: string, work: string) {
  */
 async function selfContainedFilm(projectDir: string, work: string): Promise<string> {
   const { missing, dataUri, css } = embedder(projectDir, work);
-  let film = await (await bundler(projectDir))(projectDir);
+  const inlineStylesheets = (html: string): Promise<string> => outsideScripts(html, markup => replaceAsync(markup, /<link\b[^>]*\srel=["']stylesheet["'][^>]*>/g, async whole => {
+    const ref = whole.match(/\shref=(["'])([^"']+)\1/)?.[2];
+    if (!ref || EXTERNAL.test(ref)) return whole;
+    const path = cssFilePath(projectDir, projectDir, ref);
+    const media = whole.match(/\smedia=(["'])[^"']*\1/)?.[0] ?? '';
+    return `<style${media}>${await css(await readFile(path, 'utf8'), dirname(path), new Set([path]))}</style>`;
+  }));
+  // HyperFrames 0.8.142 leaves imports across the package symlink relative to an inlined parent stylesheet.
+  // tests/explainer-browser.test.ts reproduces that lost base with a film-local theme extending bundled light.
+  const entryFile = `.explainery-export-${randomUUID()}.html`;
+  const entryPath = join(projectDir, entryFile);
+  const source = await inlineStylesheets(await readFile(join(projectDir, 'index.html'), 'utf8'));
+  await writeFile(entryPath, source, { flag: 'wx' });
+  let film: string;
+  try {
+    film = await (await bundler(projectDir))(projectDir, { entryFile });
+  } finally {
+    await rm(entryPath, { force: true });
+  }
 
   const sprites = new Set<string>();
   film = await outsideScripts(film, async markup => markup.replace(/(<use\b[^>]*?\s(?:xlink:)?href=")([^"#]+\.svg)#([^"]+)"/g, (_, head, file, id) => {
@@ -106,17 +152,7 @@ async function selfContainedFilm(projectDir: string, work: string): Promise<stri
       return whole;
     }
   });
-  film = await replaceAsync(film, /<link\b[^>]*\srel="stylesheet"[^>]*>/g, async whole => {
-    const ref = whole.match(/\shref="([^"]+)"/)?.[1];
-    if (!ref || EXTERNAL.test(ref)) return whole;
-    const path = resolve(projectDir, ref);
-    try {
-      return `<style>${await css(await readFile(path, 'utf8'), dirname(path))}</style>`;
-    } catch {
-      missing.add(ref);
-      return whole;
-    }
-  });
+  film = await inlineStylesheets(film);
   film = await outsideScripts(film, async markup => {
     const attributes = await replaceAsync(markup, ATTRIBUTE, async (whole, head, ref) =>
       EXTERNAL.test(ref) || !ref ? whole : `${head}${await dataUri(resolve(projectDir, ref.split('#')[0]), ref)}"`);
@@ -139,14 +175,15 @@ export async function exportExplainerFile(projectDir: string, outFile: string, o
   const validation = await validateProject(projectDir);
   if (!validation.valid) throw new Error(`The project does not validate:\n${validation.errors.join('\n')}`);
   const { story, timing } = validation;
+  await requireAssembledTheme(projectDir, story);
   const subtitles = await exportSubtitles(options, timing.duration);
   const work = await mkdtemp(join(tmpdir(), 'explainery-file-'));
   try {
     const film = await selfContainedFilm(projectDir, work);
     const { missing, css } = embedder(projectDir, work);
     const styles = await Promise.all(stylesheetsOf(await readFile(join(projectDir, 'index.html'), 'utf8')).map(async href => {
-      const path = resolve(projectDir, href);
-      return `    <style>${await css(await readFile(path, 'utf8'), dirname(path))}</style>`;
+      const path = cssFilePath(projectDir, projectDir, href);
+      return `    <style>${await css(await readFile(path, 'utf8'), dirname(path), new Set([path]))}</style>`;
     }));
     if (missing.size) throw new Error(`The page's stylesheets reference files the single file cannot embed:\n${[...missing].join('\n')}`);
     const player = await readFile(join(hyperframesDist(projectDir), 'hyperframes-player.global.js'), 'utf8');

@@ -121,8 +121,8 @@ test('a scene whose composition is missing or mislabelled fails', async () => {
 
 test('schema violations are reported per file and stop the semantic checks', async () => {
   const errors = (await validateProject(await project({ storyYaml: storyYaml.replace('theme: dark', 'theme: Dark'), timingJson: '{ "source": "estimate" }', compositions: { intro: introHtml } }))).errors;
-  assert.deepEqual(errors, [
-    'story.yaml /theme: must match pattern "^[a-z0-9]+(-[a-z0-9]+)*$"',
+  assert.match(errors[0], /^story.yaml \/theme: must match pattern /);
+  assert.deepEqual(errors.slice(1), [
     "timing.json /: must have required property 'duration'",
     "timing.json /: must have required property 'scenes'",
   ]);

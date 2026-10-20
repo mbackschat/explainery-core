@@ -247,6 +247,36 @@ For example, an `introduction` scene could contain `problem` and `solution` comp
 | `problem` / `arrive` | Three requests enter separate inboxes; two carry the same task label. | The duplicated task is visible before the next beat. |
 | `solution` / `route` | The inboxes converge into one queue; the duplicate merges into the existing item. | One item remains per task, and the shared queue stays readable through the closing hold. |
 
+## Author for both themes
+
+The film selects a bundled slug such as `dark` or `light`, or its own `./themes/<name>/theme.css`, through `story.theme` and one `<link rel="stylesheet" data-story-theme href="node_modules/explainery-core/themes/dark/theme.css">` before project styles. Run `explainery assemble` after changing the selection. Bundled slugs always resolve in core; local files require the explicit path and cannot silently shadow them. Legacy links without the marker keep their authored href. The [shared base](../themes/base.css) owns layout and font declarations; each theme owns palette and presentation values. Keep geometry, timing, copy and semantic role mappings in their existing owners when switching themes.
+
+For a small override, keep the selected bundled theme and load a project stylesheet after it. For a named film-local theme, select `theme: ./themes/technical/theme.css` and let that entry point extend a bundled theme:
+
+```css
+/* themes/technical/theme.css */
+@import "../../node_modules/explainery-core/themes/light/theme.css";
+:root { --accent: #345878; --surface-raised: #e8edf3; }
+```
+
+A film-local theme can instead import the bundled `themes/base.css` and supply the visual tokens itself. It owns its palette and artwork in the film repository; core remains client-neutral. Selection is explicit CSS composition, with no configuration inheritance graph or filesystem-dependent fallback.
+
+| Purpose | Tokens and contract |
+| --- | --- |
+| Canvas and text | `--canvas`, `--text`, `--text-secondary`, `--text-muted`, `--text-on-accent` |
+| Surfaces and outlines | `--surface`, `--surface-raised`, `--border`, `--stroke-thin`, `--stroke-strong`; a themeable panel uses a surface token instead of literal black or white, and SVG stroke widths can use the unitless stroke tokens |
+| Semantic role palette | Map story roles to `--hue-pale-blue`, `--hue-lime`, `--hue-cyan`, `--hue-gold`, `--hue-orange`; use `--accent` for shared copy |
+| Isometric solid faces | `--cube-top`, `--cube-left`, `--cube-right`, `--cube-edge`; lime, cyan and gold also provide `--hue-<name>-top`, `--hue-<name>-left`, `--hue-<name>-right` for role mappings |
+| Tinted faces | `--face-top-opacity`, `--face-left-opacity`, `--face-right-opacity` apply to a role-coloured face over the canvas |
+| Scene glow | `filter: var(--glow-filter, url(#local-glow))`; dark leaves the token invalid with `initial`, so the local fallback applies; light sets `none` |
+| Ambient emission | `--ambient-opacity` is `1` in dark and `0` in light; apply it to the luminous shape inside any animated opacity wrapper, keeping ordinary gradient scrims independent |
+| Monochrome brand artwork | `filter: var(--brand-image-filter)` on an image designed for this treatment; multicolour artwork requires its own authored alternative |
+| Typography and copy geometry | The shared base's `--font-family`, `--type-*`, `--copy-*` and font-weight/spacing tokens; theme changes do not automatically reflow scene geometry |
+
+Put a glow's `url(#local-glow)` directly in the consuming element's fallback. A root custom property cannot resolve a filter variable defined only on a descendant. Keep the local SVG filter definition inside its composition so HyperFrames can rewrite the ID and its reference together. Flat fills in an external SVG `<use>` can inherit custom properties; external gradient stops and isolated `<image>` documents cannot be assumed to inherit them ([measured limitation](adr/0001-explainery-architecture.md#themes)). Use flat token-driven sprite faces, or inline artwork that needs themeable gradients.
+
+Theme entry points import `../base.css`. Keep a URL token and the property consuming it in the same stylesheet: browsers resolve substituted relative URLs from the consuming stylesheet, while export embeds a URL from its source file. The theme's `.background` rule therefore consumes its own image token. Folder exports retain the CSS dependency tree. Single-file exports flatten local imports and embed each imported stylesheet's assets, supporting plain imports and media queries; imports with `layer()` or `supports()` are rejected. Keep resources local for offline delivery. Changing a theme or shared overlay affects every scene: verify representative beats, joins and cards in both themes, then inspect an MP4 and both export formats. Snapshot appearance alone cannot establish render parity.
+
 ## Declare the scene
 
 The scene grouping contract extends `story.scenes` with one explicit grouping level. A legacy flat entry is an editorial scene containing one composition, with the same ID. Existing composition paths, narration markers, and `timing.scenes` keys continue to work.
