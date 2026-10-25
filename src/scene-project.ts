@@ -3,6 +3,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 import { parseHTML } from 'linkedom';
 import { assembleIndex } from './assemble.ts';
 import { addPreviewNarration } from './preview-narration.ts';
+import { preparePreviewOverlays } from './preview-overlays.ts';
 import { audioDuration } from './hyperframes.ts';
 import { cardLayerVariables } from './cards.ts';
 import { checkTiming } from './schemas.ts';
@@ -18,6 +19,14 @@ export interface PreparedSceneProject {
   sceneIds: string[];
   /** The selected compositions, empty unless the view selects compositions inside one scene. */
   compositionIds: string[];
+}
+
+export interface SceneProjectOptions {
+  narration?: boolean;
+  compositionIds?: string[];
+  /** Preview-only presenter plan and WebVTT paths, relative to the caller's working directory. */
+  presenters?: string;
+  subtitles?: string;
 }
 
 const seconds = (value: number) => String(Number(value.toFixed(6)));
@@ -169,17 +178,18 @@ async function retimeAudio(document: Page, project: string, selection: SceneSele
  * rewritten. Runtime files are independent copies refreshed on every invocation, including animation/style
  * edits; node_modules keeps the project's normal dependency link. Audio is intersected with both the selected
  * range and the actual media tail, preserving source offsets. Authoring stays in the source project.
- * Optional narration adds estimated script captions only to this disposable view; an empty selection in that
- * mode previews the full film, including leading and trailing gaps. `compositionIds` replaces the scene list with
+ * Optional review overlays are validated before refreshing the disposable view; an empty selection with any
+ * overlay previews the full film, including leading and trailing gaps. `compositionIds` replaces the scene list with
  * consecutive compositions of one scene, on their own enclosing range.
  */
-export async function prepareSceneProject(projectDir: string, sceneIds: string[], { narration = false, compositionIds = [] }: { narration?: boolean; compositionIds?: string[] } = {}): Promise<PreparedSceneProject> {
+export async function prepareSceneProject(projectDir: string, sceneIds: string[], { narration = false, compositionIds = [], presenters, subtitles }: SceneProjectOptions = {}): Promise<PreparedSceneProject> {
   const project = resolve(projectDir);
   if (sceneIds.length && compositionIds.length) throw new Error('select either scenes or compositions, not both');
+  if (narration && subtitles !== undefined) throw new Error('--narration and --subtitles are mutually exclusive');
   const { story, timing, sourceHTML } = await loadSource(project);
   const compositionSelection = compositionIds.length ? selectCompositions(story, timing, compositionIds) : undefined;
   const selectedSceneIds = compositionSelection ? [compositionSelection.sceneId] : sceneIds;
-  const selection = compositionSelection ?? (!sceneIds.length && narration
+  const selection = compositionSelection ?? (!sceneIds.length && (narration || presenters !== undefined || subtitles !== undefined)
     ? { start: 0, end: timing.duration, duration: timing.duration, compositionIds: new Set(storyCompositions(story).map(part => part.id)) }
     : selectScenes(story, timing, sceneIds));
   const document = assembledPage(sourceHTML, story, timing);
@@ -189,11 +199,29 @@ export async function prepareSceneProject(projectDir: string, sceneIds: string[]
   retimeCards(document, story, timing, selection);
   await retimeAudio(document, project, selection);
 
+  const overlays = await preparePreviewOverlays(project, story, timing, selection, { presenters, subtitles });
+  if (overlays.html) {
+    if (document.querySelector('[id="explainery-preview-overlays"], [data-composition-id="explainery-preview-overlays"]')) throw new Error('explainery-preview-overlays is reserved for preview overlays');
+    if (await lstat(join(project, 'explainery-preview')).catch(error => { if (!missing(error)) throw error; return undefined; })) throw new Error('explainery-preview is reserved for generated preview files');
+    const host = document.createElement('div');
+    for (const [name, value] of Object.entries({
+      id: 'explainery-preview-overlays', class: 'clip', 'data-composition-id': 'explainery-preview-overlays',
+      'data-composition-src': 'explainery-preview/overlays.html', 'data-start': '0', 'data-duration': seconds(selection.duration),
+      'data-width': String(story.canvas.width), 'data-height': String(story.canvas.height),
+      style: 'position:absolute;inset:0;width:100%;height:100%;z-index:2147483646;pointer-events:none',
+    })) host.setAttribute(name, value);
+    document.querySelector('[data-composition-id]:not([data-composition-src])')!.appendChild(host);
+  }
   if (narration) addPreviewNarration(document, story, timing, selection);
   const directory = selectedSceneIds.length
     ? join(project, '.explainery', 'scenes', `${story.id}--${selectionName(selectedSceneIds, compositionIds)}`)
     : join(project, '.explainery', 'preview', `${story.id}--full`);
   await refreshSources(project, directory);
+  if (overlays.html) {
+    await mkdir(join(directory, 'explainery-preview'), { recursive: true });
+    for (const asset of overlays.assets) await cp(asset.source, join(directory, asset.destination));
+    await writeFile(join(directory, 'explainery-preview/overlays.html'), overlays.html);
+  }
   await writeFile(join(directory, 'index.html'), document.toString());
   return { directory, start: selection.start, duration: selection.duration, sceneIds: [...selectedSceneIds], compositionIds: [...compositionIds] };
 }

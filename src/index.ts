@@ -10,7 +10,7 @@ export { COMMON_PRONUNCIATIONS, narrationBeats, pronunciationErrors, spokenText,
 export { audioDuration, silences, transcribe } from './hyperframes.ts';
 export { checkStory, checkTiming } from './schemas.ts';
 export { sceneRange, storyCompositions, storyScenes } from './story.ts';
-export { prepareSceneProject, type PreparedSceneProject } from './scene-project.ts';
+export { prepareSceneProject, type PreparedSceneProject, type SceneProjectOptions } from './scene-project.ts';
 export type { Composition, Copy, Scene, SceneTiming, Story, StoryVoice, Timing } from './types.ts';
 export { deferredReveals, loadStory, validateProject, validateStoryTiming, type ProjectValidation } from './validate.ts';
 export { subtitleCues, formatSubtitles, type SubtitleCue, type SubtitleFormat } from './subtitles.ts';

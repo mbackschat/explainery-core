@@ -374,3 +374,47 @@ test('verify rejects a composition outside the selected scene, and a pixel toler
   assert.equal(tolerance.status, 1);
   assert.equal(tolerance.stderr, '--pixel-tolerance applies only to the isolation comparisons that --quick skips\n');
 });
+
+test('review subtitles follow focused and full previews and reject render or draft-caption combinations', async t => {
+  const { cwd, project, run } = await fixture(t);
+  const captions = join(cwd, 'review.vtt');
+  await writeFile(captions, 'WEBVTT\n\n00:01.000 --> 00:03.000\nReviewed words.\n');
+  const source = await readFile(join(project, 'index.html'), 'utf8');
+  await run(['focus', project, '--scene', 'chapter']);
+  for (const scope of [[], ['--film'], ['--composition', 'part-a']]) {
+    const args = ['preview', project, ...scope, '--subtitles', 'review.vtt'];
+    const preview = await run(args);
+    assert.equal(preview.status, 0, preview.stderr);
+    assert.notEqual(preview.argv![1], project);
+    assert.match(await readFile(join(preview.argv![1], 'index.html'), 'utf8'), /explainery-preview-overlays/);
+    for (const control of ['--status', '--stop']) {
+      const result = await run([...args, control]);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.argv![1], preview.argv![1]);
+      assert.ok(result.argv!.includes(control));
+    }
+  }
+  assert.equal(await readFile(join(project, 'index.html'), 'utf8'), source);
+  for (const args of [
+    ['render', project, '--subtitles', captions],
+    ['render', project, '--presenters', 'missing.json'],
+    ['preview', project, '--narration', '--subtitles', captions],
+  ]) {
+    const result = await run(args);
+    assert.equal(result.status, 1);
+    assert.equal(result.argv, undefined);
+    assert.match(result.stderr, /preview|mutually exclusive/);
+  }
+});
+
+test('presenter preview options resolve from the caller and disappear before ordinary rendering', async t => {
+  const { cwd, project, run } = await fixture(t);
+  await writeFile(join(project, 'portrait.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64'));
+  await writeFile(join(cwd, 'presenters.json'), JSON.stringify({ portrait: 'portrait.png', frame: { x: 1500, y: 620, width: 320, height: 320, shape: 'circle' }, appearances: [{ composition: 'part-a', start: 1, end: 2 }] }));
+  const preview = await run(['preview', project, '--scene', 'chapter', '--presenters', 'presenters.json', '--narration']);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.match(await readFile(join(preview.argv![1], 'index.html'), 'utf8'), /explainery-preview-overlays/);
+  const rendered = await run(['render', project, '--scene', 'chapter']);
+  assert.equal(rendered.status, 0, rendered.stderr);
+  assert.doesNotMatch(await readFile(join(rendered.argv![1], 'index.html'), 'utf8'), /explainery-preview-overlays|data-preview-narration/);
+});

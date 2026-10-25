@@ -250,3 +250,37 @@ test('the pinned HyperFrames compiler mounts selected compositions from the gene
   assert.ok(html.includes('background: #123'), 'The compiler must read the copied project stylesheet.');
   assert.ok(!/lead authored artwork|final authored artwork/.test(html), 'Unselected compositions must not be mounted.');
 });
+
+test('review overlays are disposable, preserve audio and source, and validate before replacing a view', async t => {
+  const dir = await project(t);
+  const captions = join(dir, 'review.vtt');
+  await writeFile(captions, 'WEBVTT\n\n00:01.000 --> 00:03.000\nReviewed words.\n');
+  const originals = await Promise.all(['index.html', 'story.yaml', 'timing.json', 'assets/narration.wav'].map(name => readFile(join(dir, name))));
+  const view = await prepareSceneProject(dir, ['chapter'], { subtitles: captions });
+  const document = await readIndex(view.directory);
+  const host = document.querySelector('[data-composition-id="explainery-preview-overlays"]');
+  assert.ok(host);
+  assert.equal(host.getAttribute('data-start'), '0');
+  assert.equal(host.getAttribute('data-duration'), '8');
+  assert.equal(document.querySelector('audio')!.getAttribute('data-media-start'), '2');
+  const overlayFile = join(view.directory, host.getAttribute('data-composition-src')!);
+  assert.match(await readFile(overlayFile, 'utf8'), /Reviewed words\./);
+  assert.deepEqual(await Promise.all(['index.html', 'story.yaml', 'timing.json', 'assets/narration.wav'].map(name => readFile(join(dir, name)))), originals);
+  const prepared = await readFile(join(view.directory, 'index.html'), 'utf8');
+  await writeFile(captions, 'Not WebVTT');
+  await assert.rejects(prepareSceneProject(dir, ['chapter'], { subtitles: captions }), /WebVTT/);
+  assert.equal(await readFile(join(view.directory, 'index.html'), 'utf8'), prepared);
+  await prepareSceneProject(dir, ['chapter']);
+  assert.equal((await readIndex(view.directory)).querySelector('[data-composition-id="explainery-preview-overlays"]'), null);
+  await assert.rejects(readFile(overlayFile), { code: 'ENOENT' });
+});
+
+test('full-film review keeps leading and trailing gaps rather than only the scene range', async t => {
+  const shifted: Timing = { ...timing, duration: 21, scenes: Object.fromEntries(Object.entries(timing.scenes).map(([id, slot]) => [id, { ...slot, start: slot.start + 1 }])) };
+  const dir = await project(t, { timing: shifted, audio: false });
+  const captions = join(dir, 'review.vtt');
+  await writeFile(captions, 'WEBVTT\n\n00:00.000 --> 00:00.500\nLeading.\n\n00:20.000 --> 00:21.000\nTrailing.\n');
+  const view = await prepareSceneProject(dir, [], { subtitles: captions });
+  assert.equal(view.start, 0);
+  assert.equal(view.duration, 21);
+});
