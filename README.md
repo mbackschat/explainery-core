@@ -14,7 +14,7 @@ This repository, `explainery-core`, is the framework. Each film lives in its own
 - Navigate MP4s with [automatic scene chapters](#mp4-scene-chapters), or refresh chapters in an existing render.
 - Generate [optional SRT and WebVTT subtitles](#generate-optional-subtitles), or review the [background sound proposal](docs/proposals/background-sound.md).
 - Review the [review loop proposal](docs/proposals/review-loop.md): headlines that change at a beat, review in the browser, and delivery audio mastering.
-- Review the [speaker overlay proposal](docs/proposals/speaker-overlays.md): consistent generated presenters, passage-level reuse, and generation costs.
+- Plan presenters with the [appearance and framing guidelines](docs/authoring.md#use-presenters-selectively); the [speaker overlay proposal](docs/proposals/speaker-overlays.md) covers asset reuse and dated generation-cost research.
 - Read [ADR 0011](docs/adr/0011-scene-revision-loop.md) behind beat-addressed snapshots, shared motion helpers, voice settings in the story and composition selection.
 - Time narration: [estimate](#estimate-timing-before-a-voice-exists), [draft a voice](#draft-a-voice), or [align a recording](#align-timing-to-a-recorded-voice).
 - Prepare pronunciation: [voice and glossary guidance](docs/authoring.md#pronunciation-and-voice-direction) and a [reusable glossary template](docs/templates/pronunciation.md).

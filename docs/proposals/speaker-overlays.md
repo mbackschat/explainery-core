@@ -1,6 +1,6 @@
 # Proposal: reusable speaker overlays
 
-Status: proposal, updated 2026-10-23. A short HeyGen intro spike has been requested, using a fictional presenter and existing narration. Account access is pending; no footage has been generated or tested, and no subscription purchase is authorized. Applies across Explainery films.
+Status: framework contract remains a proposal, updated 2026-10-25. The agreed [authoring guidelines](../authoring.md#use-presenters-selectively) cover passage selection and film-specific framing. Generation and review evidence belongs in the owning story repository; this shared document retains the provider research dated 2026-10-23 and does not authorize purchases or introduce framework automation. Applies across Explainery films.
 
 ## Intent and recommendation
 
@@ -8,17 +8,20 @@ Add an optional speaker at selected passages within a scene. The speaker should 
 
 Treat the presenter as a reusable character asset and each speaking passage as a separately generated video asset. Drive the performance with the exact approved narration audio, then keep the downloaded clip locally. Scene iteration and full-film assembly reuse approved clips without calling the generation provider or incurring further generation charges.
 
-Use a short opening passage in one film's first editorial scene to assess HeyGen before selecting it for production or adding framework behavior. Keep the existing narration to preserve its delivery and timing. Start with a framed inset and restrained movement, because this tests the performance without making background removal a prerequisite. Local generation remains an alternative under the general policy.
+Avoiding regeneration is a primary requirement. Scenes must work independently of presenter generation; appearances can be added as a finishing pass after scenes are developed. Review placement with a retained portrait or existing footage, stabilize the selected narration, and check for a reusable performance before generating anything. The [late-generation and reuse guidelines](../authoring.md#add-presenters-late-and-reuse-first) own this authoring sequence.
+
+For a first evaluation, use a short opening passage before selecting a provider for production or adding framework behavior. Keep the existing narration to preserve its delivery and timing. Start with a framed inset and restrained movement, because this tests the performance without making background removal a prerequisite. Choose the frame per film under the [authoring guidelines](../authoring.md#use-presenters-selectively). Local generation remains an alternative under the general policy.
 
 ## Proposed contract
 
 | Scope | Behavior |
 | --- | --- |
 | Required | Speaker use is opt-in. Each appearance belongs to a composition within an editorial scene and has explicit placement and timing against its narration. |
-| Required | A retained portrait/reference video or saved avatar identity anchors appearance across projects. Repeating a text prompt alone is not an identity guarantee. Preserve the approved look, framing and voice unless deliberately revised. |
+| Required | A retained portrait/reference video or saved avatar identity anchors appearance across projects. Repeating a text prompt alone is not an identity guarantee. Preserve the approved identity and voice unless deliberately revised; the display frame is chosen independently per film. |
 | Required | Generate from the actual narration audio for the passage. The overlay is muted during playback; the film's existing narration remains the sole speech soundtrack. |
 | Required | Generation is an explicit authoring action. Preview, seeking, scene rendering, export and film assembly consume local assets and never trigger paid generation. |
-| Required | Preserve each approved clip with its source-audio identity, character reference, provider/model and settings. A changed performance input makes the clip stale and requires explicit regeneration before accepting it for delivery. |
+| Required | Scene development does not require generated presenter footage. Before generating a stable selected passage, inspect retained assets for a matching performance; reuse or trim compatible footage instead of issuing another request. |
+| Required | Preserve each approved clip with its source-audio identity, character reference, provider/model and settings. A changed performance input invalidates that association; select compatible retained footage or explicitly regenerate the affected performance before accepting it for delivery. |
 | Required | The same approved clip and timing work in isolated scene review and the assembled film. Downloaded footage remains usable without a live provider connection. |
 | Optional | Multiple appearances within one scene; transparent cutouts; deliberate changes of outfit or framing that preserve the approved identity. An explicitly chosen personal avatar and recorded or cloned voice may be evaluated separately. |
 | Excluded | Live conversational avatars, automatic presenters in every scene, automatic paid retries, a character marketplace, and cloud rendering of the assembled film. Personal likeness and voice cloning are excluded from the initial spike. |
@@ -31,9 +34,10 @@ Recommend one clip per speaking passage, rather than one video for the entire sc
 
 | Change | Effect on the saved clip |
 | --- | --- |
-| Spoken wording, voice, delivery or the passage's audio timing | Regenerate the affected performance against the new audio. |
-| Presenter identity, expression, gestures or generated clothing | Regenerate the affected clip. |
-| Overlay position, display size, border or scene background | Reuse the clip; these are local composition changes. |
+| Spoken wording, voice, delivery or the passage's audio timing | Use a retained performance matching the new audio if available; otherwise regenerate only the affected passage. |
+| Presenter identity, expression, gestures or generated clothing | Use a retained clip matching the requested performance if available; otherwise regenerate only the affected clip. |
+| Overlay shape, crop, position, display size, border or scene background | Reuse the clip; these are local composition changes, kept consistent with the film's chosen treatment. |
+| A shorter appearance using an existing performance's matching audio interval | Trim the saved video and preserve its synchronization locally; no generation charge. |
 | Scene order or the scene's absolute start in the film | Reuse the clip; preserve its local relationship to the narration. |
 | Another preview, scene render, export or full-film assembly | Reuse the clip; no generation charge. |
 
@@ -85,7 +89,7 @@ Replacing the film's voice requires generating or recording its narration, align
 
 The pinned HyperFrames engine already supports nested video, timing, source trimming and layering; the shared [media contract](../../.agents/skills/hyperframes-core/references/variables-and-media.md) and [background-removal guidance](../../.agents/skills/media-use/audio/references/remove-background.md) describe separate narration and transparent talking-head overlays. Explainery supplies [scene beat timing](../../runtime/scene.ts) and [single-file media embedding](../../src/explainer-file.ts). These are foundations for placement, not evidence of a finished presenter workflow.
 
-This research inspected documentation and implementation; it did not generate footage or run presenter-specific renders. Material uncertainties are realistic expression, identity stability between clips, lip synchronization with the intended narration, clean cutout edges, seeking and scene joins, and transparent-video playback across supported browsers. Embedded footage also increases standalone HTML size. Provider updates may change future performances, so retaining approved media is necessary even when a saved identity remains available.
+The provider research above inspected documentation and implementation on 2026-10-23; it does not represent a provider-wide quality comparison. Retain actual generation, rendering and author-review evidence in each story repository. Material checks for a chosen presenter are realistic expression, identity stability between clips, lip synchronization with the intended narration, clean cutout edges, seeking and scene joins, and transparent-video playback across supported browsers when used. Embedded footage also increases standalone HTML size. Provider updates may change future performances, so retaining approved media is necessary even when a saved identity remains available.
 
 ## Policy decision and acceptance
 

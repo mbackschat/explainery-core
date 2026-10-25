@@ -5,6 +5,7 @@ Author one editorial scene at a time, using one or more self-contained HTML comp
 - [Author one scene and integrate it](#author-one-scene-at-a-time).
 - [Research content and prepare a proposal for review](#research-and-review-a-film-proposal).
 - [Structure the film like a presentation](#structure-the-film-like-a-presentation), with [chapter and agenda cards](#open-scenes-with-cards).
+- [Choose presenter passages and film-specific framing](#use-presenters-selectively).
 - [Choose HyperFrames skills for the current task](#use-hyperframes-skills-in-scene-work).
 - [Understand the concepts](#concepts) and [timing](#timing-and-playback).
 - [Find the owning file](#where-a-scene-is-described) and [write a scene description](#write-a-useful-scene-description).
@@ -111,6 +112,50 @@ A chapter card must be the first composition of its scene and be followed by con
 A composition's `copy.headline` stays over its diagram for the whole composition, so it tells the viewer what the diagram shows. State the claim the diagram demonstrates, with its concrete subject and the names the diagram and narration use: “Save commits every changed record in one transaction”, not “One Save. One transaction.” Slogan fragments, rhetorical pairs and teasers such as “More than a shape.” sound like marketing and give the viewer nothing to check against the picture. Put qualifiers and evidence limits in the support line, and end a headline without a period. A chapter card's headline is the scene's question and keeps its question mark.
 
 A headline fits on one line. The dark theme sets it at 65 px in a 1500 px copy block; on 18 October 2026 about 50 characters fit with the bundled font, and a long final word wraps sooner. A wrapped headline pushes the support line out of the copy block, so `explainery verify` fails a composition whose headline wraps. Shorten the claim or move a qualifier into the support line rather than shrinking the type. The support line below it fits on two lines; a third line overflows the copy block, and `explainery verify` fails it too. Keep it one sentence that adds the limit or the evidence, and move further detail into the narration. Scene titles follow the same rule on cards: a chapter card shows the title in headline type, and its roadmap column cuts off a long title with an ellipsis. On 19 October 2026 about 35 characters fit on a chapter card. `explainery verify` fails a card whose title wraps or whose roadmap entry is cut off.
+
+## Use presenters selectively
+
+Presenter appearances are explicit editorial choices. These guidelines apply to authored overlays; they do not introduce automatic placement, a new story schema or a generation command. The [speaker overlay proposal](proposals/speaker-overlays.md) retains the proposed asset contract and dated provider research. Existing restrictions on paid generation remain in force unless the author explicitly authorizes a bounded exception.
+
+### Add presenters late and reuse first
+
+Develop the scenes so they work with narration and visuals alone. Presenter selection and placement can be a finishing pass after individual scenes or the film have been developed; presenter generation must not be a dependency of ordinary scene authoring. Where an appearance is chosen, test its framing and content clearance with the retained portrait or existing footage before commissioning a new performance. A still portrait tests layout only, not lip synchronization.
+
+Generate only after the selected passage's wording, voice, delivery and audio timing are stable and its placement has been reviewed. A deliberately requested short feasibility sample is an exception to this ordering, not a reason to generate all appearances early.
+
+Avoid regeneration as a primary production rule:
+
+- Check retained clips and their provenance before generating. Reuse a matching performance even when the scene has moved, its layout has changed or another film uses a different display frame.
+- Crop, mask, resize and reposition locally. A shorter appearance can use a trimmed source interval when its video and narration remain synchronized; no new performance is needed for the trim itself.
+- Treat changed spoken audio or requested identity/performance changes as reasons to review only the affected appearance. Regenerate it only when the retained footage cannot supply the requested synchronized performance. Do not regenerate other passages or the whole scene/film.
+- Keep generation separate and explicit within the existing authorization and budget. Ordinary edits, preview, seeking, rendering, export and assembly must never regenerate media or retry a paid request automatically. A stale clip needs an explicit decision, not a hidden repair charge.
+
+### Choose the passages
+
+- Prefer short appearances for the film introduction, a scene's opening explanation, a transition between ideas or a concluding takeaway. Use a complete spoken thought with natural start and end boundaries.
+- Usually remove the presenter while a dense diagram or detailed mechanism needs the viewer's attention. Keep an appearance beside a diagram only when both remain clear and the speaker serves a specific purpose.
+- Do not add a presenter to every scene by default. Record the purpose and narration passage of each selected appearance in its scene description; a scene without a presenter is a normal choice. There is no required appearance count or percentage of screen time.
+
+### Choose the film's framing
+
+Each film chooses its own shape, size, anchor position, crop and entrance/exit treatment. A circle, rounded rectangle or another suitable frame can be used; no shape is a framework-wide default. Keep the chosen treatment consistent across appearances within that film. Record the choice once in its visual kit and share the styling between compositions.
+
+Reserve that area while the presenter is visible. Keep captions, technical labels, diagram actions and branding clear. Prefer an appearance at another moment or an adjusted scene layout over moving the presenter between corners. Do not shrink diagram labels simply to make room. Review the actual face crop at the final display size; a circular frame must leave the mouth visible throughout the performance.
+
+The presenter identity and the display frame are independent choices. Another film may reuse the same approved avatar identity and compatible saved clips with a different frame. Local shape, position, size and crop changes do not require another generated performance.
+
+### Assign and review each appearance
+
+| Scope | Owning record |
+| --- | --- |
+| Film | Visual kit: chosen identity/voice references and the consistent display treatment. |
+| Scene | Scene description: why the presenter appears and which existing narration passage they accompany. |
+| Composition | Explicit local start, duration and saved clip reference, synchronized to the existing narration; do not duplicate executable cue seconds in prose. |
+| Asset | Provenance: avatar reference, exact source audio, provider/settings and retained output. |
+
+Use the exact narration excerpt for the performance and mute the overlay during playback, leaving one speech soundtrack.
+
+Review the face, lip synchronization and content clearance at the intended viewing size, then verify entrances/exits, seeking, scene isolation and film joins. Reuse an approved character reference across distinct passages and inspect the resulting performances; a repeated prompt or one successful clip does not establish identity consistency. Keep the author's preference and the verification evidence in the story repository.
 
 ## Show the mechanism and let motion tell it
 
