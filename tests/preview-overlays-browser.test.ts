@@ -43,6 +43,11 @@ function silence(seconds: number): Buffer {
 async function overlayFixture(t: test.TestContext) {
   const project = await fixtureProject('scene-runtime', html => html.replace('</div>\n    <script>', '<audio id="review-audio" src="assets/narration.wav" data-start="0" data-duration="8" data-media-start="0" data-story-audio data-story-span></audio></div>\n    <script>'));
   t.after(() => rm(project, { recursive: true, force: true }));
+  const geometry = (await readFile(new URL('../themes/base.css', import.meta.url), 'utf8')).replace(/@font-face\s*\{[^}]+\}/g, '').replace('Roboto, sans-serif', 'sans-serif');
+  const index = join(project, 'index.html');
+  await writeFile(index, (await readFile(index, 'utf8'))
+    .replace('</head>', `<style>${geometry}</style></head>`)
+    .replace('<audio id="review-audio"', '<div style="position:absolute;inset:0;transform:scale(.3333333333);transform-origin:0 0;width:1920px;height:1080px"><section class="copy"><div class="accent-rule"></div><p class="category">Example</p><h1>Example headline</h1><p id="review-support" class="support">First supporting line.<br>Second supporting line.</p></section></div><audio id="review-audio"'));
   await mkdir(join(project, 'assets'));
   await writeFile(join(project, 'assets/narration.wav'), silence(8));
   await writeFile(join(project, 'timing.json'), JSON.stringify({ source: 'imported', audio: 'assets/narration.wav', duration: 8, scenes: { probe: { start: 2, duration: 4, beats: { show: 1 } } } }));
@@ -106,7 +111,7 @@ test('compiled review overlays mount, crop retained portraits and seek on the se
             const caption = captions.find(visible);
             const captionBounds = (caption ?? captions[0]).getBoundingClientRect();
             const audio = document.querySelector('#review-audio');
-            return { portrait: images.some(visible), caption: caption?.textContent ?? '', whiteSpace: style(captions[0]).whiteSpace,
+            return { supportBottom: document.querySelector('#review-support').getBoundingClientRect().bottom, captionFits: captions.every((p: any) => p.scrollHeight <= p.clientHeight), portrait: images.some(visible), caption: caption?.textContent ?? '', whiteSpace: style(captions[0]).whiteSpace,
               captionBounds: { x: captionBounds.x, y: captionBounds.y, width: captionBounds.width, height: captionBounds.height },
               bounds: { x: frame.getBoundingClientRect().x, y: frame.getBoundingClientRect().y, width: frame.getBoundingClientRect().width, height: frame.getBoundingClientRect().height },
               radius: style(frame).borderRadius, zoom: style(image).transform, audioOffset: audio.getAttribute('data-media-start') };
@@ -120,10 +125,12 @@ test('compiled review overlays mount, crop retained portraits and seek on the se
         assert.equal(direct.radius, '12px');
         assert.equal(direct.zoom, 'matrix(1.5, 0, 0, 1.5, 0, 0)');
         assert.match(direct.whiteSpace, /pre/);
+        assert.ok(direct.captionBounds.y >= direct.supportBottom, 'subtitle band must clear the standard two-line support block');
         assert.equal(direct.captionBounds.x, 32, 'caption band begins 5% from the left');
         assert.equal(direct.captionBounds.width, 416, 'caption band uses 65% of the canvas and leaves the presenter area free');
-        assert.ok(Math.abs(direct.captionBounds.height - 112 / 3) < .1, 'caption band scales with canvas height');
-        assert.ok(Math.abs(direct.captionBounds.y - (360 * .987 - 112 / 3)) < .1, 'caption band stays at the bottom despite authored .clip inset:0');
+        assert.ok(Math.abs(direct.captionBounds.height - 80 / 3) < .1, 'caption band scales with canvas height');
+        assert.ok(Math.abs(direct.captionBounds.y - (360 - 80 / 3)) < .1, 'caption band stays at the bottom despite authored .clip inset:0');
+        assert.equal(direct.captionFits, true, 'two subtitle lines fit inside their band');
         assert.equal(direct.audioOffset, selected ? '2' : '0');
         const screenshot = join(project, `crop-${selected}.png`);
         await page.screenshot({ path: screenshot });

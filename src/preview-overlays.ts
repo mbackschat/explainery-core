@@ -92,8 +92,9 @@ export async function preparePreviewOverlays(project: string, story: Story, timi
   template.appendChild(root);
   const style = document.createElement('style');
   const unit = story.canvas.height / 1080;
-  style.textContent = `[data-preview-subtitle] { position:absolute;top:auto;right:auto;left:5%;bottom:1.3%;width:65%;height:${112 * unit}px; }
-[data-preview-subtitle] p { margin:0;box-sizing:border-box;width:100%;height:100%;padding:${12 * unit}px ${20 * unit}px;background:rgba(0,0,0,.9);color:#fff;font-family:var(--font-family,sans-serif);font-size:${32 * unit}px;line-height:${40 * unit}px;font-weight:400;white-space:pre-wrap;text-align:left; }`;
+  // The browser guard checks this band below themes/base.css's standard two-line support block.
+  style.textContent = `[data-preview-subtitle] { position:absolute;top:auto;right:auto;left:5%;bottom:0;width:65%;height:${80 * unit}px; }
+[data-preview-subtitle] p { margin:0;box-sizing:border-box;width:100%;height:100%;padding:${6 * unit}px ${20 * unit}px;background:rgba(0,0,0,.9);color:#fff;font-family:var(--font-family,sans-serif);font-size:${32 * unit}px;line-height:${34 * unit}px;font-weight:400;white-space:pre-wrap;text-align:left; }`;
   root.appendChild(style);
   let clipIndex = 0;
   const addClip = (kind: 'presenter' | 'subtitle', start: number, end: number) => {
