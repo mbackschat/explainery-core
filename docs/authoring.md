@@ -196,7 +196,6 @@ pnpm exec explainery focus film-example --scene introduction
 pnpm exec explainery assemble film-example
 pnpm exec explainery validate film-example
 pnpm exec explainery preview film-example
-pnpm exec explainery render film-example --quality draft
 pnpm exec explainery preview film-example --scene <scene-id>,<next-scene-id>
 pnpm exec explainery assemble film-example --check
 pnpm exec explainery preview film-example --film
@@ -385,12 +384,22 @@ Like `--scene`, the flag overrides focus for one command and never changes it. T
 
 `explainery focus <project-dir> --scene <id-or-title>` stores the active scene locally until changed; `--film` returns to the whole film. Without options, `focus` reports it. Subsequent preview/render commands use that target and print it. Explicit `--scene` or `--film` on a command overrides it once. Agents apply the same focus to conversational edits. Focus lives in ignored `.explainery/focus.json`, not in the story schema, and does not scope validation, alignment, assembly, or page export.
 
+## Use Studio for fast feedback
+
+Default to HyperFrames Studio for regular scene feedback. Start `explainery preview <project-dir>` for the active focus, or use `--scene <scene-id>` / `--composition <composition-id>` for a one-command selection, and give the author the printed Studio URL to open, play, pause and scrub in their browser. The command starts the server without opening or controlling a browser. Rerun preview after source edits to refresh the disposable view; refreshing the browser alone does not rebuild it. Review adjacent scenes together when a handoff changes.
+
+The preview uses the authored compositions and timeline, including existing narration and presenter media. Scene isolation retains the relevant narration with its source offset; browser feedback need not be silent. Reuse those assets without synthesizing voice or generating presenter footage for a preview. Browser playback is a useful review of layout, motion and pacing, but real-time performance and browser rendering can differ from encoded output. Keep MP4 rendering for an explicitly requested video preview, an export-specific check or delivery, and retain the required scene and final-output verification.
+
+For proposed presenter appearances, review a retained still portrait in the intended shape, position and time window before generating a matching performance, following the [late-generation workflow](#add-presenters-late-and-reuse-first). Keep provisional overlays in a separate review project until accepted; never edit `.explainery/scenes/` derivatives. A still can reveal content collisions and whether an appearance helps the scene, but cannot establish lip synchronization or performance. There is currently no reusable presenter-placeholder preview option; story-specific review compositions supply the overlay.
+
+For readable narration during review, the existing [`--narration` mode](#read-narration-in-a-silent-preview) supplies estimated draft captions, including when recorded audio exists. It does not load the reviewed, voice-aligned subtitle sidecar. Reviewed WebVTT subtitles are currently supported by the [HTML player](../README.md#html-chapters-and-subtitles), not by a Studio preview subtitle option. Do not describe draft captions as exact subtitles or claim either preview extension is already implemented.
+
 ## Revise and check a scene
 
 1. Read the description, evidence, current story entry, and mapped compositions. Select the scene with `focus` before editing its sources.
 2. Update the owner of the change from the table above. A changed claim or visual sequence also needs a matching description; a narration change needs a matching voice and timing before delivery. Before a new or changed diagram label states a domain fact, such as what an element belongs to or what it is called, look up its source and record it with the claim evidence, even in a quick fix: the wording of a review comment is a lead to check, not evidence, and no check catches a wrong fact.
 3. After copy or timing changes, run `explainery assemble <project-dir>`. Run `explainery validate <project-dir>` and `explainery assemble <project-dir> --check` to check source consistency.
-4. Rerun preview to refresh the scene view. Inspect each beat's settled state and the transitions, including adjacent scenes when the handoff changes. Address still frames by beat with `explainery snapshot <project-dir> --at <composition>:<beat>+<seconds>`, or review every beat of one composition beside its narration with `explainery verify <project-dir> --scene <scene-id> --composition <composition-id> --quick`. Check direct, forward, and backward seeks to the same timestamp; full `verify` compares them.
+4. Rerun preview to refresh the scene view and share its Studio URL for [fast feedback](#use-studio-for-fast-feedback). Inspect each beat's settled state and the transitions, including adjacent scenes when the handoff changes. Address still frames by beat with `explainery snapshot <project-dir> --at <composition>:<beat>+<seconds>`, or review every beat of one composition beside its narration with `explainery verify <project-dir> --scene <scene-id> --composition <composition-id> --quick`. Check direct, forward, and backward seeks to the same timestamp; full `verify` compares them.
 5. Use the story's visual verification workflow to compare the result with the plan or reference evidence. Validation proves structural consistency; it does not prove visual fidelity, legibility, or claim accuracy.
 
 See the [composition implementation walkthrough](../README.md#write-a-scene) for HTML and runtime wiring, and [preview and render](../README.md#preview-and-render) for command details.

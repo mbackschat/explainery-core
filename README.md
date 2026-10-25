@@ -241,6 +241,8 @@ Everything else in the file is left byte for byte. `story.yaml` and `timing.json
 
 ## Preview and render
 
+Use the browser's HyperFrames Studio preview for regular scene feedback. It plays the authored animation with existing narration and presenter media, avoiding MP4 capture and encoding for each revision. Follow the [fast-feedback workflow](docs/authoring.md#use-studio-for-fast-feedback); render a movie when requested, for export-specific checks or for delivery.
+
 Run these from the story directory after assembly:
 
 ```bash
