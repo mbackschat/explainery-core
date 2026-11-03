@@ -17,6 +17,8 @@ Projects live in their own repositories next to this checkout; no pnpm workspace
 
 ## Shared HyperFrames skills
 
+For source-video and SRT analysis, read [analyze-source-film](.agents/skills/analyze-source-film/SKILL.md). This first-party skill prepares source evidence without an example story checkout; load the HyperFrames entry and domain skills when authoring begins. Its code and guidance are maintained here, separately from the upstream bundles and provenance lock.
+
 Before authoring compositions, read the [HyperFrames entry skill](.agents/skills/hyperframes/SKILL.md), then use the [scene task-to-skill guide and integration rules](docs/authoring.md#use-hyperframes-skills-in-scene-work) to select and apply the relevant domain skills. Read `hyperframes-core` before writing composition HTML; adapt animation recipes into the timeline supplied by `defineScene`. This repository owns the canonical [.agents/skills](.agents/skills/) bundles and [skills-lock.json](skills-lock.json); `.claude/skills` is a directory symlink to the same bundles. A story carries only the relative link `.claude/skills -> ../../explainery-core/.agents/skills`; keep skill copies, other skill links, and lock files out of story repositories. Follow the [shared skill setup](README.md#shared-authoring-skills) for discovery from a story session.
 
 Explainery's scene focus, file ownership, and assembly contracts remain authoritative, and so does the local-only rule above: the upstream bundles also describe HyperFrames cloud rendering and paid generation services (for example the HeyGen and Gemini scripts in `media-use`), which Explainery never uses. Use the project's pinned CLI; do not apply generic scaffolding or automatic upgrades during scene work. Resolve skill resources relative to the shared skill directory and run project commands from the story root. Keep upstream bundles unchanged except in a deliberate skill update, with their provenance lock updated together.
@@ -27,6 +29,7 @@ Read the [README workflow](README.md#the-workflow-at-a-glance) for authoring com
 
 | Change | Source | Guard |
 | --- | --- | --- |
+| Source-film evidence preparation | [analysis skill](.agents/skills/analyze-source-film/SKILL.md), [extractor](.agents/skills/analyze-source-film/scripts/extract-reference.ts), [SRT parser](.agents/skills/analyze-source-film/scripts/source-cues.ts) | [cue preservation tests](tests/source-cues.test.ts), [extraction tests](tests/source-reference.test.ts) |
 | Story or timing contract | [schemas](schemas/), [types](src/types.ts), [story model](src/story.ts), [validator](src/validate.ts) | [schema tests](tests/schemas.test.ts), [story tests](tests/story.test.ts), [validation tests](tests/validate.test.ts) |
 | Narration or timing generation | [narration](src/narration.ts), [estimate](src/estimate.ts), [alignment](src/align.ts), [HyperFrames adapter](src/hyperframes.ts) | [narration tests](tests/narration.test.ts), [estimate tests](tests/estimate.test.ts), [alignment tests](tests/align.test.ts) |
 | Marketing slop detector and the film frame | [lexical detector](src/slop.ts), [plain wording guide](docs/plain-wording.md), [frame rules](docs/authoring.md#frame-the-film) | [detector tests](tests/slop.test.ts), [production gate test](tests/production.test.ts) |

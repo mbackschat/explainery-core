@@ -14,6 +14,8 @@ Author one editorial scene at a time, using one or more self-contained HTML comp
 
 ## Research and review a film proposal
 
+When a supplied video and SRT are the starting material, use [analyze-source-film](../.agents/skills/analyze-source-film/SKILL.md) to preserve originals, extract timestamped evidence and separate observed source content from proposed reconstruction. Keep those records in the story repository; a source navigation window does not establish an editorial scene or executable duration.
+
 Plan the film's argument before implementing its scenes. Research and proposals may span the whole film; the implementation workflow below still authors one scene at a time. Keep these records in the story repository and link them from its README so work survives context compaction and can be reviewed without the conversation.
 
 - **Brief and state:** preserve the user's required topics, audience and constraints; distinguish confirmed decisions from recommendations. Record open questions and the next concrete research step.

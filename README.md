@@ -122,6 +122,8 @@ Run the workflow commands from the story's root directory. Each `explainery` com
 
 ## Shared authoring skills
 
+For a supplied video and SRT, use [analyze-source-film](.agents/skills/analyze-source-film/SKILL.md) to preserve originals, extract timestamped evidence and prepare source observations before planning or reconstruction. It works without an example story checkout.
+
 Use the [scene task-to-skill guide](docs/authoring.md#use-hyperframes-skills-in-scene-work) to choose guidance for composition structure, animation, visual design, diagnostics, media, and audio, and adapt it to Explainery's workflow. HyperFrames authoring skills live once in this checkout, shared by all sibling story repositories:
 
 ```text
@@ -141,7 +143,7 @@ Start a session in the repository whose files you are changing. For a story sess
 
 A story holds that one relative link and nothing else: no skill copies, other skill links, or skill lock files. Create it with `ln -s ../../explainery-core/.agents/skills .claude/skills` from the story root. It resolves because a story already requires core as its sibling checkout. Bundled scripts and references resolve relative to their owning skill directory; invoke helper scripts by their shared path while keeping the story as the working directory for project commands. Explainery's [modular scene workflow](docs/authoring.md#author-one-scene-at-a-time), story/timing ownership, and assembly contract govern the film. Use its pinned CLI; generic scaffolding and upgrade advice in upstream skills do not replace that contract.
 
-The bundles are an unchanged upstream snapshot from [HeyGen HyperFrames](https://github.com/heygen-com/hyperframes), with provenance in [skills-lock.json](skills-lock.json) and the upstream [Apache-2.0 license](.agents/LICENSE). Skill updates are explicit, separate changes made in core; review their compatibility with the pinned CLI and commit the bundles and lock together. Do not install or update skills as a side effect of scene work. [ADR 0004](docs/adr/0004-shared-authoring-skills.md) records the shared ownership decision. Discovery behavior follows the [Claude Code skills documentation](https://code.claude.com/docs/en/skills#load-skills-from-a-directory-outside-the-project) and [Codex skills documentation](https://developers.openai.com/codex/skills/).
+The HyperFrames bundles are an unchanged upstream snapshot from [HeyGen HyperFrames](https://github.com/heygen-com/hyperframes), with provenance in [skills-lock.json](skills-lock.json) and the upstream [Apache-2.0 license](.agents/LICENSE). Upstream skill updates are explicit, separate changes made in core; review their compatibility with the pinned CLI and commit the bundles and lock together. Do not install or update skills as a side effect of scene work. The first-party `analyze-source-film` skill is maintained by Explainery and is outside the upstream provenance lock. [ADR 0004](docs/adr/0004-shared-authoring-skills.md) records the shared ownership decision. Discovery behavior follows the [Claude Code skills documentation](https://code.claude.com/docs/en/skills#load-skills-from-a-directory-outside-the-project) and [Codex skills documentation](https://developers.openai.com/codex/skills/).
 
 ## Estimate timing before a voice exists
 
