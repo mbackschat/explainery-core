@@ -2,6 +2,8 @@
 
 Accepted on 4 November 2026. Extends [production provenance](0009-production-provenance.md).
 
+The monolingual pronunciation defaults below were refined by [ADR 0015](0015-english-terms-in-non-english-narration.md) after the German audition was rejected. English technical terms now retain English pronunciation inside every non-English narration; German KI remains German. Per-term language runs supersede applying one language to the complete voice-input string.
+
 ## Decision
 
 `voice.lang` in `story.yaml` selects the narration's pronunciation language, including preparation for a human or external voice. It defaults to the configured Kokoro voice prefix, then `en-us`. The schema lists supported language identifiers; use `de` for German. This setting does not establish synthesis support.

@@ -172,3 +172,16 @@ test('render reuse requires a verified fingerprint and intact output bytes', asy
   const scene = await renderFingerprint(dir, { quality: 'delivery', sceneIds: ['probe'], workers: 1 });
   assert.notEqual(await renderFingerprint(dir, { quality: 'delivery', sceneIds: ['probe'], compositionIds: ['probe'], workers: 1 }), scene);
 });
+
+test('language-only term changes invalidate production while unused annotations do not', async t => {
+  const dir = await fixture();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'story.yaml');
+  const initial = await readFile(file, 'utf8');
+  await writeFile(file, initial + '\npronunciations:\n  Show: {text: Show, lang: en-us}\n');
+  await recordProduction(dir, { transcript: 'transcript.json' });
+  await writeFile(file, initial + '\npronunciations:\n  Show: {text: Show, lang: en-us}\n  Absent: {text: absent, lang: de}\n');
+  assert.deepEqual((await productionPreflight(dir)).errors, []);
+  await writeFile(file, initial + '\npronunciations:\n  Show: {text: Show, lang: en-gb}\n');
+  assert.match((await productionPreflight(dir)).errors.join(), /pronunciation input changed/);
+});

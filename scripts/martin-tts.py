@@ -12,6 +12,34 @@ from pathlib import Path
 import platform
 import re
 
+LEXICON = Path(__file__).resolve().parents[1] / "data/english-technical-terms.json"
+LANGUAGES = {"de", "en-us", "en-gb"}
+
+
+def validate_runs(text, runs):
+    if not isinstance(runs, list) or not 1 <= len(runs) <= 512:
+        raise ValueError("each clip requires explicit language runs; export with explainery narration --json")
+    for run in runs:
+        if not isinstance(run, dict) or set(run) != {"text", "lang"}:
+            raise ValueError("each language run must contain exactly text and lang")
+        if not isinstance(run["text"], str) or not run["text"]:
+            raise ValueError("language run text must be nonempty")
+        if not isinstance(run["lang"], str) or run["lang"] not in LANGUAGES:
+            raise ValueError("Martin supports only de, en-us and en-gb language runs")
+    if "".join(run["text"] for run in runs) != text:
+        raise ValueError("language runs must join exactly to clip text")
+    lexicon = json.loads(LEXICON.read_text(encoding="utf-8"))
+    terms = sorted(set(lexicon) | set(lexicon.values()), key=len, reverse=True)
+    pattern = re.compile(r"(?<![^\W_])(?:" + "|".join(re.escape(term) for term in terms) + r")(?![^\W_])")
+    # ADR 0015: inspect the joined text, so splitting Engine across runs cannot evade the rule.
+    for match in pattern.finditer(text):
+        offset = 0
+        for run in runs:
+            end = offset + len(run["text"])
+            if offset < match.end() and end > match.start() and not run["lang"].startswith("en-"):
+                raise ValueError(f"English technical term {match[0]!r} requires English language runs")
+            offset = end
+
 
 def validate_request(request):
     if not isinstance(request, dict) or set(request) != {"speed", "clips"}:
@@ -24,8 +52,8 @@ def validate_request(request):
         raise ValueError("request must contain 1–64 clips")
     seen = set()
     for clip in clips:
-        if not isinstance(clip, dict) or set(clip) != {"id", "text"}:
-            raise ValueError("each clip must contain exactly id and text")
+        if not isinstance(clip, dict) or set(clip) != {"id", "text", "runs"}:
+            raise ValueError("each clip must contain exactly id, text and runs; export with explainery narration --json")
         clip_id, text = clip["id"], clip["text"]
         if not isinstance(clip_id, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", clip_id) or len(clip_id) > 80:
             raise ValueError("clip id must be a lowercase slug of at most 80 characters")
@@ -34,6 +62,7 @@ def validate_request(request):
         seen.add(clip_id)
         if not isinstance(text, str) or not text.strip() or len(text) > 2000:
             raise ValueError(f"{clip_id}: text must contain 1–2000 characters")
+        validate_runs(text, clip["runs"])
     return request
 
 
@@ -45,10 +74,17 @@ def read_request(path):
     return validate_request(json.loads(data))
 
 
-def phonemize(text, g2p, vocabulary):
-    phones, _ = g2p(text)
-    # kikiri-tts a12d041, TRAINING_GUIDE.md §2 requires this after Misaki German G2P.
-    phones = " ".join(phones.replace("ʏ", "y").split())
+def phonemize_runs(runs, frontends, vocabulary):
+    parts = []
+    for run in runs:
+        if not run["text"].strip():
+            continue
+        phones, _ = frontends[run["lang"]](run["text"])
+        # kikiri-tts a12d041, TRAINING_GUIDE.md §2 specifies this correction for German G2P.
+        if run["lang"] == "de":
+            phones = phones.replace("ʏ", "y")
+        parts.append(phones)
+    phones = " ".join(" ".join(parts).split())
     if not phones or len(phones) > 510:
         raise ValueError("each audition must produce 1–510 phonemes; split longer passages")
     unknown = sorted(set(phones) - set(vocabulary))
@@ -56,6 +92,10 @@ def phonemize(text, g2p, vocabulary):
         symbols = ", ".join(f"{symbol!r} U+{ord(symbol):04X}" for symbol in unknown)
         raise ValueError(f"unknown phonemes (nothing was discarded): {symbols}")
     return phones
+
+
+def phonemize(text, g2p, vocabulary):
+    return phonemize_runs([{"text": text, "lang": "de"}], {"de": g2p}, vocabulary)
 
 
 def file_identity(path):
@@ -79,7 +119,7 @@ def prepare_pcm_audio(audio):
     return (audio * gain if gain < 1 else audio), peak, gain
 
 
-def create_frontend():
+def create_frontend(language="de"):
     from misaki import espeak
     from phonemizer.backend.espeak.wrapper import EspeakWrapper
 
@@ -90,7 +130,7 @@ def create_frontend():
     # Misaki 0.9.4 overrides the library at import; restore the selected native installation.
     EspeakWrapper.set_library(library)
     EspeakWrapper.set_data_path(data_path)
-    return espeak.EspeakG2P(language="de"), library, data_path, EspeakWrapper().version
+    return espeak.EspeakG2P(language=language), library, data_path, EspeakWrapper().version
 
 
 def run(model_path, voices_path, request_path, out):
@@ -109,6 +149,9 @@ def run(model_path, voices_path, request_path, out):
     from kokoro_onnx.config import EspeakConfig
 
     g2p, library, data_path, espeak_version = create_frontend()
+    frontends = {"de": g2p}
+    for language in sorted({run["lang"] for clip in request["clips"] for run in clip["runs"]} - {"de"}):
+        frontends[language] = create_frontend(language)[0]
     options = ort.SessionOptions()
     options.intra_op_num_threads = 2
     options.inter_op_num_threads = 1
@@ -120,12 +163,12 @@ def run(model_path, voices_path, request_path, out):
     speed_input = next(item for item in session.get_inputs() if item.name == "speed")
     if "int" in speed_input.type and request["speed"] != int(request["speed"]):
         raise ValueError("this model accepts only integer speed; refusing implicit rounding")
-    prepared = [{**clip, "phonemes": phonemize(clip["text"], g2p, engine.tokenizer.vocab)} for clip in request["clips"]]
+    prepared = [{**clip, "phonemes": phonemize_runs(clip["runs"], frontends, engine.tokenizer.vocab)} for clip in request["clips"]]
     manifest = {
         "schemaVersion": 1,
-        "frontend": "misaki.EspeakG2P(de) + ʏ→y; strict vocabulary validation",
+        "frontend": "per-run misaki.EspeakG2P(lang); German ʏ→y; English technical-term guard; strict vocabulary validation",
         "runtime": {**versions, "python": platform.python_version(), "platform": platform.platform(), "espeak": espeak_version},
-        "inputs": {"model": file_identity(model_path), "voices": file_identity(voices_path), "request": file_identity(request_path), "runner": file_identity(Path(__file__))},
+        "inputs": {"model": file_identity(model_path), "voices": file_identity(voices_path), "request": file_identity(request_path), "runner": file_identity(Path(__file__)), "technicalLexicon": file_identity(LEXICON)},
         "settings": {"voice": voices[0], "language": "de", "speed": request["speed"], "provider": "CPUExecutionProvider", "intraOpThreads": 2, "interOpThreads": 1, "sampleRate": 24000, "channels": 1, "subtype": "PCM_16", "trim": True, "sentencePause": 0.25, "clausePause": 0.1, "espeakLibrary": library, "espeakData": data_path},
         "clips": [],
     }

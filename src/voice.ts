@@ -6,7 +6,7 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { hyperframesDist } from './hyperframes.ts';
-import { KOKORO_LANGUAGES, storyLanguage, storyPronunciations, voicedText } from './narration.ts';
+import { KOKORO_LANGUAGES, resolvedVoiceInput, storyLanguage, storyVoicePlan, type VoiceRun } from './narration.ts';
 import { storyCompositions } from './story.ts';
 import type { Story } from './types.ts';
 
@@ -15,6 +15,8 @@ export interface VoiceAdapter {
   /** Includes the engine/runtime identity, so changes invalidate synthesized audio. */
   version: string;
   synthesize(text: string, settings: VoiceSettings): Promise<Buffer>;
+  /** Keeps each term's frontend language when the narration contains multiple languages. */
+  synthesizeRuns?(runs: VoiceRun[], settings: VoiceSettings): Promise<Buffer>;
 }
 export interface VoiceSegment {
   id: string; start: number; end: number; audio: string; audioSha256: string;
@@ -57,6 +59,10 @@ export function voiceCommandError(error: unknown): Error {
 
 /** Bounds inference inputs while retaining every character, preferring sentence and word boundaries. */
 export function splitVoiceText(text: string, limit = 300): string[] {
+  return splitVoiceChunks(text, limit, false);
+}
+
+function splitVoiceChunks(text: string, limit: number, retainWhitespace: boolean): string[] {
   if (!Number.isInteger(limit) || limit < 1) throw new Error('voice chunk limit must be a positive integer');
   const chars = [...text];
   const result: string[] = [];
@@ -71,10 +77,28 @@ export function splitVoiceText(text: string, limit = 300): string[] {
       if (boundary) length = [...window.slice(0, boundary.index + boundary[0].length)].length;
     }
     const chunk = chars.slice(offset, offset + length).join('');
-    if (chunk.trim()) result.push(chunk);
+    if (retainWhitespace || chunk.trim()) result.push(chunk);
     offset += length;
   }
   return result;
+}
+
+function splitVoiceRuns(runs: VoiceRun[], limit = 300): VoiceRun[][] {
+  let runIndex = 0;
+  let offset = 0;
+  return splitVoiceChunks(runs.map(run => run.text).join(''), limit, true).map(chunk => {
+    let remaining = chunk.length;
+    const result: VoiceRun[] = [];
+    while (remaining > 0) {
+      const run = runs[runIndex];
+      const length = Math.min(remaining, run.text.length - offset);
+      result.push({ text: run.text.slice(offset, offset + length), lang: run.lang });
+      remaining -= length;
+      offset += length;
+      if (offset === run.text.length) { runIndex++; offset = 0; }
+    }
+    return result;
+  });
 }
 
 function pcm(wav: Buffer): Buffer {
@@ -173,6 +197,18 @@ async function synthesize(text: string, settings: VoiceSettings, adapter: VoiceA
   }
 }
 
+async function synthesizeRuns(runs: VoiceRun[], settings: VoiceSettings, adapter: VoiceAdapter): Promise<Buffer> {
+  try {
+    return pcm(await adapter.synthesizeRuns!(runs, settings));
+  } catch (error) {
+    const length = [...runs.map(run => run.text).join('')].length;
+    if (!/index \d+ is out of bounds for axis 0 with size 510/i.test(String(error)) || length < 2) throw error;
+    const parts: Buffer[] = [];
+    for (const chunk of splitVoiceRuns(runs, Math.ceil(length / 2))) parts.push(await synthesizeRuns(chunk, settings, adapter));
+    return Buffer.concat(parts);
+  }
+}
+
 /** Replaces a file by rename, so an interrupted run never leaves a truncated cache entry or manifest behind. */
 export async function atomicWrite(path: string, value: string | Buffer): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
@@ -197,18 +233,28 @@ export async function generateVoice(projectDir: string, story: Story, options: V
   const settings: VoiceSettings = { voice, lang: options.lang ?? story.voice?.lang ?? storyLanguage({ voice: { name: voice } }), speed: options.speed ?? story.voice?.speed ?? 1, gap: options.gap ?? story.voice?.gap ?? 0.4 };
   if (!voice || ![...Object.values(KOKORO_LANGUAGES), 'de'].includes(settings.lang) || !Number.isFinite(settings.speed) || settings.speed < 0.1 || settings.speed > 3 || !Number.isFinite(settings.gap) || settings.gap < 0) throw new Error('invalid voice, language, speed (0.1–3), or gap (nonnegative seconds)');
   if (settings.lang.split('-')[0] !== storyLanguage(story).split('-')[0]) throw new Error('voice language differs from the stored pronunciation language; set voice.lang in story.yaml so narration and alignment use the same readings');
-  if (settings.lang === 'de' && !options.adapter) throw new Error('German synthesis requires a German model and frontend such as Martin; the stock HyperFrames adapter does not support it. Pronunciation preparation is available with explainery narration.');
+  if (settings.lang === 'de' && !options.adapter) throw new Error('German synthesis requires a German model and frontend such as Martin; the stock HyperFrames adapter does not support it. Prepare language runs with explainery narration --json.');
   const all = storyCompositions(story);
   const compositions = options.sample ? all.filter(part => part.id === options.sample) : all;
   if (!compositions.length) throw new Error(options.sample ? `unknown composition "${options.sample}"` : 'story has no compositions to voice');
-  for (const part of compositions) {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(part.id) || !voicedText(part.narration, storyPronunciations(story))) throw new Error(`invalid or empty voice composition "${part.id}"`);
+  const inputs = compositions.map(part => resolvedVoiceInput(part.narration, story));
+  for (const [index, part] of compositions.entries()) {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(part.id) || !inputs[index].text) throw new Error(`invalid or empty voice composition "${part.id}"`);
     if (![part.hold ?? 0, part.overlap ?? 0].every(value => Number.isFinite(value) && value >= 0)) throw new Error(`invalid hold or overlap in "${part.id}"`);
+    if (settings.lang !== storyLanguage(story) && !inputs[index].runs) {
+      const plan = storyVoicePlan(part.narration, story);
+      const explicit = plan.spans.some(span => {
+        const reading = story.pronunciations?.[plan.written.slice(span.writtenStart, span.writtenEnd)];
+        return typeof reading === 'object' && reading.lang !== settings.lang;
+      });
+      if (explicit) throw new Error('voice locale override conflicts with a matched explicit pronunciation language; update the stored pronunciation or remove the locale override');
+    }
   }
   const destination = join('.explainery', 'voice', options.sample ? join('samples', options.sample) : 'film');
   const audio = options.out ?? join(destination, 'narration.wav');
   const relativeOutput = relative(resolve(projectDir), resolve(projectDir, audio));
   if (isAbsolute(audio) || relativeOutput.startsWith('..') || !relativeOutput.endsWith('.wav')) throw new Error('voice output must be a project-relative .wav path');
+  if (inputs.some(input => input.runs) && !options.adapter?.synthesizeRuns) throw new Error('mixed-language narration requires a voice adapter with synthesizeRuns; use explainery narration --json with a language-capable runtime');
   const adapter = options.adapter ?? await localAdapter(projectDir);
   const engine = { name: 'kokoro' as const, version: adapter.version };
   const segments: VoiceSegment[] = [];
@@ -221,9 +267,9 @@ export async function generateVoice(projectDir: string, story: Story, options: V
   };
   silence(0.25);
   for (const [index, part] of compositions.entries()) {
-    const text = voicedText(part.narration, storyPronunciations(story));
+    const input = inputs[index];
     const scriptHash = hash(part.narration);
-    const voiceInputHash = hash(text);
+    const voiceInputHash = hash(input.runs ? JSON.stringify(input) : input.text);
     const cacheKey = hash(JSON.stringify({ engine, voice: settings.voice, lang: settings.lang, speed: settings.speed, voiceInputHash, chunking: 1 }));
     const cachedAudio = join('.explainery', 'voice', 'cache', `${cacheKey}.wav`);
     const cachedHash = join(projectDir, '.explainery', 'voice', 'cache', `${cacheKey}.sha256`);
@@ -236,7 +282,11 @@ export async function generateVoice(projectDir: string, story: Story, options: V
     }
     if (!bytes) {
       const chunks: Buffer[] = [];
-      for (const chunk of splitVoiceText(text)) chunks.push(await synthesize(chunk, settings, adapter));
+      if (input.runs) {
+        for (const chunk of splitVoiceRuns(input.runs)) chunks.push(await synthesizeRuns(chunk, settings, adapter));
+      } else {
+        for (const chunk of splitVoiceText(input.text)) chunks.push(await synthesize(chunk, settings, adapter));
+      }
       bytes = wave(Buffer.concat(chunks));
       await atomicWrite(join(projectDir, cachedAudio), bytes);
       await atomicWrite(cachedHash, `${hash(bytes)}\n`);
@@ -252,7 +302,7 @@ export async function generateVoice(projectDir: string, story: Story, options: V
   const manifest: VoiceManifest = {
     schemaVersion: 1, engine, settings,
     scriptHash: hash(JSON.stringify(compositions.map(part => ({ id: part.id, narration: part.narration })))),
-    voiceInputHash: hash(JSON.stringify(compositions.map(part => ({ id: part.id, text: voicedText(part.narration, storyPronunciations(story)) })))),
+    voiceInputHash: hash(JSON.stringify(compositions.map((part, index) => ({ id: part.id, ...inputs[index] })))),
     audio, audioSha256: hash(bytes), manifestFile: options.out ? `${audio}.voice.json` : join(destination, 'manifest.json'),
     duration: samples / rate, ...(options.sample ? { sample: options.sample } : {}), segments,
   };

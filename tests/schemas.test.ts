@@ -83,3 +83,10 @@ test('voice settings keep a film\'s synthetic voice and pacing in the story', ()
   assert.notDeepEqual(checkStory({ ...story(), voice: { gap: -0.1 } }), []);
   assert.deepEqual(checkStory({ ...story(), voice: { name: 'af_heart', lang: 'en-us' } }), []);
 });
+
+test('structured pronunciations require non-empty text and a supported explicit language', () => {
+  assert.deepEqual(checkStory({ ...story(), pronunciations: { Widget: { text: 'Widget', lang: 'en-us' } } }), []);
+  for (const value of [{ text: '', lang: 'en-us' }, { text: 'Widget' }, { text: 'Widget', lang: 'unknown' }, { text: 'Widget', lang: 'de', other: true }]) {
+    assert.notDeepEqual(checkStory({ ...story(), pronunciations: { Widget: value } }), []);
+  }
+});

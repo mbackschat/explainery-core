@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -36,9 +37,10 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
 
 test('voice uses stored German pronunciations and rejects transient cross-language changes', async t => {
   const { dir, calls, adapter } = await fixture(t);
+  adapter.synthesizeRuns = async runs => { calls.push(runs.map(run => run.text).join('')); return wav(); };
   const german: Story = { ...story, voice: { name: 'martin', lang: 'de' }, scenes: [{ id: 'first', copy: { headline: 'First' }, narration: '{begin} Die API nutzt KI.' }] };
   const manifest = await generateVoice(dir, german, { adapter });
-  assert.deepEqual(calls, ['Die A-P-I nutzt K-I.']);
+  assert.deepEqual(calls, ['Die A-P-eye nutzt K I.']);
   assert.equal(manifest.settings.lang, 'de');
   calls.length = 0;
   await assert.rejects(generateVoice(dir, german, { adapter, lang: 'en-us' }), /voice.lang/);
@@ -64,6 +66,9 @@ test('voice measures composition offsets including holds, overlaps and gaps and 
   assert.equal((await readFile(join(dir, manifest.audio))).length, 44 + 3.65 * 48000);
   assert.match(manifest.audioSha256, /^[a-f0-9]{64}$/);
   assert.notEqual(manifest.scriptHash, manifest.voiceInputHash);
+  const hash = (text: string) => createHash('sha256').update(text).digest('hex');
+  assert.equal(manifest.segments[0].voiceInputHash, hash('Query sequel.'));
+  assert.equal(manifest.voiceInputHash, hash(JSON.stringify([{ id: 'first', text: 'Query sequel.' }, { id: 'second', text: 'Read the result.' }])));
 });
 
 test('voice reuses matching audio and invalidates only affected content or synthesis settings', async t => {
@@ -191,4 +196,61 @@ test('a Python without the Kokoro packages or a missing interpreter fails with t
     return true;
   });
   await assert.rejects(voiceRuntime(join(dir, 'missing-python')), /not found.*HYPERFRAMES_PYTHON/);
+});
+
+test('mixed input requires a language-capable adapter before cached audio can be reused', async t => {
+  const { dir, adapter } = await fixture(t);
+  const german: Story = { ...story, voice: { name: 'martin', lang: 'de' }, scenes: [{ id: 'one', copy: { headline: 'One' }, narration: 'Die API.' }] };
+  const calls: import('../src/narration.ts').VoiceRun[][] = [];
+  const mixed: VoiceAdapter = { ...adapter, synthesize: async () => { throw new Error('mixed input was flattened'); }, synthesizeRuns: async runs => { calls.push(runs); return wav(); } };
+  await generateVoice(dir, german, { adapter: mixed });
+  assert.deepEqual(calls, [[{ text: 'Die ', lang: 'de' }, { text: 'A-P-eye', lang: 'en-us' }, { text: '.', lang: 'de' }]]);
+  await assert.rejects(generateVoice(dir, german, { adapter }), /mixed-language.*synthesizeRuns/);
+  await assert.rejects(generateVoice(dir, { ...german, voice: { lang: 'fr-fr' } }), /mixed-language.*synthesizeRuns/);
+});
+
+test('language-only pronunciation changes invalidate cached audio but unused entries do not', async t => {
+  const { dir, adapter } = await fixture(t);
+  const calls: import('../src/narration.ts').VoiceRun[][] = [];
+  const mixed: VoiceAdapter = { ...adapter, synthesizeRuns: async runs => { calls.push(runs); return wav(); } };
+  const film: Story = { ...story, voice: { name: 'martin', lang: 'de' }, pronunciations: { Widget: { text: 'Widget', lang: 'en-us' } }, scenes: [{ id: 'one', copy: { headline: 'One' }, narration: 'Das Widget.' }] };
+  const first = await generateVoice(dir, film, { adapter: mixed });
+  film.pronunciations = { Widget: { text: 'Widget', lang: 'en-gb' } };
+  const changed = await generateVoice(dir, film, { adapter: mixed });
+  assert.equal(calls.length, 2);
+  assert.notEqual(first.voiceInputHash, changed.voiceInputHash);
+  assert.notEqual(first.segments[0].voiceInputHash, changed.segments[0].voiceInputHash);
+  film.pronunciations.Absent = { text: 'unused', lang: 'fr-fr' };
+  assert.deepEqual(await generateVoice(dir, film, { adapter: mixed }), changed);
+  assert.equal(calls.length, 2);
+});
+
+test('mixed synthesis preserves languages through chunking and token-overflow retries', async t => {
+  const { dir, adapter } = await fixture(t);
+  const calls: import('../src/narration.ts').VoiceRun[][] = [];
+  const accepted: import('../src/narration.ts').VoiceRun[][] = [];
+  const mixed: VoiceAdapter = { ...adapter, synthesize: async () => { throw new Error('mixed chunk was flattened'); }, synthesizeRuns: async runs => {
+    calls.push(structuredClone(runs));
+    if (runs.map(run => run.text).join('').length > 35) throw new Error('index 511 is out of bounds for axis 0 with size 510');
+    accepted.push(structuredClone(runs));
+    return wav(.01);
+  } };
+  const text = 'Vorlauf '.repeat(46) + 'Engine nutzt API und Plattformcode. ' + 'Ende '.repeat(70);
+  const film: Story = { ...story, voice: { name: 'martin', lang: 'de' }, scenes: [{ id: 'one', copy: { headline: 'One' }, narration: text }] };
+  await generateVoice(dir, film, { adapter: mixed });
+  assert.ok(calls.length > accepted.length);
+  assert.ok(calls.every(runs => [...runs.map(run => run.text).join('')].length <= 300));
+  const { storyVoicePlan } = await import('../src/narration.ts');
+  const characters = (runs: import('../src/narration.ts').VoiceRun[]) => runs.flatMap(run => [...run.text].map(char => ({ char, lang: run.lang })));
+  assert.deepEqual(characters(accepted.flat()), characters(storyVoicePlan(text, film).runs));
+});
+
+test('dialect overrides cannot discard matched explicit pronunciation languages', async t => {
+  const { dir, adapter, calls } = await fixture(t);
+  const film: Story = { ...story, pronunciations: { Query: { text: 'Query', lang: 'en-us' } } };
+  await assert.rejects(generateVoice(dir, film, { adapter, lang: 'en-gb' }), /locale.*explicit pronunciation/);
+  await assert.rejects(generateVoice(dir, film, { adapter, voice: 'bf_emma' }), /locale.*explicit pronunciation/);
+  assert.deepEqual(calls, []);
+  film.pronunciations = { Absent: { text: 'Absent', lang: 'en-us' } };
+  assert.equal((await generateVoice(dir, film, { adapter, lang: 'en-gb' })).settings.lang, 'en-gb');
 });

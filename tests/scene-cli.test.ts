@@ -418,3 +418,21 @@ test('presenter preview options resolve from the caller and disappear before ord
   assert.equal(rendered.status, 0, rendered.stderr);
   assert.doesNotMatch(await readFile(join(rendered.argv![1], 'index.html'), 'utf8'), /explainery-preview-overlays|data-preview-narration/);
 });
+
+test('narration JSON preserves every language run and plain export refuses mixed input', async t => {
+  const { project, run } = await fixture(t);
+  const film: Story = { ...story, voice: { lang: 'de', speed: .9 }, scenes: [{ id: 'one', copy: { headline: 'One' }, narration: '{start} Die API nutzt KI.' }] };
+  await writeFile(join(project, 'story.yaml'), JSON.stringify(film));
+  const plain = await run(['narration', project]);
+  assert.equal(plain.status, 1);
+  assert.match(plain.stderr, /--json/);
+  const json = await run(['narration', project, '--json']);
+  assert.equal(json.status, 0, json.stderr);
+  assert.deepEqual(JSON.parse(json.stdout), { speed: .9, clips: [{ id: 'one', text: 'Die A-P-eye nutzt K I.', runs: [
+    { text: 'Die ', lang: 'de' }, { text: 'A-P-eye', lang: 'en-us' }, { text: ' nutzt K I.', lang: 'de' },
+  ] }] });
+  film.scenes = [{ id: 'one', copy: { headline: 'One' }, narration: 'Hallo.' }];
+  await writeFile(join(project, 'story.yaml'), JSON.stringify(film));
+  const mono = await run(['narration', project, '--json']);
+  assert.deepEqual(JSON.parse(mono.stdout).clips, [{ id: 'one', text: 'Hallo.', runs: [{ text: 'Hallo.', lang: 'de' }] }]);
+});

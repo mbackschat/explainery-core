@@ -24,11 +24,23 @@ test('German spoken expansions align back to canonical words and beats', async (
   const film = story(scene('one', '{api} API {next} nutzt JSON.'));
   film.voice = { lang: 'de' };
   film.pronunciations = { JSON: 'Dschäison' };
-  const transcript = spoken('A P I nutzt Dschäison.', 1);
+  const transcript = spoken('A P eye nutzt Dschäison.', 1);
   const aligned = alignStoryWords(film, transcript, { transcriptMode: 'spoken' }).words;
   assert.deepEqual(aligned.map(word => ({ ...word, end: Math.round(word.end * 1e6) / 1e6 })), [
     { text: 'API', start: 1, end: 2.4 }, { text: 'nutzt', start: 2.5, end: 2.9 }, { text: 'JSON.', start: 3, end: 3.4 },
   ]);
+  assert.equal(alignTiming(film, transcript, { audio: 'a.wav', transcriptMode: 'spoken' }).scenes.one.beats.next, 2.5);
+});
+
+test('English language runs map expanded platform code back to canonical German caption words', async () => {
+  const { alignStoryWords } = await import('../src/align.ts');
+  const film = story(scene('one', '{start} Der Plattformcode {next} nutzt Engines.'));
+  film.voice = { lang: 'de' };
+  const transcript = spoken('Der platform code nutzt Engines.', 1);
+  const aligned = alignStoryWords(film, transcript, { transcriptMode: 'spoken' }).words;
+  assert.deepEqual(aligned.map(word => word.text), ['Der', 'Plattformcode', 'nutzt', 'Engines.']);
+  assert.equal(aligned[1].start, 1.5);
+  assert.equal(Math.round(aligned[1].end * 1e6) / 1e6, 2.4);
   assert.equal(alignTiming(film, transcript, { audio: 'a.wav', transcriptMode: 'spoken' }).scenes.one.beats.next, 2.5);
 });
 

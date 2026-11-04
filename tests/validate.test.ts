@@ -34,10 +34,10 @@ test('a consistent story and timing produce no errors', () => {
   assert.deepEqual(validateStoryTiming(story, timing), []);
 });
 
-test('German pronunciation overrides do not trigger English article and pronoun guards', () => {
+test('German readings of native terms do not trigger English article and pronoun guards', () => {
   const { story, timing } = consistent();
   story.voice = { lang: 'de' };
-  story.pronunciations = { API: 'A P I' };
+  story.pronunciations = { Kennung: 'A P I' };
   assert.deepEqual(validateStoryTiming(story, timing), []);
 });
 
@@ -188,4 +188,18 @@ test('a story pronunciation that the voice misreads fails validation', () => {
   assert.deepEqual(validateStoryTiming({ ...story, pronunciations: { CLI: 'C L I' } }, timing), [
     'story.yaml: pronunciation of "CLI" spells the letter I as "I", which the voice reads as an unstressed pronoun; write "eye", hyphenated to its neighbours (for example "C-L-eye")',
   ]);
+});
+
+test('known English terms cannot be explicitly assigned a non-English pronunciation language', () => {
+  const { story, timing } = consistent();
+  story.voice = { lang: 'de' };
+  story.pronunciations = { API: { text: 'A P I', lang: 'de' } };
+  assert.deepEqual(validateStoryTiming(story, timing), ['story.yaml: pronunciation of "API" must use an English language because it is a known English technical term']);
+});
+
+test('validation reports native overrides hiding a canonical English term', () => {
+  const { story, timing } = consistent();
+  story.voice = { lang: 'de' };
+  story.pronunciations = { 'Publish then pull': { text: 'Die Engine', lang: 'de' } };
+  assert.match(validateStoryTiming(story, timing).join('\n'), /English/);
 });

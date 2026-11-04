@@ -5,7 +5,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 import { assembleIndex } from './assemble.ts';
 import { filmFiles } from './film-files.ts';
 import { hyperframesDist } from './hyperframes.ts';
-import { storyLanguage, storyPronunciations, voicedText } from './narration.ts';
+import { resolvedVoiceInput, storyLanguage } from './narration.ts';
 import { storyCompositions } from './story.ts';
 import { validateProject } from './validate.ts';
 import { editorialErrors } from './slop.ts';
@@ -37,7 +37,7 @@ function narrationHashes(story: Story) {
   return {
     pronunciationLanguage: storyLanguage(story).split('-')[0],
     narrationHash: hash(JSON.stringify(parts.map(part => ({ id: part.id, narration: part.narration })))),
-    voiceInputHash: hash(JSON.stringify(parts.map(part => ({ id: part.id, text: voicedText(part.narration, storyPronunciations(story)) })))),
+    voiceInputHash: hash(JSON.stringify(parts.map(part => ({ id: part.id, ...resolvedVoiceInput(part.narration, story) })))),
   };
 }
 async function inputFile(project: string, path: string): Promise<InputFile> {

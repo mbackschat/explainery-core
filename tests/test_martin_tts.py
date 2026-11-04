@@ -14,6 +14,21 @@ SPEC.loader.exec_module(martin)
 
 
 class MartinFrontendTests(unittest.TestCase):
+    def test_routes_english_terms_and_keeps_german_ki(self):
+        calls = []
+        def frontend(language):
+            def convert(text):
+                calls.append((language, text))
+                return ("ʏ" if language == "de" else "E"), None
+            return convert
+        runs = [{"text": "Die ", "lang": "de"}, {"text": "Engine", "lang": "en-us"}, {"text": " nutzt K I.", "lang": "de"}]
+        self.assertEqual(martin.phonemize_runs(runs, {lang: frontend(lang) for lang in ["de", "en-us"]}, set("y E")), "y E y")
+        self.assertEqual(calls, [("de", "Die "), ("en-us", "Engine"), ("de", " nutzt K I.")])
+
+    def test_unknown_english_phone_fails_instead_of_falling_back_to_german(self):
+        with self.assertRaisesRegex(ValueError, "unknown phonemes"):
+            martin.phonemize_runs([{"text": "Engine", "lang": "en-us"}], {"en-us": lambda _: ("ʔ", None)}, {"a"})
+
     def test_short_umlaut_survives_before_vocabulary_check(self):
         # Training guide a12d041, section 2 requires ʏ→y after Misaki German G2P.
         for text, phonemes in [("fünf", "fˈʏnf"), ("München", "mˈʏnçən")]:
@@ -46,12 +61,41 @@ class MartinFrontendTests(unittest.TestCase):
 
 
 class MartinRequestTests(unittest.TestCase):
+    def test_requires_language_runs_and_rejects_english_terms_in_german_runs(self):
+        def request(text, runs=None):
+            clip = {"id": "sample", "text": text}
+            if runs is not None:
+                clip["runs"] = runs
+            return {"speed": 1, "clips": [clip]}
+        with self.assertRaisesRegex(ValueError, "runs"):
+            martin.validate_request(request("Die Engine läuft."))
+        for term in ["Engine", "Engines", "ENGINE", "Workflow Engine", "Web-Stack", "Plattformcode", "MCP", "platform code", "Agent Loop", "Kernel", "Data Service", "Browser", "A2A"]:
+            with self.subTest(term=term), self.assertRaisesRegex(ValueError, "English"):
+                martin.validate_request(request(term, [{"text": term, "lang": "de"}]))
+        with self.assertRaisesRegex(ValueError, "English"):
+            martin.validate_request(request("Engine", [{"text": "Eng", "lang": "de"}, {"text": "ine", "lang": "en-us"}]))
+        with self.assertRaisesRegex(ValueError, "join"):
+            martin.validate_request(request("Engine", [{"text": "Browser", "lang": "en-us"}]))
+        with self.assertRaisesRegex(ValueError, "language"):
+            martin.validate_request(request("Text", [{"text": "Text", "lang": "fr-fr"}]))
+
+    def test_accepts_a_preserved_english_phrase_in_german_narration(self):
+        request = {"speed": 1, "clips": [{"id": "sample", "text": "Die Engine nutzt K I.", "runs": [
+            {"text": "Die ", "lang": "de"}, {"text": "Engine", "lang": "en-us"}, {"text": " nutzt K I.", "lang": "de"},
+        ]}]}
+        self.assertEqual(martin.validate_request(request), request)
+
+    def test_native_homographs_and_longer_identifiers_are_not_reclassified(self):
+        text = "Links stehen fünf Modelle. Engine2 bleibt ein Bezeichner."
+        request = {"speed": 1, "clips": [{"id": "sample", "text": text, "runs": [{"text": text, "lang": "de"}]}]}
+        self.assertEqual(martin.validate_request(request), request)
+
     def test_accepts_spoken_input_without_rewriting_it(self):
-        request = {"speed": 1, "clips": [{"id": "technical-terms", "text": "Die A-P-I nutzt K-I."}]}
+        request = {"speed": 1, "clips": [{"id": "technical-terms", "text": "Die K I hilft.", "runs": [{"text": "Die K I hilft.", "lang": "de"}]}]}
         self.assertEqual(martin.validate_request(request), request)
 
     def test_rejects_invalid_requests(self):
-        clip = {"id": "sample", "text": "Text"}
+        clip = {"id": "sample", "text": "Text", "runs": [{"text": "Text", "lang": "de"}]}
         cases = [
             None, {}, {"speed": 1, "clips": []},
             {"speed": True, "clips": [clip]},
@@ -72,7 +116,7 @@ class MartinRequestTests(unittest.TestCase):
     def test_reads_bounded_request(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "request.json"
-            request = {"speed": 1, "clips": [{"id": "a", "text": "fünf"}]}
+            request = {"speed": 1, "clips": [{"id": "a", "text": "fünf", "runs": [{"text": "fünf", "lang": "de"}]}]}
             path.write_text(json.dumps(request), encoding="utf-8")
             self.assertEqual(martin.read_request(path), request)
             path.write_bytes(b" " * (128 * 1024 + 1))
@@ -113,6 +157,15 @@ class MartinAudioTests(unittest.TestCase):
     "frontend integration requires Misaki and an explicit native eSpeak library",
 )
 class MartinNativeFrontendTests(unittest.TestCase):
+    def test_engine_uses_english_phones_inside_german_narration(self):
+        german, _, _, _ = martin.create_frontend()
+        english, _, _, _ = martin.create_frontend("en-us")
+        self.assertEqual(english("Engine")[0], "ˈɛnʤɪn")
+        self.assertNotEqual(german("Engine")[0], english("Engine")[0])
+        runs = [{"text": "Die ", "lang": "de"}, {"text": "Engine", "lang": "en-us"}, {"text": " nutzt K I.", "lang": "de"}]
+        expected = " ".join([german("Die ")[0], english("Engine")[0], german(" nutzt K I.")[0]])
+        self.assertEqual(martin.phonemize_runs(runs, {"de": german, "en-us": english}, set(expected)), expected)
+
     def test_native_german_frontend_matches_training_tokens(self):
         g2p, _, _, _ = martin.create_frontend()
         examples = {

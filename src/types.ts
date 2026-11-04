@@ -27,10 +27,12 @@ export interface Story {
   title: string;
   theme: string;
   canvas: { width: number; height: number; fps: number };
-  pronunciations?: Record<string, string>;
+  pronunciations?: Record<string, Pronunciation>;
   voice?: StoryVoice;
   scenes: (Composition | Scene)[];
 }
+
+export type Pronunciation = string | { text: string; lang: string };
 
 export interface StoryVoice {
   name?: string;

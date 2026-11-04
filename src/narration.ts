@@ -1,3 +1,6 @@
+import englishTechnicalTerms from '../data/english-technical-terms.json' with { type: 'json' };
+import type { Pronunciation } from './types.ts';
+
 const MARKER = /\{([^{}]*)\}/g;
 const BEAT_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -23,6 +26,9 @@ export function narrationBeats(narration: string): { beats: string[]; errors: st
 export const spokenText = (narration: string) => narration.replace(MARKER, '').replace(/\s+/g, ' ').replace(/\s+([.,;:!?])/g, '$1').trim();
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const termPattern = (terms: string[]) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${[...terms].filter(Boolean).sort((a, b) => b.length - a.length).map(escape).join('|')})(?![\\p{L}\\p{N}])`, 'gu');
+const englishCanonicalPattern = termPattern(Object.keys(englishTechnicalTerms));
+const englishSpokenPattern = termPattern([...Object.keys(englishTechnicalTerms), ...Object.values(englishTechnicalTerms)]);
 
 /** UTF-16 offsets in the marker-free written text and the generated spoken text. */
 export interface PronunciationSpan {
@@ -51,7 +57,7 @@ export function voicedNarration(narration: string, pronunciations: Record<string
     text += value;
   };
   if (words.length) {
-    const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?:${words.map(escape).join('|')})(?![\\p{L}\\p{N}])`, 'gu');
+    const pattern = termPattern(words);
     for (const match of written.matchAll(pattern)) {
       append(cursor, match.index, written.slice(cursor, match.index));
       append(match.index, match.index + match[0].length, pronunciations[match[0]]);
@@ -69,21 +75,91 @@ export function voicedNarration(narration: string, pronunciations: Record<string
  */
 export const COMMON_PRONUNCIATIONS: Readonly<Record<string, string>> = { AI: 'A-eye', API: 'A-P-eye', CLI: 'C-L-eye', ID: 'eye-D', 'I/O': 'eye-O', SPI: 'S-P-eye' };
 
-// German eSpeak letter names preserve I as /iː/; unlike English they need no "eye" workaround
-// (phoneme inspection on 2026-11-04; see docs/adr/0014-language-aware-pronunciation.md).
-const germanPronunciations: Readonly<Record<string, string>> = { AI: 'A-I', API: 'A-P-I', CLI: 'C-L-I', ID: 'I-D', 'I/O': 'I-O', SPI: 'S-P-I', KI: 'K-I' };
-
 export const KOKORO_LANGUAGES: Readonly<Record<string, string>> = { a: 'en-us', b: 'en-gb', e: 'es', f: 'fr-fr', h: 'hi', i: 'it', j: 'ja', p: 'pt-br', z: 'zh' };
-interface PronunciationStory { voice?: { name?: string; lang?: string }; pronunciations?: Record<string, string> }
+interface PronunciationStory { voice?: { name?: string; lang?: string }; pronunciations?: Record<string, Pronunciation> }
+export interface VoiceRun { text: string; lang: string }
+export interface StoryVoicePlan extends VoicedNarration { runs: VoiceRun[] }
+export interface ResolvedVoiceInput { text: string; runs?: VoiceRun[] }
 
 /** Stored language also applies to narration prepared for an external or human voice. */
 export const storyLanguage = (story: PronunciationStory): string => story.voice?.lang ?? KOKORO_LANGUAGES[story.voice?.name?.[0]?.toLowerCase() ?? ''] ?? 'en-us';
 
-/** Language-specific defaults, overridden by the story's own readings; canonical text is never changed. */
+function pronunciationEntries(story: PronunciationStory): Record<string, VoiceRun> {
+  const lang = storyLanguage(story);
+  const english = lang.split('-')[0] === 'en';
+  const defaults = english ? COMMON_PRONUNCIATIONS : englishTechnicalTerms;
+  const entries: Record<string, VoiceRun> = Object.fromEntries(Object.entries(defaults).map(([term, text]) => [term, { text, lang: english ? lang : 'en-us' }]));
+  if (lang === 'de') entries.KI = { text: 'K I', lang };
+  for (const [term, reading] of Object.entries(story.pronunciations ?? {})) {
+    const knownEnglish = Object.hasOwn(englishTechnicalTerms, term);
+    if (typeof reading !== 'string' && knownEnglish && reading.lang.split('-')[0] !== 'en') {
+      throw new Error(`pronunciation of "${term}" must use an English language because it is a known English technical term`);
+    }
+    entries[term] = typeof reading === 'string' ? { text: reading, lang: knownEnglish && !english ? 'en-us' : lang } : reading;
+  }
+  return entries;
+}
+
+/** Resolved text substitutions also drive spoken alignment, retaining canonical caption words. */
 export function storyPronunciations(story: PronunciationStory): Record<string, string> {
-  const language = storyLanguage(story).split('-')[0];
-  const common = language === 'en' ? COMMON_PRONUNCIATIONS : language === 'de' ? germanPronunciations : {};
-  return { ...common, ...story.pronunciations };
+  return Object.fromEntries(Object.entries(pronunciationEntries(story)).map(([term, reading]) => [term, reading.text]));
+}
+
+/** Resolves each term once so exported, synthesized and hashed speech retain the same language boundaries. */
+export function storyVoicePlan(narration: string, story: PronunciationStory): StoryVoicePlan {
+  const entries = pronunciationEntries(story);
+  const mapping = voicedNarration(narration, Object.fromEntries(Object.entries(entries).map(([term, reading]) => [term, reading.text])));
+  const runs: VoiceRun[] = [];
+  const languages = mapping.spans.map(span => entries[mapping.written.slice(span.writtenStart, span.writtenEnd)]?.lang ?? storyLanguage(story));
+  const guardEnglish = (text: string, pattern: RegExp, startKey: 'writtenStart' | 'spokenStart', endKey: 'writtenEnd' | 'spokenEnd') => {
+    let cursor = 0;
+    for (const match of text.matchAll(pattern)) {
+      while (cursor < mapping.spans.length && mapping.spans[cursor][endKey] <= match.index) cursor++;
+      for (let index = cursor; index < mapping.spans.length && mapping.spans[index][startKey] < match.index + match[0].length; index++) {
+        if (languages[index].split('-')[0] !== 'en') {
+          const span = mapping.spans[index];
+          const term = mapping.written.slice(span.writtenStart, span.writtenEnd);
+          throw new Error(`pronunciation of "${term}" must use an English language for known English technical term "${match[0]}"`);
+        }
+      }
+    }
+  };
+  guardEnglish(mapping.written, englishCanonicalPattern, 'writtenStart', 'writtenEnd');
+  guardEnglish(mapping.text, englishSpokenPattern, 'spokenStart', 'spokenEnd');
+  for (const [index, span] of mapping.spans.entries()) {
+    const text = mapping.text.slice(span.spokenStart, span.spokenEnd);
+    const lang = languages[index];
+    const previous = runs.at(-1);
+    if (previous?.lang === lang) previous.text += text;
+    else runs.push({ text, lang });
+  }
+  return { ...mapping, runs };
+}
+
+/** Omits redundant runs to preserve the historical English cache and production hashes. */
+export function resolvedVoiceInput(narration: string, story: PronunciationStory): ResolvedVoiceInput {
+  const plan = storyVoicePlan(narration, story);
+  return { text: plan.text, ...(plan.runs.some(run => run.lang !== storyLanguage(story)) ? { runs: plan.runs } : {}) };
+}
+
+/** Checks story-local readings in their resolved language and reports forbidden English-term overrides. */
+export function storyPronunciationErrors(story: PronunciationStory, narrations: string[] = []): string[] {
+  const errors: string[] = [];
+  for (const [term, reading] of Object.entries(story.pronunciations ?? {})) {
+    try {
+      const entry = pronunciationEntries({ ...story, pronunciations: { [term]: reading } })[term];
+      errors.push(...pronunciationErrors({ [term]: entry.text }, entry.lang));
+    } catch (error) {
+      errors.push((error as Error).message);
+    }
+  }
+  if (!errors.length) {
+    for (const narration of narrations) {
+      try { storyVoicePlan(narration, story); }
+      catch (error) { errors.push((error as Error).message); }
+    }
+  }
+  return [...new Set(errors)];
 }
 
 /**

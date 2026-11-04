@@ -3,7 +3,8 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve } from 'node:path';
-import { assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, editorialErrors, estimateTiming, exportExplainer, exportExplainerFile, loadStory, sceneRange, silences, storyCompositions, storyPronunciations, storyScenes, transcribe, validateProject, validateStoryTiming, voicedText, type PreparedSceneProject, type Story, type Timing, type TranscriptWord } from '../src/index.ts';
+import { assembleIndex, audioDuration, DEFAULT_WORDS_PER_SECOND, editorialErrors, estimateTiming, exportExplainer, exportExplainerFile, loadStory, sceneRange, silences, storyCompositions, storyScenes, storyVoicePlan, transcribe, validateProject, validateStoryTiming, type PreparedSceneProject, type Story, type Timing, type TranscriptWord } from '../src/index.ts';
+import { storyLanguage, storyPronunciationErrors } from '../src/narration.ts';
 import { exportYoutubeText } from '../src/youtube.ts';
 import { renderChapters, sceneChapters, writeMp4Chapters } from '../src/chapters.ts';
 import { subtitleCues, formatSubtitles } from '../src/subtitles.ts';
@@ -20,11 +21,11 @@ import { staticBeatWarning, verifyFilm, verifyVideo } from '../src/verification.
 import { snapshotTimes } from '../src/snapshot.ts';
 import { formatRenderProgress, parseRenderProgress } from '../src/render-progress.ts';
 
-const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --composition <id,...> | --film] [--narration | --subtitles <file.vtt>] [--presenters <plan.json>] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --composition <id,...> | --film] [--quality draft|looks|delivery] [--out <file>] [--workers <number>] [--reuse]\n       explainery chapters [project-dir] --video <file.mp4> [--scene <id,...> | --film]\n       explainery snapshot [project-dir] --at <seconds|composition[:beat][±seconds],...> [--out <directory>] [--zoom <selector|x,y,w,h>]\n       explainery narration [project-dir]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--transcript-mode canonical|spoken] [--segments <file.json>] [--report <file.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>] [--subtitles <file.vtt>]\n       explainery export [project-dir] --single-file [--out <file.html>] [--subtitles <file.vtt>]';
+const USAGE = 'Usage: explainery scenes [project-dir]\n       explainery focus [project-dir] [--scene <id-or-title> | --film]\n       explainery preview [project-dir] [--scene <id,...> | --composition <id,...> | --film] [--narration | --subtitles <file.vtt>] [--presenters <plan.json>] [--stop | --status]\n       explainery render [project-dir] [--scene <id,...> | --composition <id,...> | --film] [--quality draft|looks|delivery] [--out <file>] [--workers <number>] [--reuse]\n       explainery chapters [project-dir] --video <file.mp4> [--scene <id,...> | --film]\n       explainery snapshot [project-dir] --at <seconds|composition[:beat][±seconds],...> [--out <directory>] [--zoom <selector|x,y,w,h>]\n       explainery narration [project-dir] [--json]\n       explainery estimate [project-dir] [--wps <words-per-second>] [--force]\n       explainery align [project-dir] [--audio <file>] [--transcript <transcript.json>] [--transcript-mode canonical|spoken] [--segments <file.json>] [--report <file.json>] [--force]\n       explainery subtitles [project-dir] [--audio <file>] [--transcript <transcript.json>] [--out <prefix>]\n       explainery validate [project-dir]\n       explainery assemble [project-dir] [--check]\n       explainery export [project-dir] [--out <dir>] [--subtitles <file.vtt>]\n       explainery export [project-dir] --single-file [--out <file.html>] [--subtitles <file.vtt>]';
 const PRODUCTION_USAGE = '\n       explainery voice [project-dir] [--sample <composition>] [--voice <name>] [--lang <locale>] [--speed <number>] [--gap <seconds>] [--out <relative.wav>]\n       explainery transcribe [project-dir] --segments <voice-manifest.json> [--out <transcript.json>]\n       explainery production [project-dir] --transcript <relative.json> [--segments <relative.json>] [--transcript-mode canonical|spoken]\n       explainery label-audit [project-dir] --report <relative-file> --reviewer <name>\n       explainery preflight [project-dir]\n       explainery verify [project-dir] [--scene <id,...> | --film] [--composition <id>] [--quick] [--out <directory>] [--pixel-tolerance <0..255>]\n       explainery deliver [project-dir] [--out <prefix>] [--workers <number>]\n       explainery youtube [project-dir] --metadata <file.json> [--out <prefix>]';
 const args = process.argv.slice(2);
 const valueOptions = new Set(['--presenters', '--subtitles', '--video', '--out', '--wps', '--audio', '--transcript', '--scene', '--quality', '--workers', '--voice', '--lang', '--speed', '--gap', '--sample', '--segments', '--transcript-mode', '--report', '--reviewer', '--pixel-tolerance', '--metadata', '--at', '--zoom', '--composition']);
-const flagOptions = new Set(['--force', '--check', '--single-file', '--film', '--stop', '--status', '--narration', '--reuse', '--quick']);
+const flagOptions = new Set(['--force', '--check', '--single-file', '--film', '--stop', '--status', '--narration', '--reuse', '--quick', '--json']);
 const options = new Map<string, string>();
 const flags = new Set<string>();
 const positionals: string[] = [];
@@ -152,7 +153,15 @@ async function narration() {
   const loaded = await loadStory(project);
   if (!loaded.value) return fail(loaded.errors);
   const story = loaded.value;
-  return report(storyCompositions(story).map(composition => voicedText(composition.narration, storyPronunciations(story))).join('\n\n'));
+  const errors = storyPronunciationErrors(story, storyCompositions(story).map(composition => composition.narration));
+  if (errors.length) return fail(errors);
+  const clips = storyCompositions(story).map(composition => {
+    const { text, runs } = storyVoicePlan(composition.narration, story);
+    return { id: composition.id, text, runs };
+  });
+  if (flag('--json')) return report(JSON.stringify({ speed: story.voice?.speed ?? 1, clips }, null, 2));
+  if (clips.some(clip => clip.runs.some(run => run.lang !== storyLanguage(story)))) return fail(['mixed-language narration requires explainery narration --json to preserve each term\'s language']);
+  return report(clips.map(clip => clip.text).join('\n\n'));
 }
 
 async function scenes() {

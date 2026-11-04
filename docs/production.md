@@ -6,6 +6,8 @@ Use this workflow after the story's [pronunciation and sample review](authoring.
 
 The installed HyperFrames Kokoro models and Python runtime are prerequisites. Set `HYPERFRAMES_PYTHON` to that runtime when it is not the shell's `python3`. `explainery voice` checks that runtime first and names a missing interpreter or package together with this variable. No model or dependency installation is performed by `voice`.
 
+**English technical terms retain English pronunciation in every narration language.** Mixed narration requires language-preserving export (`explainery narration --json`) and an adapter with explicit language-run support; the stock HyperFrames adapter is monolingual and fails for mixed input. The [Martin audition runner](german-voice.md#local-audition-runner) supports German prose with English runs. The [shared contract](adr/0015-english-terms-in-non-english-narration.md) keeps canonical captions, includes term languages in audio/provenance identity, and prevents old monolingual audio from being reused as corrected mixed narration. Listening review remains required.
+
 Keep the film's voice settings in `story.yaml`, so every run of `voice` keeps the same pacing:
 
 ```yaml
