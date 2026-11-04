@@ -25,6 +25,40 @@ async function fixture() {
   return dir;
 }
 
+test('a language change invalidates production even when the spoken input is unchanged', async t => {
+  const dir = await fixture();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await recordProduction(dir, { transcript: 'transcript.json' });
+  const file = join(dir, 'story.yaml');
+  await writeFile(file, (await readFile(file, 'utf8')) + '\nvoice:\n  lang: de\n');
+  assert.match((await productionPreflight(dir)).errors.join(), /production pronunciation language changed/);
+});
+
+test('legacy English production records remain valid without a pronunciation language', async t => {
+  const dir = await fixture();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const record = await recordProduction(dir, { transcript: 'transcript.json' });
+  delete record.pronunciationLanguage;
+  await writeFile(join(dir, 'production.json'), JSON.stringify(record));
+  assert.deepEqual((await productionPreflight(dir)).errors, []);
+});
+
+test('an old voice manifest cannot relabel unchanged narration as another language', async t => {
+  const dir = await fixture();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const recorded = await recordProduction(dir, { transcript: 'transcript.json' });
+  const manifest = {
+    audio: recorded.audio.path, audioSha256: recorded.audio.sha256,
+    scriptHash: recorded.narrationHash, voiceInputHash: recorded.voiceInputHash,
+    settings: { lang: 'en-us' }, segments: [{ id: 'probe', start: 0, end: 1 }],
+  };
+  await writeFile(join(dir, 'segments.json'), JSON.stringify(manifest));
+  await recordProduction(dir, { transcript: 'transcript.json', segments: 'segments.json' });
+  const file = join(dir, 'story.yaml');
+  await writeFile(file, (await readFile(file, 'utf8')) + '\nvoice:\n  lang: de\n');
+  await assert.rejects(recordProduction(dir, { transcript: 'transcript.json', segments: 'segments.json' }), /voice manifest language/);
+});
+
 test('production preflight rejects missing provenance and changed narration, audio, transcript, timing, or assembly', async t => {
   const dir = await fixture();
   t.after(() => rm(dir, { recursive: true, force: true }));

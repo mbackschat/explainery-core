@@ -34,6 +34,7 @@ export interface Story {
 
 export interface StoryVoice {
   name?: string;
+  lang?: string;
   speed?: number;
   gap?: number;
 }

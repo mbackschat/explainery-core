@@ -19,6 +19,19 @@ const garden = story(
 );
 const gardenWords = [...spoken('Every garden starts small. Plant one seed and it grows.', 0.3), ...spoken('Then you pick the fruit.', 6)];
 
+test('German spoken expansions align back to canonical words and beats', async () => {
+  const { alignStoryWords } = await import('../src/align.ts');
+  const film = story(scene('one', '{api} API {next} nutzt JSON.'));
+  film.voice = { lang: 'de' };
+  film.pronunciations = { JSON: 'Dschäison' };
+  const transcript = spoken('A P I nutzt Dschäison.', 1);
+  const aligned = alignStoryWords(film, transcript, { transcriptMode: 'spoken' }).words;
+  assert.deepEqual(aligned.map(word => ({ ...word, end: Math.round(word.end * 1e6) / 1e6 })), [
+    { text: 'API', start: 1, end: 2.4 }, { text: 'nutzt', start: 2.5, end: 2.9 }, { text: 'JSON.', start: 3, end: 3.4 },
+  ]);
+  assert.equal(alignTiming(film, transcript, { audio: 'a.wav', transcriptMode: 'spoken' }).scenes.one.beats.next, 2.5);
+});
+
 test('the alignment report lists each composition\'s words on its own clock, with the beat each falls in', async () => {
   const { alignTimingWithReport } = await import('../src/align.ts');
   const { compositions } = alignTimingWithReport(garden, gardenWords, { audio: 'a.wav' });

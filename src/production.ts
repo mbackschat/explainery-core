@@ -5,7 +5,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 import { assembleIndex } from './assemble.ts';
 import { filmFiles } from './film-files.ts';
 import { hyperframesDist } from './hyperframes.ts';
-import { storyPronunciations, voicedText } from './narration.ts';
+import { storyLanguage, storyPronunciations, voicedText } from './narration.ts';
 import { storyCompositions } from './story.ts';
 import { validateProject } from './validate.ts';
 import { editorialErrors } from './slop.ts';
@@ -30,10 +30,12 @@ export interface ProductionRecord {
   timingSha256: string;
   narrationHash: string;
   voiceInputHash: string;
+  pronunciationLanguage?: string;
 }
 function narrationHashes(story: Story) {
   const parts = storyCompositions(story);
   return {
+    pronunciationLanguage: storyLanguage(story).split('-')[0],
     narrationHash: hash(JSON.stringify(parts.map(part => ({ id: part.id, narration: part.narration })))),
     voiceInputHash: hash(JSON.stringify(parts.map(part => ({ id: part.id, text: voicedText(part.narration, storyPronunciations(story)) })))),
   };
@@ -75,6 +77,7 @@ export async function recordProduction(project: string, options: { transcript: s
     const value = JSON.parse(await readFile(join(project, options.segments), 'utf8'));
     if (!Array.isArray(value)) {
       if (!value || value.sample || value.audioSha256 !== audio.sha256 || value.scriptHash !== hashes.narrationHash || value.voiceInputHash !== hashes.voiceInputHash) throw new Error('voice manifest does not match full-film audio and narration');
+      if (typeof value.settings?.lang !== 'string' || value.settings.lang.split('-')[0] !== hashes.pronunciationLanguage) throw new Error('voice manifest language does not match the stored pronunciation language');
       if ((await inputFile(project, value.audio)).path !== audio.path) throw new Error('voice manifest audio path differs from timing.audio');
     }
     segments = Array.isArray(value) ? value : value.segments;
@@ -118,6 +121,7 @@ export async function productionPreflight(project: string): Promise<{ errors: st
     const hashes = narrationHashes(story);
     if (hashes.narrationHash !== record.narrationHash) errors.push('production narration changed; regenerate or review the audio and transcript');
     if (hashes.voiceInputHash !== record.voiceInputHash) errors.push('production pronunciation input changed; regenerate or review the audio');
+    if (hashes.pronunciationLanguage !== (record.pronunciationLanguage ?? 'en')) errors.push('production pronunciation language changed; review and record the audio for this language');
     return { errors, record };
   } catch (error) { return { errors: [...errors, (error as Error).message] }; }
 }

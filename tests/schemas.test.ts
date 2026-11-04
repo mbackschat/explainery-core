@@ -29,6 +29,11 @@ test('a complete story and timing pass their schemas', () => {
   assert.deepEqual(checkTiming(timing()), []);
 });
 
+test('a narration language can be stored before choosing a synthetic voice', () => {
+  assert.deepEqual(checkStory({ ...story(), voice: { lang: 'de' } }), []);
+  assert.notDeepEqual(checkStory({ ...story(), voice: { lang: 'unknown' } }), []);
+});
+
 test('a scene without a headline is reported at its path', () => {
   const value = story();
   delete (value.scenes[0].copy as Partial<Copy>).headline;
@@ -76,6 +81,5 @@ test('voice settings keep a film\'s synthetic voice and pacing in the story', ()
   assert.notDeepEqual(checkStory({ ...story(), voice: { speed: 0 } }), []);
   assert.notDeepEqual(checkStory({ ...story(), voice: { speed: 3.5 } }), []);
   assert.notDeepEqual(checkStory({ ...story(), voice: { gap: -0.1 } }), []);
-  // The language follows from the voice name, so a stored one could only contradict it.
-  assert.deepEqual(checkStory({ ...story(), voice: { name: 'af_heart', lang: 'en-us' } } as Story), ['/voice: must NOT have additional property "lang"']);
+  assert.deepEqual(checkStory({ ...story(), voice: { name: 'af_heart', lang: 'en-us' } }), []);
 });

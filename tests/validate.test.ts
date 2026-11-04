@@ -34,6 +34,13 @@ test('a consistent story and timing produce no errors', () => {
   assert.deepEqual(validateStoryTiming(story, timing), []);
 });
 
+test('German pronunciation overrides do not trigger English article and pronoun guards', () => {
+  const { story, timing } = consistent();
+  story.voice = { lang: 'de' };
+  story.pronunciations = { API: 'A P I' };
+  assert.deepEqual(validateStoryTiming(story, timing), []);
+});
+
 test('beats out of narration order fail', () => {
   const { story, timing } = consistent();
   timing.scenes.first.beats = { publish: 4.5, pull: 2.45 };

@@ -6,7 +6,7 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { hyperframesDist } from './hyperframes.ts';
-import { storyPronunciations, voicedText } from './narration.ts';
+import { KOKORO_LANGUAGES, storyLanguage, storyPronunciations, voicedText } from './narration.ts';
 import { storyCompositions } from './story.ts';
 import type { Story } from './types.ts';
 
@@ -37,7 +37,6 @@ const hash = (value: string | Buffer) => createHash('sha256').update(value).dige
 const run = promisify(execFile);
 const rate = 24000;
 const synthesisTimeout = 60000;
-const languages: Record<string, string> = { a: 'en-us', b: 'en-gb', e: 'es', f: 'fr-fr', h: 'hi', i: 'it', j: 'ja', p: 'pt-br', z: 'zh' };
 
 /** Retains the JSON failure on stdout and termination metadata that execFile's message omits. */
 export function voiceCommandError(error: unknown): Error {
@@ -195,8 +194,10 @@ export async function atomicWrite(path: string, value: string | Buffer): Promise
  */
 export async function generateVoice(projectDir: string, story: Story, options: VoiceOptions = {}): Promise<VoiceManifest> {
   const voice = options.voice ?? story.voice?.name ?? 'af_heart';
-  const settings: VoiceSettings = { voice, lang: options.lang ?? languages[voice[0].toLowerCase()] ?? 'en-us', speed: options.speed ?? story.voice?.speed ?? 1, gap: options.gap ?? story.voice?.gap ?? 0.4 };
-  if (!voice || !Object.values(languages).includes(settings.lang) || !Number.isFinite(settings.speed) || settings.speed < 0.1 || settings.speed > 3 || !Number.isFinite(settings.gap) || settings.gap < 0) throw new Error('invalid voice, language, speed (0.1–3), or gap (nonnegative seconds)');
+  const settings: VoiceSettings = { voice, lang: options.lang ?? story.voice?.lang ?? storyLanguage({ voice: { name: voice } }), speed: options.speed ?? story.voice?.speed ?? 1, gap: options.gap ?? story.voice?.gap ?? 0.4 };
+  if (!voice || ![...Object.values(KOKORO_LANGUAGES), 'de'].includes(settings.lang) || !Number.isFinite(settings.speed) || settings.speed < 0.1 || settings.speed > 3 || !Number.isFinite(settings.gap) || settings.gap < 0) throw new Error('invalid voice, language, speed (0.1–3), or gap (nonnegative seconds)');
+  if (settings.lang.split('-')[0] !== storyLanguage(story).split('-')[0]) throw new Error('voice language differs from the stored pronunciation language; set voice.lang in story.yaml so narration and alignment use the same readings');
+  if (settings.lang === 'de' && !options.adapter) throw new Error('German synthesis requires a German model and frontend such as Martin; the stock HyperFrames adapter does not support it. Pronunciation preparation is available with explainery narration.');
   const all = storyCompositions(story);
   const compositions = options.sample ? all.filter(part => part.id === options.sample) : all;
   if (!compositions.length) throw new Error(options.sample ? `unknown composition "${options.sample}"` : 'story has no compositions to voice');

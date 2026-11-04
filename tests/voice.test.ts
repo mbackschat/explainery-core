@@ -34,6 +34,23 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
   return { dir, calls, adapter };
 }
 
+test('voice uses stored German pronunciations and rejects transient cross-language changes', async t => {
+  const { dir, calls, adapter } = await fixture(t);
+  const german: Story = { ...story, voice: { name: 'martin', lang: 'de' }, scenes: [{ id: 'first', copy: { headline: 'First' }, narration: '{begin} Die API nutzt KI.' }] };
+  const manifest = await generateVoice(dir, german, { adapter });
+  assert.deepEqual(calls, ['Die A-P-I nutzt K-I.']);
+  assert.equal(manifest.settings.lang, 'de');
+  calls.length = 0;
+  await assert.rejects(generateVoice(dir, german, { adapter, lang: 'en-us' }), /voice.lang/);
+  await assert.rejects(generateVoice(dir, story, { adapter, voice: 'ff_siwis' }), /voice.lang/);
+  assert.deepEqual(calls, []);
+});
+
+test('German pronunciation support does not silently select stock English model weights', async t => {
+  const { dir } = await fixture(t);
+  await assert.rejects(generateVoice(dir, { ...story, voice: { lang: 'de', name: 'martin' } }), /German synthesis.*Martin/);
+});
+
 test('voice measures composition offsets including holds, overlaps and gaps and preserves canonical script', async t => {
   const { dir, calls, adapter } = await fixture(t);
   const before = structuredClone(story);

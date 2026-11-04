@@ -2,6 +2,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spokenText, voicedText } from '../src/index.ts';
 
+test('pronunciation profiles follow the stored language and preserve canonical terms', async () => {
+  const { storyPronunciations, pronunciationErrors } = await import('../src/narration.ts');
+  const german = { voice: { lang: 'de' }, pronunciations: { A12: 'A zwölf', JSON: 'Dschäison' } };
+  const text = 'A12 nutzt API und JSON.';
+  assert.equal(voicedText(text, storyPronunciations(german)), 'A zwölf nutzt A-P-I und Dschäison.');
+  assert.equal(spokenText(text), text);
+  assert.deepEqual(pronunciationErrors({ API: 'A P I' }, 'de'), []);
+  assert.equal(voicedText('API', storyPronunciations({ voice: { name: 'ff_siwis' } })), 'API');
+  assert.equal(voicedText('API', storyPronunciations({ voice: { lang: 'en-gb' } })), 'A-P-eye');
+});
+
 test('a draft voice speaks each word in its pronunciation, while readers still see the written word', () => {
   const narration = 'The SQL {sql} layer stores JSON files.';
   const pronunciations = { SQL: 'S-Q-L', JSON: 'Jason' };

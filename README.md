@@ -158,6 +158,8 @@ pnpm exec explainery estimate --wps 2.2  # a slower narrator
 
 Before generating a full voice, follow the [pronunciation and voice guidance](docs/authoring.md#pronunciation-and-voice-direction): record confirmed readings separately from proposals and listen to a representative sample. Keep project vocabulary in its own glossary; the [template](docs/templates/pronunciation.md) records decisions and listening evidence without duplicating the script.
 
+Pronunciation language is stored as `voice.lang` in `story.yaml`; use `de` for German. This selects language-specific voice-input substitutions while keeping canonical spelling in captions and labels. See [German pronunciation and Martin model preparation](docs/german-voice.md) for the shared cache, model size and runtime requirements. Pronunciation preparation is available independently of local synthesis support.
+
 A recorded voiceover is the goal, but a local synthetic voice lets you hear and time a story first. `hyperframes tts` uses the local Kokoro model. HyperFrames 0.8.142 supports several languages and has no German option; `pnpm exec hyperframes tts --help` lists the voices and languages. The example below uses an American English voice. One-time setup on macOS with Homebrew under `/opt/homebrew`, and the Python packages in their own uv environment:
 
 ```bash

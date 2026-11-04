@@ -2,6 +2,8 @@
 
 Copy this template to the chosen glossary owner and replace the placeholders. Follow the shared [pronunciation and voice guidance](../authoring.md#pronunciation-and-voice-direction); update that link for the destination. Keep canonical script wording in the film's `story.yaml`.
 
+Store the narration language in `voice.lang` when it is not implied by the configured Kokoro voice (for example `de` for German). Apply chosen spoken forms through `pronunciations`; these affect voice input, not canonical captions or labels. Language preparation does not imply that the selected synthesis runtime supports that language.
+
 ## Voice decisions
 
 | Decision | Value | Status and basis |

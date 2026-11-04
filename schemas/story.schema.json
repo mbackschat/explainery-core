@@ -26,10 +26,11 @@
     },
     "voice": {
       "type": "object",
-      "description": "Settings `explainery voice` uses for the local synthetic voice when its command-line options do not name them. The language follows from the voice name.",
+      "description": "Narration language and local synthetic voice settings. Language selects pronunciation defaults even before a voice is chosen; it does not establish engine support.",
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string", "minLength": 1, "description": "Kokoro voice, for example \"af_heart\"; its first letter selects the language." },
+        "lang": { "enum": ["en-us", "en-gb", "es", "fr-fr", "hi", "it", "ja", "pt-br", "zh", "de"], "description": "Narration language. Defaults to the configured Kokoro voice's language, then en-us. German pronunciation preparation is supported independently of the synthesis runtime." },
         "speed": { "type": "number", "minimum": 0.1, "maximum": 3, "description": "Speaking rate; 1 is the voice's own pace." },
         "gap": { "type": "number", "minimum": 0, "description": "Seconds of silence added after each composition's hold minus overlap." }
       }

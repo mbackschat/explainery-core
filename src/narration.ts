@@ -63,14 +63,28 @@ export function voicedNarration(narration: string, pronunciations: Record<string
 }
 
 /**
- * Readings of acronyms that recur across films, so every story voices them alike; a story's own entry wins.
+ * English readings of recurring acronyms; a story's own entry wins.
  *
  * Letters are hyphenated into one token and the letter I is written "eye", following pronunciationErrors.
  */
 export const COMMON_PRONUNCIATIONS: Readonly<Record<string, string>> = { AI: 'A-eye', API: 'A-P-eye', CLI: 'C-L-eye', ID: 'eye-D', 'I/O': 'eye-O', SPI: 'S-P-eye' };
 
-/** The readings a story's voice uses: the common acronyms, overridden by the story's own pronunciations. */
-export const storyPronunciations = (story: { pronunciations?: Record<string, string> }): Record<string, string> => ({ ...COMMON_PRONUNCIATIONS, ...story.pronunciations });
+// German eSpeak letter names preserve I as /iː/; unlike English they need no "eye" workaround
+// (phoneme inspection on 2026-11-04; see docs/adr/0014-language-aware-pronunciation.md).
+const germanPronunciations: Readonly<Record<string, string>> = { AI: 'A-I', API: 'A-P-I', CLI: 'C-L-I', ID: 'I-D', 'I/O': 'I-O', SPI: 'S-P-I', KI: 'K-I' };
+
+export const KOKORO_LANGUAGES: Readonly<Record<string, string>> = { a: 'en-us', b: 'en-gb', e: 'es', f: 'fr-fr', h: 'hi', i: 'it', j: 'ja', p: 'pt-br', z: 'zh' };
+interface PronunciationStory { voice?: { name?: string; lang?: string }; pronunciations?: Record<string, string> }
+
+/** Stored language also applies to narration prepared for an external or human voice. */
+export const storyLanguage = (story: PronunciationStory): string => story.voice?.lang ?? KOKORO_LANGUAGES[story.voice?.name?.[0]?.toLowerCase() ?? ''] ?? 'en-us';
+
+/** Language-specific defaults, overridden by the story's own readings; canonical text is never changed. */
+export function storyPronunciations(story: PronunciationStory): Record<string, string> {
+  const language = storyLanguage(story).split('-')[0];
+  const common = language === 'en' ? COMMON_PRONUNCIATIONS : language === 'de' ? germanPronunciations : {};
+  return { ...common, ...story.pronunciations };
+}
 
 /**
  * Reports readings the local voice speaks wrongly in running text.
@@ -79,7 +93,8 @@ export const storyPronunciations = (story: { pronunciations?: Record<string, str
  * hyphenated token: "The C L I blocks" became `sˈiː ˈɛl aɪ` and was heard as "C-L" (kokoro-onnx phonemes, checked on
  * 2026-10-18). A lone A is read as the article. "eye", and an A hyphenated to the next letter, stay stressed.
  */
-export function pronunciationErrors(pronunciations: Record<string, string>): string[] {
+export function pronunciationErrors(pronunciations: Record<string, string>, language = 'en-us'): string[] {
+  if (language.split('-')[0] !== 'en') return [];
   const errors: string[] = [];
   for (const [term, reading] of Object.entries(pronunciations)) {
     if (reading.split(/\s+/).includes('A')) errors.push(`pronunciation of "${term}" spells the letter A as a separate word, which the voice reads as the article; hyphenate it to the next letter (for example "A-eye")`);
