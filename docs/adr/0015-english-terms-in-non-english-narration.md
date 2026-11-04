@@ -6,6 +6,8 @@ Accepted on 4 November 2026. Refines [language-aware pronunciation](0014-languag
 
 **English technical terms retain English pronunciation in every narration language.** The narrator's language controls surrounding prose, not the pronunciation of embedded English words or technical initialisms. English words such as Engine are spoken as words; English initialisms use English letter names. Native-language abbreviations remain explicit exceptions: German KI uses separate German K–I letter names. Canonical spelling in the script, labels and captions remains unchanged.
 
+Pronunciation overrides must not silently substitute a German translation for a written English term. Mentioning a valid translation does not authorize using it in the voice. A translation belongs to an explicit script wording change; speech then follows that written term.
+
 The rejected German Martin audition demonstrated the mechanism: converting an entire sentence with German G2P changed `Engine` to `ɛŋˈiːnə`, while English G2P produces `ˈɛnʤɪn`. Hyphenated letter spellings and German approximations of English words do not establish English pronunciation. Voice-input text alone cannot carry the required language choice.
 
 ## Contract
