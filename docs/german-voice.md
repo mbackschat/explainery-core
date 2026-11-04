@@ -15,6 +15,23 @@ Engine is already covered by the [shared technical dictionary](../data/english-t
 
 Keep canonical terms in narration and captions. Product names, identifiers and their confirmed readings belong in the story glossary. The dictionary cannot detect every English term: inventory unfamiliar terms, plurals and compounds and add explicit language annotations. Export with `explainery narration --json` to preserve language runs; plain text export refuses mixed-language plans. Follow the [pronunciation guidance](authoring.md#pronunciation-and-voice-direction) and [mixed-language contract](adr/0015-english-terms-in-non-english-narration.md).
 
+## Dialect and listening corrections
+
+English routing alone does not establish an intelligible result from a German-trained voice. Choose and record the English dialect per term when listening exposes a problem; do not translate the term or replace it with German-looking spelling to conceal a rendering failure.
+
+In the Martin auditions on 4 November 2026, American-English `Data Service` produced `dˈAɾə sˈɜːvɪs`: the tapped /ɾ/ was heard as something like “derer”. British-English processing produced `dˈAtə sˈɜːvɪs`, with a clear /t/ in the input, and the author accepted that sample. The `A` here is Misaki's token for the English /eɪ/ diphthong. This supports the following term override for the tested voice; it is not proof that every English term or narrator should use British English:
+
+```yaml
+voice:
+  lang: de
+pronunciations:
+  Data Service:
+    text: Data Service
+    lang: en-gb
+```
+
+Compare a short in-context sample after a dialect change and retain the actual language runs, phonemes and listening decision. A correct phoneme trace is diagnostic evidence, not a substitute for hearing the model's output. Product-specific accepted readings remain in the story glossary. A possible German translation discussed by the author is not approval to substitute it in speech: written English terms still require English pronunciation unless the script itself is deliberately changed.
+
 ## Martin model and storage
 
 Martin is a German-trained Kokoro-compatible model, requiring its own weights as well as its voice data. The [original model](https://huggingface.co/kikiri-tts/kikiri-german-martin) and [ONNX conversion](https://huggingface.co/Godelaune/Kokoro-82M-ONNX-German-Martin) state Apache-2.0 licensing. The ONNX inference assets total **326,035,136 bytes**, approximately **326 MB / 311 MiB**; runtime dependencies and generated audio are additional. Training checkpoints are unnecessary for inference.
