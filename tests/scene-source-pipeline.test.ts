@@ -23,6 +23,8 @@ async function fixture(t: test.TestContext, files: Record<string, string> = {}) 
     'index.html': '<html><body><div data-composition-id="film" data-start="0" data-duration="2"><div data-composition-id="diagram" data-composition-src="scenes/example/diagram.html"></div><div data-story-span data-composition-id="shared" data-composition-src="compositions/shared.html"></div></div></body></html>',
     'scenes/example/diagram.html': '<template><div data-composition-id="diagram"><img src="scenes/example/assets/shape.svg"><span>Original label</span></div></template>',
     'scenes/example/assets/shape.svg': '<svg/>',
+    'README.md': 'Film authoring guide.',
+    'scenes/README.md': 'Scene source index.',
     'scenes/example/README.md': 'Purpose and evidence.',
     'scenes/example/evidence/notes.markdown': 'Source evidence.',
     'compositions/shared.html': '<template><div data-composition-id="shared">Shared label</div></template>',
@@ -89,13 +91,25 @@ test('scene views retain runtime paths and purge custom scene definitions and do
   const dir = await fixture(t);
   const prepared = await prepareSceneProject(dir, ['example']);
   for (const name of ['scenes/example/diagram.html', 'scenes/example/assets/shape.svg', 'compositions/shared.html']) assert.equal(await readFile(join(prepared.directory, name), 'utf8'), await readFile(join(dir, name), 'utf8'));
-  for (const name of ['scenes/example/definition.yaml', 'scenes/example/README.md', 'scenes/example/evidence/notes.markdown']) {
+  for (const name of ['README.md', 'scenes/README.md', 'scenes/example/definition.yaml', 'scenes/example/README.md', 'scenes/example/evidence/notes.markdown']) {
     await assert.rejects(readFile(join(prepared.directory, name)), /ENOENT/);
     await mkdir(dirname(join(prepared.directory, name)), { recursive: true });
     await writeFile(join(prepared.directory, name), 'Stale authoring input');
   }
+  const runtimeBefore = await readFile(join(prepared.directory, 'index.html'));
   await prepareSceneProject(dir, ['example']);
-  for (const name of ['scenes/example/definition.yaml', 'scenes/example/README.md', 'scenes/example/evidence/notes.markdown']) await assert.rejects(readFile(join(prepared.directory, name)), /ENOENT/);
+  assert.deepEqual(await readFile(join(prepared.directory, 'index.html')), runtimeBefore);
+  for (const name of ['README.md', 'scenes/README.md', 'scenes/example/definition.yaml', 'scenes/example/README.md', 'scenes/example/evidence/notes.markdown']) await assert.rejects(readFile(join(prepared.directory, name)), /ENOENT/);
+});
+
+test('inline scene views retain their existing Markdown copying behavior', async t => {
+  const dir = await fixture(t, {
+    'story.yaml': JSON.stringify({ id: 'film', title: 'Film', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 }, scenes: [{ id: 'diagram', copy: { headline: 'Example' }, narration: 'Example.' }] }),
+    'index.html': '<div data-composition-id="film" data-start="0" data-duration="2"><div data-composition-id="diagram" data-composition-src="compositions/diagram.html"></div></div>',
+    'compositions/diagram.html': '<div data-composition-id="diagram">Example</div>',
+  });
+  const prepared = await prepareSceneProject(dir, ['diagram']);
+  for (const name of ['README.md', 'scenes/README.md']) assert.equal(await readFile(join(prepared.directory, name), 'utf8'), await readFile(join(dir, name), 'utf8'));
 });
 
 test('render fingerprints track referenced definitions and exclude scene documentation', async t => {

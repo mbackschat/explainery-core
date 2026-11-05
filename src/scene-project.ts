@@ -52,11 +52,7 @@ async function synchronize(source: string, destination: string, include: (path: 
 async function refreshSources(project: string, directory: string, resolved: ResolvedFilm): Promise<void> {
   await mkdir(directory, { recursive: true });
   const definitions = new Set(resolved.mode === 'referenced' ? [...resolved.sources.values()].map(source => resolve(project, source.definition)) : []);
-  const sceneDirectories = [...definitions].map(path => resolve(path, '..'));
-  const include = (path: string): boolean => !definitions.has(path) && !(/\.(?:md|markdown)$/i.test(path) && sceneDirectories.some(directory => {
-    const local = relative(directory, path);
-    return !isAbsolute(local) && local !== '..' && !local.startsWith('../');
-  }));
+  const include = (path: string): boolean => !definitions.has(path) && !(resolved.mode === 'referenced' && /\.(?:md|markdown)$/i.test(path));
   const names = (await readdir(project)).filter(name => !name.startsWith('.') && !excluded.has(name) && include(join(project, name)));
   for (const name of await readdir(directory)) {
     if (!name.startsWith('.') && name !== 'index.html' && !names.includes(name)) await rm(join(directory, name), { recursive: true, force: true });
