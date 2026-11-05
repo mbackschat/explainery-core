@@ -33,7 +33,8 @@ function lines(words: string[]): string | undefined {
  * Builds full-film subtitle cues from script wording and recorded word timestamps.
  *
  * Composition boundaries, sentence endings and pauses separate cues. Limits are two 42-character lines and six
- * seconds; timing and language still need editorial review. The narration clock is unchanged, including when a
+ * seconds. One- or two-word sentence tails borrow words from the preceding cue when those limits permit;
+ * timing and language still need editorial review. The narration clock is unchanged, including when a
  * scene is focused. Recognition spellings and draft-voice pronunciations never become subtitle text.
  */
 export function subtitleCues(story: Story, transcript: TranscriptWord[], { duration, ...options }: { duration: number } & AlignmentOptions): SubtitleCue[] {
@@ -61,6 +62,22 @@ export function subtitleCues(story: Story, transcript: TranscriptWord[], { durat
       if (end < limit && !/[.!?]["'’”)]*$/.test(text[end - 1])) {
         for (let cut = end - 1; cut > offset; cut--) {
           if (/[,;:]$/.test(text[cut - 1]) && text.slice(offset, cut).join(' ').length >= 25) { end = cut; break; }
+        }
+      }
+      if (end < limit && !/[.!?]["'’”)]*$/.test(text[end - 1])) {
+        let tailEnd = end;
+        while (tailEnd < limit && tailEnd - end < 2) {
+          if (aligned[tailEnd].start - aligned[tailEnd - 1].end >= .7) break;
+          tailEnd++;
+          if (/[.!?]["'’”)]*$/.test(text[tailEnd - 1])) break;
+        }
+        if (tailEnd > end && (tailEnd === limit || /[.!?]["'’”)]*$/.test(text[tailEnd - 1]))) {
+          for (const tailLength of [4, 3]) {
+            const cut = tailEnd - tailLength;
+            if (cut - offset < 2 || aligned[tailEnd - 1].end - aligned[cut].start > MAX_DURATION || lines(text.slice(cut, tailEnd)) === undefined) continue;
+            end = cut;
+            break;
+          }
         }
       }
       const start = toMillisecond(aligned[offset].start);

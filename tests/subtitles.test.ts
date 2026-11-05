@@ -47,6 +47,70 @@ test('the same composition clears subtitles during a long speech pause', () => {
   assert.equal(cues[1].start, 5);
 });
 
+test('a width-limited sentence rebalances singleton and two-word tails without changing words or word-derived timing', () => {
+  for (const ending of ['collection.', 'shared collection.']) {
+    const text = `These individually addressed documents retain their original identity in this ${ending}`;
+    const transcript = words(text);
+    const cues = subtitleCues(story(text), transcript, { duration: 10 });
+    assert.equal(cues.length, 2);
+    assert.equal(cues[1].text.replace(/\s+/g, ' '), text.split(' ').slice(-4).join(' '));
+    assert.equal(cues[1].start, Math.round(transcript.at(-4)!.start * 1000) / 1000);
+    assert.equal(cues[0].end, cues[1].start);
+    assert.equal(cues[1].end, Math.round((transcript.at(-1)!.end + .15) * 1000) / 1000);
+    assert.equal(cues.map(cue => cue.text).join(' ').replace(/\s+/g, ' '), text);
+    for (const cue of cues) {
+      assert.ok(cue.end - cue.start <= 6);
+      assert.ok(cue.text.split('\n').length <= 2);
+      assert.ok(cue.text.split('\n').every(line => line.length <= 42));
+    }
+  }
+});
+
+test('duration-limited sentences rebalance short tails at aligned word boundaries', () => {
+  for (const text of ['a b c d e f g h i j k l m n o p.', 'a b c d e f g h i j k l m n o p q.']) {
+    const transcript = words(text);
+    const cues = subtitleCues(story(text), transcript, { duration: 10 });
+    assert.equal(cues.length, 2);
+    assert.equal(cues[1].text, text.split(' ').slice(-4).join(' '));
+    assert.equal(cues[1].start, Math.round(transcript.at(-4)!.start * 1000) / 1000);
+    assert.equal(cues[0].end, cues[1].start);
+    assert.equal(cues.map(cue => cue.text).join(' '), text);
+    assert.ok(cues.every(cue => cue.end - cue.start <= 6));
+  }
+});
+
+test('tail rebalancing preserves sentence, composition and long-pause boundaries', () => {
+  const text = 'These individually addressed documents retain their original identity in this collection.';
+  const paused = words(text);
+  paused.at(-1)!.start += 1;
+  paused.at(-1)!.end += 1;
+  const cues = subtitleCues(story(text), paused, { duration: 10 });
+  assert.equal(cues.at(-1)!.text, 'collection.');
+  assert.equal(cues.at(-1)!.start, paused.at(-1)!.start);
+  assert.deepEqual(subtitleCues(story('A complete sentence. Yes.'), words('A complete sentence. Yes.'), { duration: 3 }).map(cue => cue.text), ['A complete sentence.', 'Yes.']);
+  const film = story('A complete phrase');
+  film.scenes.push({ id: 'next', copy: { headline: 'Next' }, narration: 'Yes.' });
+  assert.deepEqual(subtitleCues(film, words('A complete phrase Yes.'), { duration: 3 }).map(cue => cue.text), ['A complete phrase', 'Yes.']);
+});
+
+test('an unavoidably short tail retains the cue budgets', () => {
+  const text = 'Extraordinarily individual characteristics remain visible.';
+  const transcript = text.split(' ').map((text, index) => ({ text, start: index * 2.4, end: index * 2.4 + 2.3 }));
+  const cues = subtitleCues(story(text), transcript, { duration: 13 });
+  assert.equal(cues.map(cue => cue.text).join(' ').replace(/\s+/g, ' '), text);
+  assert.equal(cues.at(-1)!.text, 'visible.');
+  assert.ok(cues.every(cue => cue.end - cue.start <= 6));
+});
+
+test('tail rebalancing falls back to three words when four cannot fit two lines', () => {
+  const text = `A short description ${'a'.repeat(20)} ${'b'.repeat(20)} ${'c'.repeat(35)}.`;
+  const cues = subtitleCues(story(text), words(text), { duration: 5 });
+  assert.equal(cues.length, 2);
+  assert.equal(cues[0].text, 'A short description');
+  assert.equal(cues[1].text.replace(/\s+/g, ' '), text.split(' ').slice(-3).join(' '));
+  assert.ok(cues[1].text.split('\n').every(line => line.length <= 42));
+});
+
 test('invalid or unrelated transcripts and impossible timing fail before serializing', () => {
   const film = story('The little garden grows.');
   assert.throws(() => subtitleCues(film, words('Something else entirely happened.'), { duration: 4 }), /transcript matches/);
