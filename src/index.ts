@@ -19,6 +19,7 @@ export type { ExplainerExportOptions } from './export-subtitles.ts';
 export { voicedNarration, type PronunciationSpan, type VoicedNarration } from './narration.ts';
 export { alignStoryWords, alignTimingWithReport, type AudioSegment, type AlignmentOptions, type TimingAlignmentReport, type WordCue } from './align.ts';
 export { generateVoice, type VoiceAdapter, type VoiceManifest, type VoiceOptions, type VoiceSettings } from './voice.ts';
+export { createMartinAdapter, type MartinAdapterOptions } from './martin-voice.ts';
 export { transcribeSegments, type RecognitionAdapter, type SegmentTranscript } from './transcribe.ts';
 export { recordProduction, productionPreflight, type ProductionRecord } from './production.ts';
 export { verifyFilm, verifyVideo, verifyHtml } from './verification.ts';

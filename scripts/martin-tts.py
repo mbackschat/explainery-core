@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audition spoken German input using local Martin assets and the training frontend."""
+"""Synthesize spoken German input using local Martin assets and the training frontend."""
 
 import argparse
 import ctypes.util
@@ -14,6 +14,10 @@ import re
 
 LEXICON = Path(__file__).resolve().parents[1] / "data/english-technical-terms.json"
 LANGUAGES = {"de", "en-us", "en-gb"}
+
+
+class PhonemeLimitError(ValueError):
+    pass
 
 
 def validate_runs(text, runs):
@@ -85,12 +89,14 @@ def phonemize_runs(runs, frontends, vocabulary):
             phones = phones.replace("ʏ", "y")
         parts.append(phones)
     phones = " ".join(" ".join(parts).split())
-    if not phones or len(phones) > 510:
-        raise ValueError("each audition must produce 1–510 phonemes; split longer passages")
+    if not phones:
+        raise ValueError("each passage must produce nonempty phonemes")
     unknown = sorted(set(phones) - set(vocabulary))
     if unknown:
         symbols = ", ".join(f"{symbol!r} U+{ord(symbol):04X}" for symbol in unknown)
         raise ValueError(f"unknown phonemes (nothing was discarded): {symbols}")
+    if len(phones) > 510:
+        raise PhonemeLimitError(f"phoneme limit exceeded: {len(phones)} > 510")
     return phones
 
 
@@ -130,18 +136,36 @@ def create_frontend(language="de"):
     # Misaki 0.9.4 overrides the library at import; restore the selected native installation.
     EspeakWrapper.set_library(library)
     EspeakWrapper.set_data_path(data_path)
-    return espeak.EspeakG2P(language=language), library, data_path, EspeakWrapper().version
+    frontend = espeak.EspeakG2P(language=language)
+    wrapper = EspeakWrapper()
+    # Phonemizer 3.4.0 resolves its alternate environment variable and the library's default data here.
+    return frontend, str(wrapper.library_path.resolve()), str(wrapper.data_path.resolve()), wrapper.version
+
+
+def runtime_identity(model_path, voices_path):
+    versions = {name: importlib.metadata.version(name) for name in (
+        "kokoro-onnx", "misaki", "phonemizer", "espeakng-loader", "onnxruntime", "numpy", "soundfile"
+    )}
+    if versions["misaki"] != "0.9.4" or versions["kokoro-onnx"] != "0.6.1":
+        raise ValueError("audition frontend requires misaki==0.9.4 and kokoro-onnx==0.6.1")
+    _, library, data_path, espeak_version = create_frontend()
+    inputs = {"model": file_identity(model_path), "voices": file_identity(voices_path), "runner": file_identity(Path(__file__)), "technicalLexicon": file_identity(LEXICON)}
+    inputs["espeakLibrary"] = file_identity(Path(library))
+    inputs["espeakData"] = [file_identity(path) for path in sorted(Path(data_path).rglob("*")) if path.is_file()]
+    return {
+        "frontend": "per-run misaki.EspeakG2P(lang); German ʏ→y; English technical-term guard; strict vocabulary validation",
+        "runtime": {**versions, "python": platform.python_version(), "platform": platform.platform(), "espeak": espeak_version},
+        "inputs": inputs,
+        "espeakLibrary": library,
+        "espeakData": data_path,
+    }
 
 
 def run(model_path, voices_path, request_path, out):
     request = read_request(request_path)
     if out.exists() and (not out.is_dir() or any(out.iterdir())):
         raise ValueError("output directory must be absent or empty")
-    versions = {name: importlib.metadata.version(name) for name in (
-        "kokoro-onnx", "misaki", "phonemizer", "espeakng-loader", "onnxruntime", "numpy", "soundfile"
-    )}
-    if versions["misaki"] != "0.9.4" or versions["kokoro-onnx"] != "0.6.1":
-        raise ValueError("audition frontend requires misaki==0.9.4 and kokoro-onnx==0.6.1")
+    identity = runtime_identity(model_path, voices_path)
 
     import onnxruntime as ort
     import soundfile as sf
@@ -166,14 +190,12 @@ def run(model_path, voices_path, request_path, out):
     prepared = [{**clip, "phonemes": phonemize_runs(clip["runs"], frontends, engine.tokenizer.vocab)} for clip in request["clips"]]
     manifest = {
         "schemaVersion": 1,
-        "frontend": "per-run misaki.EspeakG2P(lang); German ʏ→y; English technical-term guard; strict vocabulary validation",
-        "runtime": {**versions, "python": platform.python_version(), "platform": platform.platform(), "espeak": espeak_version},
-        "inputs": {"model": file_identity(model_path), "voices": file_identity(voices_path), "request": file_identity(request_path), "runner": file_identity(Path(__file__)), "technicalLexicon": file_identity(LEXICON)},
+        "frontend": identity["frontend"],
+        "runtime": identity["runtime"],
+        "inputs": {**identity["inputs"], "request": file_identity(request_path)},
         "settings": {"voice": voices[0], "language": "de", "speed": request["speed"], "provider": "CPUExecutionProvider", "intraOpThreads": 2, "interOpThreads": 1, "sampleRate": 24000, "channels": 1, "subtype": "PCM_16", "trim": True, "sentencePause": 0.25, "clausePause": 0.1, "espeakLibrary": library, "espeakData": data_path},
         "clips": [],
     }
-    if Path(library).is_file():
-        manifest["inputs"]["espeakLibrary"] = file_identity(Path(library))
     out.mkdir(parents=True, exist_ok=True)
     for clip in prepared:
         print(f"Synthesizing {clip['id']} ({len(clip['phonemes'])} phonemes)", flush=True)
@@ -190,11 +212,21 @@ def run(model_path, voices_path, request_path, out):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for flag in ("model", "voices", "request", "out"):
+    for flag in ("model", "voices"):
         parser.add_argument(f"--{flag}", required=True, type=Path)
+    for flag in ("request", "out"):
+        parser.add_argument(f"--{flag}", type=Path)
+    parser.add_argument("--identity", action="store_true", help="print local synthesis identity without loading the model")
     args = parser.parse_args()
+    if args.identity and (args.request or args.out):
+        parser.error("--identity cannot be combined with --request or --out")
+    if not args.identity and (not args.request or not args.out):
+        parser.error("--request and --out are required for synthesis")
     try:
-        run(args.model, args.voices, args.request, args.out)
+        if args.identity:
+            print(json.dumps(runtime_identity(args.model, args.voices), ensure_ascii=False))
+        else:
+            run(args.model, args.voices, args.request, args.out)
     except (ValueError, OSError, importlib.metadata.PackageNotFoundError) as error:
         parser.exit(1, f"martin-tts: {error}\n")
 

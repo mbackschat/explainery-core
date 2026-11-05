@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 SPEC = importlib.util.spec_from_file_location(
@@ -55,6 +56,14 @@ class MartinFrontendTests(unittest.TestCase):
         for phones in ["", " ", "a" * 511]:
             with self.subTest(phones=phones), self.assertRaises(ValueError):
                 martin.phonemize("Text", lambda _: (phones, None), {"a", " "})
+
+    def test_overflow_is_distinct_from_empty_and_unknown_phonemes(self):
+        with self.assertRaisesRegex(martin.PhonemeLimitError, "511 > 510"):
+            martin.phonemize("Text", lambda _: ("a" * 511, None), {"a"})
+        for phones in ["", "a" * 511 + "ʔ"]:
+            with self.subTest(phones=phones), self.assertRaises(ValueError) as caught:
+                martin.phonemize("Text", lambda _: (phones, None), {"a"})
+            self.assertNotIsInstance(caught.exception, martin.PhonemeLimitError)
 
     def test_normalizes_whitespace_without_dropping_phones(self):
         self.assertEqual(martin.phonemize("Text", lambda _: (" a\n b ", None), set("a b")), "a b")
@@ -157,6 +166,30 @@ class MartinAudioTests(unittest.TestCase):
     "frontend integration requires Misaki and an explicit native eSpeak library",
 )
 class MartinNativeFrontendTests(unittest.TestCase):
+    def test_effective_default_and_environment_data_paths_are_identified(self):
+        from phonemizer.backend.espeak.wrapper import EspeakWrapper
+
+        environment = {key: value for key, value in os.environ.items() if key not in ("ESPEAK_DATA_PATH", "PHONEMIZER_ESPEAK_DATA_PATH")}
+        with patch.dict(os.environ, environment, clear=True):
+            martin.create_frontend()
+            wrapper = EspeakWrapper()
+            expected_library = str(wrapper.library_path.resolve())
+            expected_data = str(wrapper.data_path.resolve())
+        for paths in [{}, {"PHONEMIZER_ESPEAK_DATA_PATH": expected_data}, {"ESPEAK_DATA_PATH": expected_data, "PHONEMIZER_ESPEAK_DATA_PATH": "/missing-unused-data"}]:
+            with self.subTest(paths=paths), patch.dict(os.environ, {**environment, **paths}, clear=True), tempfile.TemporaryDirectory() as directory:
+                model, voices = Path(directory) / "model", Path(directory) / "voices"
+                model.write_bytes(b"identity-only-model")
+                voices.write_bytes(b"identity-only-voices")
+                frontend, library, data, _ = martin.create_frontend()
+                self.assertEqual(data, expected_data)
+                self.assertEqual(library, expected_library)
+                self.assertEqual(frontend("fünf München Ei, aus, Zeit, Tschüss")[0], "fˈʏnf mˈʏnçən ˈI, ˈWs, ʦˈIt, ʧˈʏs")
+                identity = martin.runtime_identity(model, voices)
+                self.assertEqual(identity["espeakData"], expected_data)
+                self.assertEqual(identity["inputs"]["espeakLibrary"], martin.file_identity(Path(expected_library)))
+                self.assertTrue(identity["inputs"]["espeakData"])
+                self.assertTrue(all(item["sha256"] for item in identity["inputs"]["espeakData"]))
+
     def test_engine_uses_english_phones_inside_german_narration(self):
         german, _, _, _ = martin.create_frontend()
         english, _, _, _ = martin.create_frontend("en-us")

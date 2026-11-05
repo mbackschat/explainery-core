@@ -35,6 +35,9 @@ export interface VoiceOptions {
   sample?: string; out?: string; adapter?: VoiceAdapter;
 }
 
+/** Signals a model input limit that can be retried with smaller, language-preserving chunks. */
+export class VoiceInputTooLongError extends Error {}
+
 const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
 const run = promisify(execFile);
 const rate = 24000;
@@ -189,7 +192,7 @@ async function synthesize(text: string, settings: VoiceSettings, adapter: VoiceA
     return pcm(await adapter.synthesize(text, settings));
   } catch (error) {
     // HyperFrames 0.8.142 synth-v3.py identifies this Kokoro voice-table overflow with the same signature.
-    if (!/index \d+ is out of bounds for axis 0 with size 510/i.test(String(error)) || [...text].length < 2) throw error;
+    if (!(error instanceof VoiceInputTooLongError || /index \d+ is out of bounds for axis 0 with size 510/i.test(String(error))) || [...text].length < 2) throw error;
     const chunks = splitVoiceText(text, Math.ceil([...text].length / 2));
     const parts: Buffer[] = [];
     for (const chunk of chunks) parts.push(await synthesize(chunk, settings, adapter));
@@ -202,7 +205,7 @@ async function synthesizeRuns(runs: VoiceRun[], settings: VoiceSettings, adapter
     return pcm(await adapter.synthesizeRuns!(runs, settings));
   } catch (error) {
     const length = [...runs.map(run => run.text).join('')].length;
-    if (!/index \d+ is out of bounds for axis 0 with size 510/i.test(String(error)) || length < 2) throw error;
+    if (!(error instanceof VoiceInputTooLongError || /index \d+ is out of bounds for axis 0 with size 510/i.test(String(error))) || length < 2) throw error;
     const parts: Buffer[] = [];
     for (const chunk of splitVoiceRuns(runs, Math.ceil(length / 2))) parts.push(await synthesizeRuns(chunk, settings, adapter));
     return Buffer.concat(parts);
