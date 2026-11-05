@@ -6,6 +6,7 @@ This repository, `explainery-core`, is the framework. Each film lives in its own
 
 ## Find what you need
 
+- Browse all [documentation](docs/README.md), including [proposals](docs/proposals/README.md) and [architecture decisions](docs/adr/README.md).
 - Author scenes as modules: [work on one scene](#work-on-one-scene) and [integrate it into the film](docs/authoring.md#author-one-scene-at-a-time).
 - Start a story: [project setup](#use-in-a-project).
 - Use shared agent skills: [choose skills for scene work](docs/authoring.md#use-hyperframes-skills-in-scene-work) and [Claude Code and Codex setup](#shared-authoring-skills).

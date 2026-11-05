@@ -15,6 +15,10 @@ Keep this repository independent of any client or product: no client logo, brand
 
 Projects live in their own repositories next to this checkout; no pnpm workspace spans them. Change framework code here, never through a project's `node_modules/explainery-core` symlink, and start agent sessions inside the repository you are changing so its own `CLAUDE.md` applies; load the shared skills as described below. GSAP stays a peer dependency and is never vendored, because its standard licence is not OSI-approved and an Apache-2.0 repository must not redistribute it. Render only locally with the HyperFrames CLI; no paid cloud rendering or generated-media services.
 
+## Documentation indexes
+
+Every directory under `docs/`, including `docs/` itself, must contain a `README.md` index. Link every other Markdown document directly in that directory and every immediate subdirectory's README using regular relative Markdown links, with a short purpose for each entry. Use a task-oriented list or compact table, not a catalog paragraph. Update the affected indexes whenever documents or directories are added, renamed, moved or removed. Keep proposal status explicit; an index link does not make a proposal an accepted contract. Start at the [documentation index](docs/README.md).
+
 ## Shared HyperFrames skills
 
 For source-video and SRT analysis, read [analyze-source-film](.agents/skills/analyze-source-film/SKILL.md). This first-party skill prepares source evidence without an example story checkout; load the HyperFrames entry and domain skills when authoring begins. Its code and guidance are maintained here, separately from the upstream bundles and provenance lock.
