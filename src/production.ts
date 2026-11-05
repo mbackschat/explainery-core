@@ -7,10 +7,10 @@ import { filmFiles } from './film-files.ts';
 import { hyperframesDist } from './hyperframes.ts';
 import { resolvedVoiceInput, storyLanguage } from './narration.ts';
 import { storyCompositions } from './story.ts';
-import { validateProject } from './validate.ts';
+import { loadStory, validateProject } from './validate.ts';
 import { editorialErrors } from './slop.ts';
 import { labelAuditErrors } from './label-audit.ts';
-import type { Story } from './types.ts';
+import type { ResolvedFilm, Story } from './types.ts';
 import { alignStoryWords, type AudioSegment, type TranscriptWord } from './align.ts';
 import { parseHTML } from 'linkedom';
 
@@ -45,9 +45,9 @@ async function inputFile(project: string, path: string): Promise<InputFile> {
   if (isAbsolute(path) || local === '..' || local.startsWith('../')) throw new Error('production inputs must be project-relative paths');
   return { path: local, sha256: await fileSha256(join(project, local)) };
 }
-async function assembled(project: string, story: Parameters<typeof assembleIndex>[1], timing: Parameters<typeof assembleIndex>[2]): Promise<string[]> {
+async function assembled(project: string, story: Parameters<typeof assembleIndex>[1], timing: Parameters<typeof assembleIndex>[2], resolved: ResolvedFilm): Promise<string[]> {
   const current = await readFile(join(project, 'index.html'), 'utf8');
-  const result = assembleIndex(current, story, timing);
+  const result = assembleIndex(current, story, timing, resolved);
   const { document } = parseHTML(current);
   const audio = [...document.querySelectorAll('audio[data-story-audio]')];
   const track = audio[0];
@@ -66,7 +66,7 @@ export async function recordProduction(project: string, options: { transcript: s
   const editorial = editorialErrors(story);
   if (editorial.length) throw new Error(editorial.join('\n'));
   if (timing.source === 'estimate' || !timing.audio) throw new Error('production requires aligned or imported timing with audio');
-  const errors = await assembled(project, story, timing);
+  const errors = await assembled(project, story, timing, validated.resolved);
   if (errors.length) throw new Error(errors.join('\n'));
   const words = JSON.parse(await readFile(join(project, options.transcript), 'utf8'));
   if (!Array.isArray(words) || !words.length) throw new Error('production transcript must be a nonempty word array');
@@ -106,7 +106,7 @@ export async function productionPreflight(project: string): Promise<{ errors: st
     const { story, timing } = validated;
     errors.push(...editorialErrors(story));
     errors.push(...await labelAuditErrors(project));
-    errors.push(...await assembled(project, story, timing));
+    errors.push(...await assembled(project, story, timing, validated.resolved));
     let record: ProductionRecord;
     try { record = JSON.parse(await readFile(join(project, 'production.json'), 'utf8')); }
     catch { return { errors: [...errors, 'production.json missing or unreadable; explicitly record reviewed inputs with explainery production'] }; }
@@ -128,10 +128,13 @@ export async function productionPreflight(project: string): Promise<{ errors: st
 
 /** Fingerprints the local shipping dependency closure and render settings (ADR 0009). */
 export async function renderFingerprint(project: string, settings: { quality: string; sceneIds: string[]; compositionIds?: string[]; workers: number }): Promise<string> {
-  const paths = [...new Set([...await filmFiles(project, { strict: true }), 'story.yaml', 'timing.json'])].sort();
+  const loaded = await loadStory(project);
+  if (!loaded.value) throw new Error(loaded.errors.join('\n'));
+  const definitions = [...loaded.resolved.sources.values()].map(source => source.definition);
+  const paths = [...new Set([...await filmFiles(project, { strict: true, resolved: loaded.resolved }), 'story.yaml', 'timing.json', ...definitions])].sort();
   const files = await Promise.all(paths.map(async path => [path, await fileSha256(join(project, path))]));
   const engine = JSON.parse(await readFile(join(hyperframesDist(project), '../package.json'), 'utf8')).version;
-  const adapter = await Promise.all(['assemble.ts', 'scene-project.ts', 'chapters.ts'].map(async name => fileSha256(new URL(name, import.meta.url).pathname)));
+  const adapter = await Promise.all(['assemble.ts', 'scene-project.ts', 'chapters.ts', 'story-source.ts', 'validate.ts', 'schemas.ts', 'film-files.ts', '../schemas/story.schema.json', '../schemas/scene.schema.json'].map(async name => fileSha256(new URL(name, import.meta.url).pathname)));
   adapter.push(await fileSha256(new URL('../bin/explainery.ts', import.meta.url).pathname));
   return hash(JSON.stringify({ version: 1, engine, adapter, settings, files }));
 }

@@ -29,6 +29,13 @@ test('a complete story and timing pass their schemas', () => {
   assert.deepEqual(checkTiming(timing()), []);
 });
 
+test('scene references form a nonempty list that cannot mix with inline scenes or contain other fields', () => {
+  assert.deepEqual(checkStory({ ...story(), scenes: [{ source: 'scenes/example/scene.yaml' }] }), []);
+  for (const scenes of [[], [{ source: '' }], [{ source: 'scene.yaml', id: 'extra' }], [{ source: 'scene.yaml' }, story().scenes[0]]]) {
+    assert.notDeepEqual(checkStory({ ...story(), scenes }), []);
+  }
+});
+
 test('a narration language can be stored before choosing a synthetic voice', () => {
   assert.deepEqual(checkStory({ ...story(), voice: { lang: 'de' } }), []);
   assert.notDeepEqual(checkStory({ ...story(), voice: { lang: 'unknown' } }), []);

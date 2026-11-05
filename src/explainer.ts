@@ -10,6 +10,7 @@ import { sceneRange, storyScenes } from './story.ts';
 import type { Scene, Story, Timing } from './types.ts';
 import { validateProject } from './validate.ts';
 import { requireAssembledTheme } from './theme.ts';
+import { referencedAssemblyErrors } from './assemble.ts';
 
 const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const seconds = (value: number) => String(Number(value.toFixed(6)));
@@ -360,9 +361,11 @@ export async function exportExplainer(projectDir: string, outDir: string, option
   const validation = await validateProject(projectDir);
   if (!validation.valid) throw new Error(`The project does not validate:\n${validation.errors.join('\n')}`);
   const { story, timing } = validation;
+  const assemblyErrors = referencedAssemblyErrors(await readFile(join(projectDir, 'index.html'), 'utf8'), validation.resolved, timing);
+  if (assemblyErrors.length) throw new Error(assemblyErrors.join('\n'));
   await requireAssembledTheme(projectDir, story);
   const subtitles = await exportSubtitles(options, timing.duration);
-  const files = await filmFiles(projectDir);
+  const files = await filmFiles(projectDir, { resolved: validation.resolved });
   await prepareOutput(outDir);
   for (const file of files) {
     await mkdir(dirname(join(outDir, 'film', file)), { recursive: true });

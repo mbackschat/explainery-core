@@ -1,5 +1,7 @@
 # 0003 Editorial scenes and persistent authoring focus
 
+[ADR 0016](0016-scene-source-folders.md) adds referenced scene folders. The unchanged file-path convention below continues to apply to inline stories; referenced scenes declare visual paths explicitly. Scene identity, focus and derived timing remain unchanged.
+
 A person works on a narrative scene, which can require several executable HTML compositions. Treating every composition as a scene makes selection and iteration too granular. This decision extends the original [architecture contract](0001-explainery-architecture.md); the [scene authoring guide](../authoring.md#concepts) defines the terms.
 
 `story.scenes` accepts explicit `{ id, title, compositions }` groups, with one grouping level. Existing flat composition entries remain one-composition scenes. Composition IDs, file paths, `defineScene`, and the keys of `timing.scenes` retain their existing meaning. Scene ranges are derived from their compositions; no second timing authority is introduced. Narration and assembly flatten groups in order, while explainer pages present editorial scenes.

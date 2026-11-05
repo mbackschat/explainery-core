@@ -185,7 +185,7 @@ defineScene({ window, document, gsap }, 'checkout', (tl, { beat, motion }) => {
 ## Author one scene at a time
 
 1. **Define the scene boundary.** Give the scene a stable ID, title, and one idea to explain. Describe its starting state, visual beats, final state, and handoff to its neighbors. Map the description to its ordered composition IDs in `story.yaml`. Use one composition when it is sufficient; split only when separate HTML modules make the scene easier to author.
-2. **Build the modules.** Keep each composition in `compositions/<id>.html`, with its own elements and local timeline. Initialize the state it needs so it can be sought and previewed without a previous composition having run. Anchor meaningful actions to its local beats, keep diagram labels and motion in that module, and reuse explicit shared assets and theme tokens. Do not reach into a neighboring composition's elements or depend on its animation callbacks.
+2. **Build the modules.** Keep each inline composition in `compositions/<id>.html`, or declare its HTML source inside its [scene folder](#scene-source-folders), with its own elements and local timeline. Initialize the state it needs so it can be sought and previewed without a previous composition having run. Anchor meaningful actions to its local beats, keep diagram labels and motion in that module, and reuse explicit shared assets and theme tokens. Do not reach into a neighboring composition's elements or depend on its animation callbacks.
 3. **Wire the film.** For a new composition, author a matching host in the film's `index.html` with `data-composition-id` and `data-composition-src`. Keep its placement consistent with the story order and timing. Generate or update composition timing, then run `assemble` to fill the hosts' copy, beats, starts, and durations. Assembly updates existing hosts; it does not create missing HTML modules or hosts. Follow the [HTML wiring example](../README.md#write-a-scene) and [assembly contract](../README.md#assemble-the-root-composition).
 4. **Iterate within the scene.** Select its editorial ID with `focus`, edit its story entries and composition sources, then rerun preview. Keep that scope through subsequent edits and draft renders. Edit shared theme, assets, timing, or root structure when the scene needs it, and identify which other scenes are affected. Edit original sources; `.explainery/scenes/` is disposable preview output.
 5. **Check the joins, then the film.** Review the scene alone, then preview it with each affected adjacent scene. Check incoming and outgoing states, overlaps, narration continuity, and shared layers. Run full-project validation and assembly checks, then preview the whole film. Render the full film when a delivery is needed.
@@ -229,6 +229,16 @@ Apply these integration rules when borrowing examples or helper scripts:
 - **Check examples against the pinned CLI.** Use package scripts or `pnpm exec hyperframes`, and verify unfamiliar commands with its local help. The shared skill snapshot can describe capabilities beyond the pinned engine. The entry skill's automatic upgrade advice and workflow installation steps do not apply during scene work; review CLI and skill upgrades separately, with shared skill changes made in core.
 - **Resolve helpers from the shared bundle.** Read references relative to their owning skill and invoke scripts by their core path, supplying the story or film path as required. Keep project commands in the story repository; do not copy helpers or skill bundles into it.
 
+## Scene source folders
+
+A film may use inline scene definitions in `story.yaml` or an ordered list of references such as `scenes: [{ source: scenes/example/scene.yaml }]`. Do not mix the formats. A referenced `scene.yaml` contains the scene's `id`, `title` and `compositions`; each visual composition adds `source: diagram.html`, resolved inside that scene's folder. Card compositions retain `card: chapter` or `card: agenda` and have no visual source file. See the [source contract](proposals/scene-source-folders.md#required-source-contract) and [ADR 0016](adr/0016-scene-source-folders.md).
+
+Keep the scene's README, visual HTML and optional local assets beside its definition. Its README is the scene brief, including evidence, beat descriptions, boundary states and shared dependencies; it is required by convention, not runtime validation. The film keeps shared themes, pronunciation settings, assets, narration, `timing.json` and root hosts. Adding or removing a visual composition still requires editing its root host. Assembly writes referenced host paths as well as timing/copy; it does not create hosts or add scene wrappers.
+
+Resource paths inside HTML use the film-root convention, for example `scenes/example/assets/shape.svg`, not `assets/shape.svg` relative to the scene. HyperFrames can prefer an existing sibling asset during bundling/rendering, so referenced projects reject ambiguous sibling paths and parent-relative HTML resource paths. External stylesheets, scripts and SVGs keep file-relative dependencies. Rename/move sources only with validation and before/after verification; do not regenerate audio or timing just to reorganize files.
+
+`loadStory` returns the same canonical story through `value` plus `resolved` metadata naming the mode and source files. Command diagnostics identify authored files. Generated `.explainery/scenes/` views contain runtime copies, not scene definitions or documentation, and remain disposable. Preview an adjacent pair to see both sides of an overlapping transition; a single-scene preview omits its neighbor's visuals.
+
 ## Concepts
 
 | Term | Meaning |
@@ -242,7 +252,7 @@ Apply these integration rules when borrowing examples or helper scripts:
 
 An editorial scene can keep an introduction, moving diagram, and conclusion together without merging their HTML. Grouping is explicit, with one level: scenes contain compositions, never other editorial scenes. Boundaries are not inferred from headlines, narration, visual changes, or composition counts, and there is no separate shot entity.
 
-A composition's ID names `compositions/<id>.html`, its `data-composition-id`, and its registered animation timeline. Animated compositions own one paused, seekable timeline; static compositions explicitly declare `data-no-timeline`. The historical helper name `defineScene` operates on compositions: it fills `data-copy` slots, resolves beats, and rejects missing beats or timelines that exceed the composition duration. Duration and beats arrive through composition variables. See the [runtime](../runtime/scene.ts).
+A composition's ID names its `data-composition-id` and registered animation timeline. Inline visuals use `compositions/<id>.html`; referenced visuals declare their path in the owning `scene.yaml`. Animated compositions own one paused, seekable timeline; static compositions explicitly declare `data-no-timeline`. The historical helper name `defineScene` operates on compositions: it fills `data-copy` slots, resolves beats, and rejects missing beats or timelines that exceed the composition duration. Duration and beats arrive through composition variables. See the [runtime](../runtime/scene.ts).
 
 Assets are reusable resources, such as SVGs, fonts, or audio files, used by elements. When the same subject persists across beats, keep its element alive and animate its properties. Use composition-prefixed element IDs to keep them unique in the assembled film. Elements and assets add no editorial grouping level or story entry.
 
@@ -262,10 +272,10 @@ Direct, forward, and backward seeks to the same timestamp must produce the same 
 
 | To find or change | Source of truth |
 | --- | --- |
-| Scene purpose, visual sequence, transitions, and evidence behind claims | The story's scene descriptions or story proposal, linked from its README. |
-| Editorial IDs, titles, grouping, composition copy, narration, and beat markers | The film's `story.yaml`, following the [story schema](../schemas/story.schema.json). |
+| Scene purpose, visual sequence, transitions, and evidence behind claims | Each referenced scene folder's README; inline stories use linked scene descriptions or their story proposal. |
+| Editorial IDs, titles, grouping, composition copy, narration, and beat markers | Inline `story.yaml`, or the referenced `scene.yaml` files in film order; see the [story](../schemas/story.schema.json) and [scene source](../schemas/scene.schema.json) schemas. |
 | Composition starts, durations, and local beat seconds | The film's `timing.json`, following the [timing schema](../schemas/timing.schema.json). Scene ranges are derived from these values. |
-| Actual diagrams, diagram labels, layout, and motion | `compositions/<composition-id>.html` and its linked assets. `defineScene` operates on a composition despite its historical name. |
+| Actual diagrams, diagram labels, layout, and motion | Inline `compositions/<composition-id>.html` or the scene's declared visual source, with linked assets. `defineScene` operates on a composition despite its historical name. |
 | Shared visual language | The story's design guide and theme overlay. |
 | Pronunciation decisions, voice direction, and listening evidence | A glossary in the story repository, or its explicitly chosen domain owner; link it from the story README. Executable draft-voice substitutions belong in `story.yaml`'s `pronunciations`. |
 | Root placement and shared layers | The film's `index.html`; assembly refreshes its story copy and timing attributes. |

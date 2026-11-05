@@ -106,6 +106,69 @@ scenes:
 const timingJson = JSON.stringify({ source: 'estimate', duration: 2, scenes: { intro: { start: 0, duration: 2, beats: { wave: 0.8 } } } });
 const introHtml = '<template><div data-composition-id="intro"></div></template>';
 
+async function referencedProject() {
+  const dir = await project({ storyYaml: JSON.stringify({ ...story(), scenes: [{ source: 'scenes/example/scene.yaml' }] }), timingJson, compositions: {} });
+  await mkdir(join(dir, 'scenes/example'), { recursive: true });
+  await writeFile(join(dir, 'scenes/example/scene.yaml'), JSON.stringify({ id: 'example', title: 'Example', compositions: [{ ...scene('intro', 'Say hello {wave}.'), source: 'visual.html' }] }));
+  await writeFile(join(dir, 'scenes/example/visual.html'), introHtml);
+  await writeFile(join(dir, 'index.html'), '<div data-composition-id="film"><div data-composition-id="intro" data-composition-src="compositions/intro.html"></div></div>');
+  return dir;
+}
+
+test('referenced project validation returns source ownership and tolerates stale source attributes before assembly', async () => {
+  const result = await validateProject(await referencedProject());
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.resolved?.mode, 'referenced');
+  assert.equal(result.story, result.resolved?.story);
+  assert.equal(result.resolved?.sources.get('intro')?.html, 'scenes/example/visual.html');
+});
+
+test('referenced visual identity and deferred reveals are checked alongside shared layers', async () => {
+  const dir = await referencedProject();
+  await writeFile(join(dir, 'scenes/example/visual.html'), `<div data-composition-id="wrong"></div><script>tl.fromTo('#a', { opacity: 0 }, { opacity: 1, immediateRender: false });</script>`);
+  await writeFile(join(dir, 'compositions/shared.html'), `<script>tl.fromTo('#a', { autoAlpha: 0 }, { autoAlpha: 1, immediateRender: false });</script>`);
+  const result = await validateProject(dir);
+  assert.equal(result.valid, false);
+  assert.equal(result.resolved?.mode, 'referenced');
+  assert.match(result.errors.join('\n'), /scenes\/example\/visual.html: no element with data-composition-id="intro"/);
+  assert.match(result.errors.join('\n'), /scenes\/example\/visual.html:1: a deferred fromTo/);
+  assert.match(result.errors.join('\n'), /compositions\/shared.html:1: a deferred fromTo/);
+});
+
+test('referenced shared layers outside compositions retain the deferred reveal guard', async () => {
+  const dir = await referencedProject();
+  await mkdir(join(dir, 'shared'));
+  await writeFile(join(dir, 'shared/layer.html'), `<template><div data-composition-id="layer"></div><script>tl.fromTo('#a', { opacity: 0 }, { opacity: 1, immediateRender: false });</script></template>`);
+  const html = await readFile(join(dir, 'index.html'), 'utf8');
+  await writeFile(join(dir, 'index.html'), html + '<div data-composition-id="layer" data-composition-src="shared/layer.html" data-story-span></div>');
+  assert.match((await validateProject(dir)).errors.join('\n'), /shared\/layer.html:1: a deferred fromTo/);
+});
+
+test('referenced narration errors identify the owning definition and composition', async () => {
+  const dir = await referencedProject();
+  await writeFile(join(dir, 'scenes/example/scene.yaml'), JSON.stringify({ id: 'example', title: 'Example', compositions: [{ ...scene('intro', 'Say {Bad Marker}.'), source: 'visual.html' }] }));
+  assert.match((await validateProject(dir)).errors.join('\n'), /scenes\/example\/scene.yaml.*intro.*malformed beat marker/);
+});
+
+test('resolved metadata survives a missing timing file without claiming the project is valid', async () => {
+  const dir = await referencedProject();
+  await writeFile(join(dir, 'timing.json'), '{}');
+  const result = await validateProject(dir);
+  assert.equal(result.valid, false);
+  assert.equal(result.resolved?.mode, 'referenced');
+  assert.equal(result.story, result.resolved?.story);
+});
+
+test('referenced projects reject obsolete, duplicate and missing story hosts', async () => {
+  const dir = await referencedProject();
+  await writeFile(join(dir, 'index.html'), '<div data-composition-id="film"><div data-composition-id="old" data-composition-src="compositions/old.html"></div></div>');
+  const errors = (await validateProject(dir)).errors.join('\n');
+  assert.match(errors, /old.*data-story-span/);
+  assert.match(errors, /no host.*intro/);
+  await writeFile(join(dir, 'index.html'), '<div data-composition-id="film"><div data-composition-id="intro" data-composition-src="old.html"></div><div data-composition-id="intro" data-composition-src="old.html"></div></div>');
+  assert.match((await validateProject(dir)).errors.join('\n'), /intro.*2 hosts/);
+});
+
 test('a project with matching files and compositions validates', async () => {
   assert.deepEqual((await validateProject(await project({ storyYaml, timingJson, compositions: { intro: introHtml } }))).errors, []);
 });

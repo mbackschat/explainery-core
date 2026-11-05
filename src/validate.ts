@@ -1,10 +1,12 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { parse as parseYaml } from 'yaml';
+import { assembleIndex } from './assemble.ts';
+import { filmFiles, validateHtmlResourcePaths } from './film-files.ts';
 import { narrationBeats, storyPronunciationErrors } from './narration.ts';
-import { checkStory, checkTiming } from './schemas.ts';
+import { checkTiming } from './schemas.ts';
 import { storyCompositions, storyScenes } from './story.ts';
-import type { SceneTiming, Story, Timing } from './types.ts';
+import { loadStory } from './story-source.ts';
+import type { ResolvedFilm, SceneTiming, Story, Timing } from './types.ts';
 import { validateTheme } from './theme.ts';
 
 // Timing values come from float arithmetic (estimates, alignment offsets); a microsecond is far below one frame.
@@ -18,8 +20,9 @@ const seconds = (value: number) => `${Number(value.toFixed(6))}s`;
  * and is followed by content; only agenda cards may form a scene of their own. Compositions must start in story order and end within the story; beats must
  * follow their narration markers and lie within their composition.
  */
-export function validateStoryTiming(story: Story, timing: Timing): string[] {
+export function validateStoryTiming(story: Story, timing: Timing, resolved?: ResolvedFilm): string[] {
   const errors: string[] = [];
+  const definition = (id: string) => resolved?.sources.get(id)?.definition ?? 'story.yaml';
   const sceneIds = storyScenes(story).map(scene => scene.id);
   for (const id of new Set(sceneIds.filter((id, index) => sceneIds.indexOf(id) !== index))) errors.push(`story.yaml: scene id "${id}" is used twice`);
   const compositions = storyCompositions(story);
@@ -31,18 +34,18 @@ export function validateStoryTiming(story: Story, timing: Timing): string[] {
   errors.push(...storyPronunciationErrors(story, compositions.map(composition => composition.narration)).map(error => `story.yaml: ${error}`));
   for (const scene of storyScenes(story)) {
     scene.compositions.forEach((composition, index) => {
-      if (composition.card === 'chapter' && index > 0) errors.push(`story.yaml scene "${composition.id}": a chapter card must be the first composition of its scene`);
+      if (composition.card === 'chapter' && index > 0) errors.push(`${definition(composition.id)} scene "${composition.id}": a chapter card must be the first composition of its scene`);
     });
     // A scene of agenda cards alone frames the film, like a closing recap; a chapter card must introduce content.
     if (scene.compositions.every(composition => composition.card) && scene.compositions.some(composition => composition.card === 'chapter')) {
-      errors.push(`story.yaml scene "${scene.id}": a chapter card needs a composition after it in its scene`);
+      errors.push(`${definition(scene.compositions[0].id)} scene "${scene.id}": a chapter card needs a composition after it in its scene`);
     }
   }
 
   let previous: { id: string; slot: SceneTiming } | undefined;
   for (const scene of compositions) {
     const { beats: marked, errors: markerErrors } = narrationBeats(scene.narration);
-    errors.push(...markerErrors.map(error => `story.yaml scene "${scene.id}": ${error}`));
+    errors.push(...markerErrors.map(error => `${definition(scene.id)} scene "${scene.id}": ${error}`));
     const slot = timing.scenes[scene.id];
     if (!slot) continue;
     const where = `timing.json scene "${scene.id}"`;
@@ -88,11 +91,13 @@ async function load<T>(dir: string, file: string, parse: (text: string) => unkno
   return errors.length ? { errors } : { value: value as T, errors };
 }
 
-async function checkCompositions(dir: string, story: Story): Promise<string[]> {
+async function checkCompositions(dir: string, resolved: ResolvedFilm, runtimeFiles: string[] = []): Promise<string[]> {
   const errors: string[] = [];
+  const visualFiles = new Set<string>();
   // The card layer draws cards, so they have no composition file.
-  for (const id of new Set(storyCompositions(story).filter(composition => !composition.card).map(composition => composition.id))) {
-    const file = `compositions/${id}.html`;
+  for (const [id, source] of resolved.sources) {
+    const file = source.html;
+    if (!file) continue;
     let html;
     try {
       html = await readFile(join(dir, file), 'utf8');
@@ -101,15 +106,19 @@ async function checkCompositions(dir: string, story: Story): Promise<string[]> {
       errors.push(`${file}: missing`);
       continue;
     }
+    visualFiles.add(file);
     // HyperFrames looks a scene's timeline up by this id; a mismatch only surfaces as a 45-second render stall.
     if (!new RegExp(`data-composition-id=["']${id}["']`).test(html)) errors.push(`${file}: no element with data-composition-id="${id}"`);
   }
   // Shared layers such as the card layer are sub-compositions too, so every file obeys the render rule.
   const files = await readdir(join(dir, 'compositions')).catch(error => { if (isMissing(error)) return []; throw error; });
-  for (const name of files.filter(name => name.endsWith('.html')).sort()) {
-    const html = await readFile(join(dir, 'compositions', name), 'utf8');
-    errors.push(...deferredReveals(html).map(({ line, property }) => `compositions/${name}:${line}: a deferred fromTo (immediateRender: false) sets ${property} in its from-state, which HyperFrames renders ignore; set it with tl.set at the tween start instead`));
+  for (const name of files.filter(name => name.endsWith('.html'))) visualFiles.add(`compositions/${name}`);
+  for (const file of runtimeFiles.filter(file => file !== 'index.html' && file.endsWith('.html'))) visualFiles.add(file);
+  for (const file of [...visualFiles].sort()) {
+    const html = await readFile(join(dir, file), 'utf8');
+    errors.push(...deferredReveals(html).map(({ line, property }) => `${file}:${line}: a deferred fromTo (immediateRender: false) sets ${property} in its from-state, which HyperFrames renders ignore; set it with tl.set at the tween start instead`));
   }
+  if (resolved.mode === 'referenced') errors.push(...await validateHtmlResourcePaths(dir, [...visualFiles]));
   return errors;
 }
 
@@ -158,16 +167,15 @@ function callArguments(source: string, start: number): string[] {
   return args;
 }
 
-/** Reads a project's story.yaml; the story is present only when it parses and passes its schema. */
-export const loadStory = (dir: string) => load<Story>(dir, 'story.yaml', parseYaml, checkStory);
+export { loadStory } from './story-source.ts';
 
 /**
  * The outcome of validateProject. `valid` is true exactly when there are no errors; story and timing are present
  * whenever their file parsed and passed its schema, even if the project is inconsistent.
  */
 export type ProjectValidation =
-  | { valid: true; errors: string[]; story: Story; timing: Timing }
-  | { valid: false; errors: string[]; story?: Story; timing?: Timing };
+  | { valid: true; errors: string[]; story: Story; resolved: ResolvedFilm; timing: Timing }
+  | { valid: false; errors: string[]; story?: Story; resolved?: ResolvedFilm; timing?: Timing };
 
 /**
  * Validates the story.yaml, timing.json, and scene compositions of a project directory.
@@ -178,7 +186,21 @@ export type ProjectValidation =
 export async function validateProject(dir: string): Promise<ProjectValidation> {
   const story = await loadStory(dir);
   const timing = await load<Timing>(dir, 'timing.json', JSON.parse, checkTiming);
-  if (!story.value || !timing.value) return { valid: false, errors: [...story.errors, ...timing.errors], story: story.value, timing: timing.value };
-  const errors = [...validateStoryTiming(story.value, timing.value), ...(await checkCompositions(dir, story.value)), ...(await validateTheme(dir, story.value))];
-  return errors.length ? { valid: false, errors, story: story.value, timing: timing.value } : { valid: true, errors, story: story.value, timing: timing.value };
+  if (!story.value || !timing.value) return { valid: false, errors: [...story.errors, ...timing.errors], story: story.value, resolved: story.resolved, timing: timing.value };
+  const errors = validateStoryTiming(story.value, timing.value, story.resolved);
+  let runtimeFiles: string[] = [];
+  if (story.resolved.mode === 'referenced' && !errors.length) {
+    try {
+      const html = await readFile(join(dir, 'index.html'), 'utf8');
+      const assembled = assembleIndex(html, story.value, timing.value, story.resolved);
+      errors.push(...assembled.errors, ...await validateHtmlResourcePaths(dir, ['index.html']));
+      if (!errors.length) runtimeFiles = await filmFiles(dir, { resolved: story.resolved, rootHTML: assembled.html });
+    } catch (error) {
+      errors.push(isMissing(error) ? 'index.html: missing' : (error as Error).message);
+    }
+  }
+  errors.push(...await checkCompositions(dir, story.resolved, runtimeFiles), ...await validateTheme(dir, story.value));
+  return errors.length
+    ? { valid: false, errors, story: story.value, resolved: story.resolved, timing: timing.value }
+    : { valid: true, errors, story: story.value, resolved: story.resolved, timing: timing.value };
 }

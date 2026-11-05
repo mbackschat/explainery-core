@@ -8,6 +8,7 @@ This repository, `explainery-core`, is the framework. Each film lives in its own
 
 - Browse all [documentation](docs/README.md), including [proposals](docs/proposals/README.md) and [architecture decisions](docs/adr/README.md).
 - Author scenes as modules: [work on one scene](#work-on-one-scene) and [integrate it into the film](docs/authoring.md#author-one-scene-at-a-time).
+- Keep scene sources together: [scene folders](docs/authoring.md#scene-source-folders), with explicit film integration and [ADR 0016](docs/adr/0016-scene-source-folders.md).
 - Start a story: [project setup](#use-in-a-project).
 - Use shared agent skills: [choose skills for scene work](docs/authoring.md#use-hyperframes-skills-in-scene-work) and [Claude Code and Codex setup](#shared-authoring-skills).
 - Describe or revise a scene: [scene authoring guideline](docs/authoring.md), covering file ownership, visual beats, a story example, and review criteria.
@@ -55,7 +56,7 @@ The [scene authoring guide](docs/authoring.md) explains film, scene, composition
 
 Author each scene through self-contained composition files with local beats and timelines. Refine it in isolation, then check its joins with adjacent scenes and its place in the full film. The [modular authoring workflow](docs/authoring.md#author-one-scene-at-a-time) covers scene boundaries, adding composition files and root hosts, assembly, and integration checks.
 
-For the scene's purpose and visual sequence, start with the story repository's scene map and linked descriptions. For how to write those descriptions and which files to edit, use the [scene authoring guideline](docs/authoring.md). `story.yaml` declares grouping, copy, and narration; the visual plan lives in story documentation and the executable animation lives in composition HTML.
+For the scene's purpose and visual sequence, start with the story repository's scene map and linked descriptions. Prefer [scene folders](docs/authoring.md#scene-source-folders) for new authoring: `story.yaml` lists scene references, and each folder owns `scene.yaml`, authored HTML and a README brief. Existing inline stories retain their grouping, copy and narration in `story.yaml`. The [scene authoring guideline](docs/authoring.md) explains both ownership formats.
 
 ```bash
 pnpm exec explainery scenes film-example
@@ -70,12 +71,12 @@ Focus is local to the film and persists in ignored `.explainery/focus.json` unti
 
 `--scene <id>` or `--film` on preview/render overrides focus for one command. Consecutive scene IDs separated by commas preview their transition; titles are resolved by `focus`. `--composition <id>[,<id>]` narrows one command to consecutive compositions inside one editorial scene, for example `pnpm exec explainery render film-example --composition checkout,refund`; see [select compositions](docs/authoring.md#select-compositions-inside-a-scene). A scene preview starts at zero, retains shared layers, and trims narration to its derived range. Its disposable project view refreshes from source when preview or render runs; rerun preview after any source edit, including animation, assets, styles, copy, or timing. Edit source files, never `.explainery/scenes/`; only dependencies remain linked. Render defaults to local draft quality; use `--quality delivery` for delivery. `--out` chooses the output file. Focus does not limit validation, timing generation, assembly, or explainer export.
 
-Scenes are explicit groups in `story.scenes`; a legacy flat entry is a one-composition scene. See [the typed authoring contract](docs/authoring.md). Add `.explainery/` to project ignores. Keep dependencies at the repository root and runtime files in one film directory when desired; commands accept that directory.
+Scenes resolve to explicit groups in `story.scenes`; a legacy flat entry is a one-composition scene. A source story may contain inline definitions or references, never a mixture. See [the typed source contract](docs/proposals/scene-source-folders.md#required-source-contract). Add `.explainery/` to project ignores. Keep dependencies at the repository root and runtime files in one film directory when desired; commands accept that directory.
 
 ## The workflow at a glance
 
 ```bash
-# 1. Write story.yaml and create index.html plus compositions/<composition-id>.html shells.
+# 1. Write story.yaml, scene sources and index.html hosts (inline or scene-folder format).
 pnpm exec explainery estimate        # 2. Estimate timing from the narration's word counts.
 pnpm exec explainery assemble        #    Write copy and timing into index.html.
 pnpm exec explainery preview         # 3. Open the printed Studio URL for the active target.
@@ -226,7 +227,7 @@ See [ADR 0005](docs/adr/0005-optional-subtitles.md) for the contract. Background
 pnpm exec explainery validate
 ```
 
-This checks `story.yaml` and `timing.json` against [their](schemas/story.schema.json) [schemas](schemas/timing.schema.json), then checks that they agree with each other. Editorial scene IDs and flattened composition IDs must each be unique. Every composition must have timing that starts in story order and ends within the film. Every `{beat}` marked in its narration must have a time, in narration order and within the composition. Each composition except a [card](#add-chapter-and-agenda-cards) must also have a `compositions/<id>.html` declaring `data-composition-id="<id>"`; editorial scenes need no additional HTML file or timing entry. A chapter card must open its scene and be followed by content; only agenda cards may form a scene of their own. The command prints each error and exits with status 1.
+This checks `story.yaml`, referenced [scene definitions](schemas/scene.schema.json) when present, and `timing.json` against their schemas, then checks the resolved story and timing agree. Editorial scene IDs and composition IDs must each be unique. Every composition must start in story order, end within the film, and place its narration beats in order within its duration. Visual HTML must declare the matching `data-composition-id`: inline stories use `compositions/<id>.html`, while referenced scenes declare `source`. Cards need no individual HTML; a chapter card opens a scene and must precede content, while agenda cards may form a scene alone. Referenced projects also validate source containment, runtime resource ambiguity, shared layers and authored hosts. The command prints errors with owning source paths and exits with status 1.
 
 ## Assemble the root composition
 
@@ -237,13 +238,13 @@ pnpm exec explainery assemble --check  # exit 1 when index.html is out of date
 
 `index.html` stays hand-authored. `assemble` validates the project and then rewrites only the attributes it manages:
 
-- **Composition hosts:** the element with `data-composition-src` and the composition's `data-composition-id` gets `data-start`, `data-duration`, and `data-variable-values` holding `{copy, beats, duration}`.
+- **Composition hosts:** the element with `data-composition-src` and the composition's `data-composition-id` gets `data-start`, `data-duration`, and `data-variable-values` holding `{copy, beats, duration}`. Referenced scenes also supply the canonical `data-composition-src`; an already matching parsed attribute preserves its authored spelling.
 - **Story duration:** the root composition and every element marked `data-story-span` get the story duration.
 - **Theme:** an optional stylesheet link marked `data-story-theme` gets the bundled or film-local stylesheet selected by `story.theme`. Project overlays retain their authored order.
 - **Card layer:** the element marked `data-story-cards` gets the story's cards and every scene title. Cards have no host of their own; assembly reports a host for a card, a missing or repeated layer, and a layer loaded from `node_modules`.
 - **Narration track:** the element marked `data-story-audio` gets `timing.audio` as its `src`, and ends at `timing.audioDuration` when the audio is shorter than the film, as it is when the last composition holds after the final word.
 
-Everything else in the file is left byte for byte. `story.yaml` and `timing.json` remain the authoritative inputs for composition copy, beat times, and composition duration.
+Everything else in the file is left byte for byte. Inline `story.yaml` or referenced scene definitions own composition copy; `timing.json` owns beat times and composition duration. Referenced films reject unknown hosts unless explicitly marked as shared `data-story-span` layers; adding or removing a composition still requires editing the root.
 
 ## Preview and render
 

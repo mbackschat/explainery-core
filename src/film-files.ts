@@ -1,6 +1,7 @@
-import { access, readFile } from 'node:fs/promises';
-import { join, posix } from 'node:path';
+import { access, readFile, realpath } from 'node:fs/promises';
+import { isAbsolute, join, posix, relative } from 'node:path';
 import { parseHTML } from 'linkedom';
+import type { ResolvedFilm } from './types.ts';
 
 const MARKUP_ATTRIBUTES = ['src', 'href', 'xlink:href', 'data-composition-src'];
 const SVG_STYLE_ATTRIBUTES = ['fill', 'stroke', 'filter', 'clip-path', 'mask', 'marker', 'marker-start', 'marker-mid', 'marker-end', 'cursor'];
@@ -153,6 +154,44 @@ function markupReferences(markup: string, unsupported: (detail: string) => void)
   return { resources, modules };
 }
 
+async function htmlResourceErrors(project: string, path: string, markup: string): Promise<string[]> {
+  const errors: string[] = [];
+  const { document } = parseHTML(markup);
+  const composition = document.querySelector('[data-composition-id]')?.getAttribute('data-composition-id');
+  const owner = `${path}${composition ? ` (composition ${composition})` : ''}`;
+  for (const ref of markupReferences(markup, () => {}).resources) {
+    const resource = ref.trim();
+    if (EMBEDDED.test(resource) || EXTERNAL.test(resource)) continue;
+    let pathname: string;
+    try { pathname = localPathname(resource); }
+    catch { errors.push(`${owner}: invalid resource URL ${JSON.stringify(ref)}`); continue; }
+    if (pathname.split('/').includes('..')) {
+      errors.push(`${owner}: parent-relative HTML resource ${JSON.stringify(ref)} is not supported; use its film-root-relative path`);
+      continue;
+    }
+    if (pathname.startsWith('/')) continue;
+    const root = posix.normalize(pathname);
+    const sibling = posix.normalize(posix.join(posix.dirname(path), pathname));
+    if (sibling === root) continue;
+    try { await access(join(project, sibling)); }
+    catch { continue; }
+    errors.push(`${owner}: ambiguous HTML resource ${JSON.stringify(ref)} selects sibling ${sibling} during capture but film-root path ${root} during runtime loading`);
+  }
+  return errors;
+}
+
+/** Rejects HTML URLs whose resource selection differs between HyperFrames 0.8.142 capture and runtime loading. */
+export async function validateHtmlResourcePaths(project: string, htmlPaths: readonly string[]): Promise<string[]> {
+  const errors: string[] = [];
+  for (const path of new Set(htmlPaths)) {
+    let markup: string;
+    try { markup = await readFile(join(project, path), 'utf8'); }
+    catch { errors.push(`${path}: runtime HTML is missing or unreadable`); continue; }
+    errors.push(...await htmlResourceErrors(project, path, markup));
+  }
+  return errors;
+}
+
 /**
  * Lists the local runtime dependency closure as sorted project-relative paths.
  *
@@ -161,9 +200,10 @@ function markupReferences(markup: string, unsupported: (detail: string) => void)
  * Strict mode rejects external resources and runtime loading whose dependencies cannot be retained for reuse;
  * data URIs and fragments are self-contained. Missing files and paths outside the project always fail.
  */
-export async function filmFiles(projectDir: string, { strict = false }: { strict?: boolean } = {}): Promise<string[]> {
+export async function filmFiles(projectDir: string, { strict = false, resolved, rootHTML }: { strict?: boolean; resolved?: ResolvedFilm; rootHTML?: string } = {}): Promise<string[]> {
   const found = new Set<string>();
   const problems: string[] = [];
+  const projectRoot = resolved?.mode === 'referenced' ? await realpath(projectDir) : undefined;
   const visit = async (path: string, from: string): Promise<void> => {
     if (found.has(path)) return;
     if (path.startsWith('../')) {
@@ -176,17 +216,29 @@ export async function filmFiles(projectDir: string, { strict = false }: { strict
       problems.push(`${path} (referenced by ${from}) is missing`);
       return;
     }
+    if (projectRoot && !path.startsWith('node_modules/')) {
+      const location = relative(projectRoot, await realpath(join(projectDir, path)));
+      if (location === '..' || location.startsWith('../') || isAbsolute(location)) {
+        problems.push(`${path} (referenced by ${from}) lies outside the project through a symlink`);
+        return;
+      }
+    }
     found.add(path);
     const extension = posix.extname(path).toLowerCase();
     if (!['.html', '.css', '.svg', '.js', '.mjs'].includes(extension)) return;
-    const text = await readFile(join(projectDir, path), 'utf8');
+    const text = path === 'index.html' && rootHTML !== undefined ? rootHTML : await readFile(join(projectDir, path), 'utf8');
+    if (projectRoot && extension === '.html') {
+      const errors = await htmlResourceErrors(projectDir, path, text);
+      if (errors.length) { problems.push(...errors); return; }
+    }
     const base = extension === '.html' ? '' : posix.dirname(path);
     const unsupported = (detail: string) => { if (strict) problems.push(`unsupported reusable dependency: ${detail} (referenced by ${path})`); };
     const refs = extension === '.css' ? { resources: cssReferences(text), modules: [] }
       : ['.js', '.mjs'].includes(extension) ? { resources: [], modules: scriptReferences(text, unsupported) }
       : markupReferences(text, unsupported);
     for (const [kind, values] of Object.entries(refs)) {
-      for (const ref of values) {
+      for (const value of values) {
+        const ref = projectRoot ? value.trim() : value;
         if (EMBEDDED.test(ref)) continue;
         if (EXTERNAL.test(ref)) { unsupported(ref); continue; }
         if (kind === 'modules' && !/^(?:\.{1,2}\/|\/)/.test(ref)) { unsupported(`bare module import "${ref}"`); continue; }

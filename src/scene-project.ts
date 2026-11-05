@@ -2,6 +2,7 @@ import { cp, lstat, mkdir, readFile, readdir, readlink, rm, stat, symlink, write
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { parseHTML } from 'linkedom';
 import { assembleIndex } from './assemble.ts';
+import { filmFiles } from './film-files.ts';
 import { addPreviewNarration } from './preview-narration.ts';
 import { preparePreviewOverlays } from './preview-overlays.ts';
 import { audioDuration } from './hyperframes.ts';
@@ -9,7 +10,7 @@ import { cardLayerVariables } from './cards.ts';
 import { checkTiming } from './schemas.ts';
 import { selectCompositions, selectionName, selectScenes, storyCompositions, type SceneSelection } from './story.ts';
 import { loadStory, validateStoryTiming } from './validate.ts';
-import type { Story, Timing } from './types.ts';
+import type { ResolvedFilm, Story, Timing } from './types.ts';
 
 export interface PreparedSceneProject {
   directory: string;
@@ -33,24 +34,30 @@ const seconds = (value: number) => String(Number(value.toFixed(6)));
 const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT';
 const excluded = new Set(['index.html', 'story.yaml', 'timing.json', 'renders', 'explainer', 'explainer.html', 'original-material', 'reference', 'verification', 'docs', 'scripts', 'tests']);
 
-async function synchronize(source: string, destination: string): Promise<void> {
+async function synchronize(source: string, destination: string, include: (path: string) => boolean): Promise<void> {
   const sourceStat = await stat(source);
   const existing = await lstat(destination).catch(error => { if (!missing(error)) throw error; return undefined; });
   if (existing?.isSymbolicLink() || (existing && existing.isDirectory() !== sourceStat.isDirectory())) await rm(destination, { recursive: true, force: true });
   if (sourceStat.isDirectory()) {
     await mkdir(destination, { recursive: true });
-    const names = await readdir(source);
+    const names = (await readdir(source)).filter(name => include(join(source, name)));
     for (const name of await readdir(destination)) if (!names.includes(name)) await rm(join(destination, name), { recursive: true, force: true });
-    for (const name of names) await synchronize(join(source, name), join(destination, name));
+    for (const name of names) await synchronize(join(source, name), join(destination, name), include);
   } else {
     // HyperFrames 0.8.142 core/safePath resolves realpaths; source symlinks fail its project-root boundary.
     await cp(source, destination, { dereference: true, force: true });
   }
 }
 
-async function refreshSources(project: string, directory: string): Promise<void> {
+async function refreshSources(project: string, directory: string, resolved: ResolvedFilm): Promise<void> {
   await mkdir(directory, { recursive: true });
-  const names = (await readdir(project)).filter(name => !name.startsWith('.') && !excluded.has(name));
+  const definitions = new Set(resolved.mode === 'referenced' ? [...resolved.sources.values()].map(source => resolve(project, source.definition)) : []);
+  const sceneDirectories = [...definitions].map(path => resolve(path, '..'));
+  const include = (path: string): boolean => !definitions.has(path) && !(/\.(?:md|markdown)$/i.test(path) && sceneDirectories.some(directory => {
+    const local = relative(directory, path);
+    return !isAbsolute(local) && local !== '..' && !local.startsWith('../');
+  }));
+  const names = (await readdir(project)).filter(name => !name.startsWith('.') && !excluded.has(name) && include(join(project, name)));
   for (const name of await readdir(directory)) {
     if (!name.startsWith('.') && name !== 'index.html' && !names.includes(name)) await rm(join(directory, name), { recursive: true, force: true });
   }
@@ -63,7 +70,7 @@ async function refreshSources(project: string, directory: string): Promise<void>
       await rm(destination, { recursive: true, force: true });
       await symlink(target, destination);
     } else {
-      await synchronize(join(project, name), destination);
+      await synchronize(join(project, name), destination, include);
     }
   }
 }
@@ -78,7 +85,7 @@ interface AudioClip {
   duration: number;
 }
 
-async function loadSource(project: string): Promise<{ story: Story; timing: Timing; sourceHTML: string }> {
+async function loadSource(project: string): Promise<{ story: Story; resolved: ResolvedFilm; timing: Timing; sourceHTML: string }> {
   const [loadedStory, timingText, sourceHTML] = await Promise.all([
     loadStory(project), readFile(join(project, 'timing.json'), 'utf8'), readFile(join(project, 'index.html'), 'utf8'),
   ]);
@@ -90,11 +97,11 @@ async function loadSource(project: string): Promise<{ story: Story; timing: Timi
   const timing = parsedTiming as Timing;
   const errors = validateStoryTiming(story, timing);
   if (errors.length) throw new Error(errors.join('\n'));
-  return { story, timing, sourceHTML };
+  return { story, resolved: loadedStory.resolved, timing, sourceHTML };
 }
 
-function assembledPage(sourceHTML: string, story: Story, timing: Timing): Page {
-  const assembled = assembleIndex(sourceHTML, story, timing);
+function assembledPage(sourceHTML: string, story: Story, timing: Timing, resolved: ResolvedFilm): Page {
+  const assembled = assembleIndex(sourceHTML, story, timing, resolved);
   if (assembled.errors.length) throw new Error(assembled.errors.join('\n'));
   return parseHTML(assembled.html).document;
 }
@@ -186,13 +193,14 @@ export async function prepareSceneProject(projectDir: string, sceneIds: string[]
   const project = resolve(projectDir);
   if (sceneIds.length && compositionIds.length) throw new Error('select either scenes or compositions, not both');
   if (narration && subtitles !== undefined) throw new Error('--narration and --subtitles are mutually exclusive');
-  const { story, timing, sourceHTML } = await loadSource(project);
+  const { story, resolved, timing, sourceHTML } = await loadSource(project);
   const compositionSelection = compositionIds.length ? selectCompositions(story, timing, compositionIds) : undefined;
   const selectedSceneIds = compositionSelection ? [compositionSelection.sceneId] : sceneIds;
   const selection = compositionSelection ?? (!sceneIds.length && (narration || presenters !== undefined || subtitles !== undefined)
     ? { start: 0, end: timing.duration, duration: timing.duration, compositionIds: new Set(storyCompositions(story).map(part => part.id)) }
     : selectScenes(story, timing, sceneIds));
-  const document = assembledPage(sourceHTML, story, timing);
+  const document = assembledPage(sourceHTML, story, timing, resolved);
+  if (resolved.mode === 'referenced') await filmFiles(project, { resolved, rootHTML: document.toString() });
   retimeRoot(document, selection);
   retimeHosts(document, story, timing, selection);
   retimeSharedElements(document, selection);
@@ -216,7 +224,7 @@ export async function prepareSceneProject(projectDir: string, sceneIds: string[]
   const directory = selectedSceneIds.length
     ? join(project, '.explainery', 'scenes', `${story.id}--${selectionName(selectedSceneIds, compositionIds)}`)
     : join(project, '.explainery', 'preview', `${story.id}--full`);
-  await refreshSources(project, directory);
+  await refreshSources(project, directory, resolved);
   if (overlays.html) {
     await mkdir(join(directory, 'explainery-preview'), { recursive: true });
     for (const asset of overlays.assets) await cp(asset.source, join(directory, asset.destination));

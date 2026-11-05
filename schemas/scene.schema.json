@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Explainery scene source",
+  "type": "object",
+  "required": ["id", "title", "compositions"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "$ref": "story.schema.json#/definitions/slug" },
+    "title": { "type": "string", "minLength": 1 },
+    "compositions": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/sourceComposition" } }
+  },
+  "definitions": {
+    "sourceComposition": {
+      "type": "object",
+      "required": ["id", "copy", "narration"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "story.schema.json#/definitions/composition/properties/id" },
+        "copy": { "$ref": "story.schema.json#/definitions/composition/properties/copy" },
+        "narration": { "$ref": "story.schema.json#/definitions/composition/properties/narration" },
+        "hold": { "$ref": "story.schema.json#/definitions/composition/properties/hold" },
+        "overlap": { "$ref": "story.schema.json#/definitions/composition/properties/overlap" },
+        "card": { "$ref": "story.schema.json#/definitions/composition/properties/card" },
+        "source": { "type": "string", "minLength": 1 }
+      },
+      "oneOf": [
+        { "required": ["source"], "not": { "required": ["card"] } },
+        { "required": ["card"], "not": { "required": ["source"] } }
+      ]
+    }
+  }
+}

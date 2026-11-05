@@ -35,6 +35,7 @@ Read the [README workflow](README.md#the-workflow-at-a-glance) for authoring com
 | --- | --- | --- |
 | Source-film evidence preparation | [analysis skill](.agents/skills/analyze-source-film/SKILL.md), [extractor](.agents/skills/analyze-source-film/scripts/extract-reference.ts), [SRT parser](.agents/skills/analyze-source-film/scripts/source-cues.ts) | [cue preservation tests](tests/source-cues.test.ts), [extraction tests](tests/source-reference.test.ts) |
 | Story or timing contract | [schemas](schemas/), [types](src/types.ts), [story model](src/story.ts), [validator](src/validate.ts) | [schema tests](tests/schemas.test.ts), [story tests](tests/story.test.ts), [validation tests](tests/validate.test.ts) |
+| Referenced scene sources and resource ownership | [source resolver](src/story-source.ts), [source contract](docs/adr/0016-scene-source-folders.md), [dependency traversal](src/film-files.ts) | [resolver tests](tests/story-source.test.ts), [pipeline tests](tests/scene-source-pipeline.test.ts), [browser/render fixture](tests/scene-source-browser.test.ts) |
 | Narration or timing generation | [narration](src/narration.ts), [estimate](src/estimate.ts), [alignment](src/align.ts), [HyperFrames adapter](src/hyperframes.ts) | [narration tests](tests/narration.test.ts), [estimate tests](tests/estimate.test.ts), [alignment tests](tests/align.test.ts) |
 | Marketing slop detector and the film frame | [lexical detector](src/slop.ts), [plain wording guide](docs/plain-wording.md), [frame rules](docs/authoring.md#frame-the-film) | [detector tests](tests/slop.test.ts), [production gate test](tests/production.test.ts) |
 | Label audit record and its preflight guard | [label audit](src/label-audit.ts), [audit prompt](docs/templates/label-audit.md) | [production gate test](tests/production.test.ts) |
@@ -54,6 +55,8 @@ Read the [README workflow](README.md#the-workflow-at-a-glance) for authoring com
 Beat anchoring is an authoring convention, not a runtime restriction: compositions also use numeric starts, offsets, and tween durations. The runtime rejects missing beats and timelines longer than their composition; it does not automatically retime tweens or reflow changed copy. Do not describe replacing narration or wording as a guarantee that no composition edits are needed.
 
 ## Editorial scenes and session focus
+
+Prefer [scene source folders](docs/authoring.md#scene-source-folders) for new story authoring. Existing inline stories remain supported; do not migrate them without task authorization. For referenced films, edit each scene's `scene.yaml`, HTML and README together, retain film-owned root hosts and shared resources, and use `loadStory().resolved` for source-aware operations. [ADR 0016](docs/adr/0016-scene-source-folders.md) records the contract; do not infer paths from IDs in referenced films.
 
 Use [Studio previews for fast feedback](docs/authoring.md#use-studio-for-fast-feedback) by default: start the selected scene preview and give the author its URL to play and scrub in their browser. Reuse existing narration and presenter media; use retained portraits to review proposed appearances before generating footage. Reserve MP4 rendering for requested video previews, export-specific checks and delivery. Re-run preview after source changes, and distinguish estimated draft captions from voice-aligned subtitles.
 

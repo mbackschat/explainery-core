@@ -4,7 +4,7 @@ Each document owns its status and scope. A proposal is not an implemented contra
 
 | Proposal | Purpose and status |
 | --- | --- |
-| [Scene source folders](scene-source-folders.md) | Proposed for review: scene-owned definitions and visual sources with existing film assembly and transitions. |
+| [Scene source folders](scene-source-folders.md) | Accepted source contract for scene-owned definitions and visuals with existing film assembly; see [ADR 0016](../adr/0016-scene-source-folders.md). |
 | [Shorter review loop](review-loop.md) | Proposed: changing headlines at beats, browser review and delivery audio mastering. |
 | [Background sound](background-sound.md) | Proposed for external review: soundtrack and sound-effect support. |
 | [Reusable speaker overlays](speaker-overlays.md) | Framework contract remains proposed; includes agreed authoring guidance and dated provider research. |

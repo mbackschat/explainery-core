@@ -7,6 +7,8 @@ import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { chromium } from 'playwright-core';
 import { renderChapters } from './chapters.ts';
+import { referencedAssemblyErrors } from './assemble.ts';
+import { filmFiles } from './film-files.ts';
 import { hyperframesDist } from './hyperframes.ts';
 import { prepareSceneProject } from './scene-project.ts';
 import { beatNarration } from './narration.ts';
@@ -188,8 +190,11 @@ export async function verifyFilm(project: string, options: FilmVerificationOptio
   try {
     if (!Number.isInteger(receipt.isolationTolerance) || receipt.isolationTolerance < 0 || receipt.isolationTolerance > 255) throw new Error('isolationTolerance must be an integer from 0 to 255');
     const validated = await validateProject(project);
-    if (validated.errors.length || !validated.story || !validated.timing) throw new Error(validated.errors.join('\n') || 'story and timing are required');
+    if (!validated.valid) throw new Error(validated.errors.join('\n') || 'story and timing are required');
     const { story, timing } = validated;
+    const assemblyErrors = referencedAssemblyErrors(await readFile(join(project, 'index.html'), 'utf8'), validated.resolved, timing);
+    if (assemblyErrors.length) throw new Error(assemblyErrors.join('\n'));
+
     const scenes = storyScenes(story);
     const cards = storyCompositions(story).filter(composition => composition.card).map(composition => composition.id);
     const requested = options.sceneIds ?? [];
@@ -197,7 +202,9 @@ export async function verifyFilm(project: string, options: FilmVerificationOptio
     const selected = requested.length ? scenes.filter(scene => requested.includes(scene.id)) : scenes;
     const verified = options.composition === undefined ? selected : [compositionScene(selected, scenes, options.composition)];
     receipt.sceneIds = verified.map(scene => scene.id);
-    for (const name of ['story.yaml', 'timing.json', 'index.html']) receipt.sourceHashes[name] = await fileHash(join(project, name));
+    const definitions = [...validated.resolved.sources.values()].map(source => source.definition);
+    const runtimeFiles = validated.resolved.mode === 'referenced' ? await filmFiles(project, { resolved: validated.resolved }) : [];
+    for (const name of new Set(['story.yaml', 'timing.json', 'index.html', ...definitions, ...runtimeFiles])) receipt.sourceHashes[name] = await fileHash(join(project, name));
     const bundle = await helper(project, 'bundleWithLocalizedFonts');
     const serve = await helper(project, 'serveStaticProjectHtml');
     const open = await helper(project, 'openSettledCompositionPage');

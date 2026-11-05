@@ -1,0 +1,35 @@
+{
+  "id": "source-fixture",
+  "title": "Source fixture",
+  "theme": "dark",
+  "canvas": {
+    "width": 640,
+    "height": 360,
+    "fps": 10
+  },
+  "scenes": [
+    {
+      "id": "first-scene",
+      "title": "First",
+      "compositions": [
+        {
+          "id": "first",
+          "copy": {"headline":""},
+          "narration": "First {show}.",
+          "overlap": 0.5
+        }
+      ]
+    },
+    {
+      "id": "second-scene",
+      "title": "Second",
+      "compositions": [
+        {
+          "id": "second",
+          "copy": {"headline":""},
+          "narration": "Second {show}."
+        }
+      ]
+    }
+  ]
+}

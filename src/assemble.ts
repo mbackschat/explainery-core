@@ -1,4 +1,5 @@
-import type { Story, Timing } from './types.ts';
+import type { ResolvedFilm, Story, Timing } from './types.ts';
+import { parseHTML } from 'linkedom';
 import { cardLayerVariables } from './cards.ts';
 import { storyCompositions } from './story.ts';
 import { themeHref } from './theme.ts';
@@ -37,9 +38,10 @@ function setAttribute(attributes: Attribute[], name: string, value: string) {
  * its src and ends with timing.audioDuration when the audio is shorter than the film, because HyperFrames' strict
  * check rejects a media slot longer than its media. Cards have no host: the one element marked data-story-cards gets
  * the card layer's variables instead. Everything else in the file is preserved byte for byte, so assembling twice
- * changes nothing.
+ * changes nothing. Referenced films also receive source paths from their explicit resolution metadata; their
+ * unknown hosts must declare a shared layer, as specified by the scene-source-folders contract.
  */
-export function assembleIndex(html: string, story: Story, timing: Timing): { html: string; errors: string[] } {
+export function assembleIndex(html: string, story: Story, timing: Timing, resolved?: ResolvedFilm): { html: string; errors: string[] } {
   const compositions = storyCompositions(story);
   const scenes = new Map(compositions.filter(composition => !composition.card).map(composition => [composition.id, composition]));
   const cards = new Set(compositions.filter(composition => composition.card).map(composition => composition.id));
@@ -55,6 +57,10 @@ export function assembleIndex(html: string, story: Story, timing: Timing): { htm
     const attributes = parseAttributes(attributeText);
     const has = (attributeName: string) => attributes.some(attribute => attribute.name === attributeName);
     const compositionId = attributes.find(attribute => attribute.name === 'data-composition-id')?.value;
+    if (resolved?.mode === 'referenced' && has('data-composition-src') && !has('data-story-span')
+      && (compositionId === undefined || (!scenes.has(compositionId) && !cards.has(compositionId)))) {
+      errors.push(`index.html: unrecognized composition host "${compositionId ?? '(missing id)'}"; remove it or declare a data-story-span shared layer`);
+    }
     if (has('data-story-theme')) {
       themeLinks++;
       if (name.toLowerCase() !== 'link' || attributes.find(attribute => attribute.name === 'rel')?.value !== 'stylesheet') {
@@ -68,6 +74,15 @@ export function assembleIndex(html: string, story: Story, timing: Timing): { htm
     }
     const scene = compositionId === undefined ? undefined : scenes.get(compositionId);
     if (has('data-composition-src') && compositionId !== undefined && scene) {
+      if (resolved?.mode === 'referenced') {
+        const source = resolved.sources.get(compositionId)?.html;
+        if (!source) errors.push(`index.html: composition "${compositionId}" has no resolved HTML source`);
+        else {
+          const attribute = attributes.find(attribute => attribute.name === 'data-composition-src')!;
+          const parsed = parseHTML(`<div${attribute.raw}></div>`).document.querySelector('div')!.getAttribute('data-composition-src');
+          if (parsed !== source) setAttribute(attributes, 'data-composition-src', source);
+        }
+      }
       const slot = timing.scenes[compositionId];
       hosts.set(compositionId, (hosts.get(compositionId) ?? 0) + 1);
       setAttribute(attributes, 'data-start', String(slot.start));
@@ -104,4 +119,11 @@ export function assembleIndex(html: string, story: Story, timing: Timing): { htm
   // node_modules link does, so a linked layer would preview but render without cards.
   for (const src of linkedLayers) errors.push(`index.html: load the card layer from a file inside the project, not ${src}`);
   return { html: assembled, errors };
+}
+
+/** Checks the original film before consumers that cannot reassemble a disposable view use referenced sources. */
+export function referencedAssemblyErrors(html: string, resolved: ResolvedFilm, timing: Timing): string[] {
+  if (resolved.mode === 'inline') return [];
+  const result = assembleIndex(html, resolved.story, timing, resolved);
+  return [...result.errors, ...(result.html !== html ? ['index.html is stale; run explainery assemble'] : [])];
 }

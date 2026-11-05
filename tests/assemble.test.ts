@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
 import { assembleIndex, type Story, type Timing } from '../src/index.ts';
+import type { ResolvedFilm } from '../src/types.ts';
 
 const story: Story = {
   id: 'demo', title: 'Demo', theme: 'dark', canvas: { width: 1920, height: 1080, fps: 30 },
@@ -70,6 +71,58 @@ test('a story scene without a host in index.html is reported', () => {
   assert.deepEqual(errors, ['index.html: no host with data-composition-src for scene "branches"']);
 });
 
+const referenced = (): ResolvedFilm => ({
+  story, mode: 'referenced', sources: new Map([
+    ['library', { definition: 'scenes/first/scene.yaml', html: 'scenes/first/diagram.html' }],
+    ['branches', { definition: 'scenes/second/scene.yaml', html: 'scenes/second/diagram.html' }],
+  ]),
+});
+
+test('referenced assembly changes only source attributes in an already assembled film', () => {
+  const before = assembleIndex(index, story, timing).html;
+  const expected = before.replace('compositions/library.html', 'scenes/first/diagram.html').replace('compositions/branches.html', 'scenes/second/diagram.html');
+  const result = assembleIndex(before, story, timing, referenced());
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.html, expected);
+  assert.equal(assembleIndex(result.html, story, timing, referenced()).html, expected);
+});
+
+test('referenced source paths are escaped once and canonicalized without changing host order', () => {
+  const resolved = referenced();
+  resolved.sources.get('library')!.html = 'scenes/first/a&b.html';
+  const before = assembleIndex(index, story, timing).html.replace('compositions/library.html', './compositions/library.html');
+  const result = assembleIndex(before, story, timing, resolved);
+  assert.equal(attributes(result.html, 'library')['data-composition-src'], 'scenes/first/a&b.html');
+  assert.equal(assembleIndex(result.html, story, timing, resolved).html, result.html);
+  assert.ok(result.html.indexOf('id="library"') < result.html.indexOf('id="branches"'));
+});
+
+test('only referenced films reject obsolete and unidentified hosts while preserving declared shared layers', () => {
+  for (const host of [
+    '<div data-composition-id="removed" data-composition-src="old.html"></div>',
+    '<div data-composition-src="old.html"></div>',
+  ]) {
+    const html = index.replace('</body>', `${host}</body>`);
+    assert.deepEqual(assembleIndex(html, story, timing).errors, []);
+    assert.match(assembleIndex(html, story, timing, referenced()).errors.join('\n'), /unrecognized composition host/);
+  }
+  assert.deepEqual(assembleIndex(index, story, timing, referenced()).errors, []);
+});
+
+test('referenced assembly fails if a visual source mapping is incomplete', () => {
+  const resolved = referenced();
+  resolved.sources.delete('library');
+  assert.match(assembleIndex(index, story, timing, resolved).errors.join('\n'), /library.*resolved HTML source/);
+});
+
+test('canonical referenced sources retain authored quotes and equivalent entity spelling', () => {
+  const resolved = referenced();
+  resolved.sources.get('library')!.html = 'scenes/first/a&b.html';
+  const canonical = assembleIndex(index, story, timing, resolved).html;
+  const authored = canonical.replace('data-composition-src="scenes/first/a&amp;b.html"', "data-composition-src='scenes/first/a&#38;b.html'");
+  assert.equal(assembleIndex(authored, story, timing, resolved).html, authored);
+});
+
 test('the assemble command writes index.html, and --check fails while it is stale', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'explainery-assemble-'));
   await mkdir(join(dir, 'compositions'));
@@ -83,4 +136,27 @@ test('the assemble command writes index.html, and --check fails while it is stal
   await run(process.execPath, [cli, 'assemble', dir]);
   assert.equal(await readFile(join(dir, 'index.html'), 'utf8'), assembleIndex(index, story, timing).html);
   await run(process.execPath, [cli, 'assemble', dir, '--check']);
+});
+
+test('the CLI resolves referenced source paths and refuses stale exports', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'explainery-referenced-assemble-'));
+  const run = promisify(execFile);
+  const cli = new URL('../bin/explainery.ts', import.meta.url).pathname;
+  const source = { ...story, scenes: [{ source: 'scenes/demo/scene.yaml' }] };
+  await mkdir(join(dir, 'scenes/demo'), { recursive: true });
+  await mkdir(join(dir, 'compositions'));
+  await writeFile(join(dir, 'story.yaml'), JSON.stringify(source));
+  await writeFile(join(dir, 'scenes/demo/scene.yaml'), JSON.stringify({ id: 'demo', title: 'Demo', compositions: story.scenes.map(part => ({ ...part, source: `${part.id}.html` })) }));
+  for (const id of ['library', 'branches']) await writeFile(join(dir, `scenes/demo/${id}.html`), `<template><div data-composition-id="${id}"></div></template>`);
+  await writeFile(join(dir, 'compositions/brand-frame.html'), '<template><div data-composition-id="brand-frame"></div></template>');
+  await writeFile(join(dir, 'timing.json'), JSON.stringify({ ...timing, audio: undefined }));
+  await writeFile(join(dir, 'index.html'), index.replace(/\s*<audio[^>]*><\/audio>/, ''));
+  for (const args of [['assemble', dir, '--check'], ['export', dir, '--out', join(dir, 'export')], ['export', dir, '--single-file', '--out', join(dir, 'out.html')]]) {
+    await assert.rejects(run(process.execPath, [cli, ...args]), (error: { stderr: string }) => /index.html.*(?:out of date|stale)/.test(error.stderr));
+  }
+  await run(process.execPath, [cli, 'assemble', dir]);
+  await run(process.execPath, [cli, 'assemble', dir, '--check']);
+  const html = await readFile(join(dir, 'index.html'), 'utf8');
+  assert.equal(attributes(html, 'library')['data-composition-src'], 'scenes/demo/library.html');
+  assert.equal(attributes(html, 'branches')['data-composition-src'], 'scenes/demo/branches.html');
 });

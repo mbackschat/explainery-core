@@ -1,6 +1,6 @@
 # Scene source folders
 
-Status: proposed for review, revised after external review on 5 November 2026. This changes authoring and source resolution, not the animation runtime. The [amended contracts](#contracts-amended-on-acceptance) identify the existing rules it would replace or refine; none of the new source syntax below is implemented yet.
+Status: accepted for implementation on 5 November 2026 after external review; [ADR 0016](../adr/0016-scene-source-folders.md) records the decision. This contract changes authoring and source resolution, not the animation runtime. The [amended contracts](#contracts-amended-on-acceptance) identify the existing rules it refines. The acceptance criteria remain the required implementation and migration checks.
 
 ## Problem and recommendation
 

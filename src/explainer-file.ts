@@ -12,6 +12,7 @@ import { validateProject } from './validate.ts';
 import { storyScenes } from './story.ts';
 import { requireAssembledTheme } from './theme.ts';
 import { localPathname } from './film-files.ts';
+import { referencedAssemblyErrors } from './assemble.ts';
 
 const MIME: Record<string, string> = {
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
@@ -175,6 +176,8 @@ export async function exportExplainerFile(projectDir: string, outFile: string, o
   const validation = await validateProject(projectDir);
   if (!validation.valid) throw new Error(`The project does not validate:\n${validation.errors.join('\n')}`);
   const { story, timing } = validation;
+  const assemblyErrors = referencedAssemblyErrors(await readFile(join(projectDir, 'index.html'), 'utf8'), validation.resolved, timing);
+  if (assemblyErrors.length) throw new Error(assemblyErrors.join('\n'));
   await requireAssembledTheme(projectDir, story);
   const subtitles = await exportSubtitles(options, timing.duration);
   const work = await mkdtemp(join(tmpdir(), 'explainery-file-'));

@@ -32,6 +32,43 @@ export interface Story {
   scenes: (Composition | Scene)[];
 }
 
+export interface SceneReference {
+  source: string;
+}
+
+export type VisualSource = Omit<Composition, 'card'> & {
+  source: string;
+  card?: never;
+};
+
+export type CardSource = Composition & {
+  card: 'chapter' | 'agenda';
+  source?: never;
+};
+
+export interface SceneSource {
+  id: string;
+  title: string;
+  compositions: Array<VisualSource | CardSource>;
+}
+
+export type FilmSource = Story | (Omit<Story, 'scenes'> & { scenes: SceneReference[] });
+
+export interface CompositionSource {
+  definition: string;
+  html?: string;
+}
+
+export interface ResolvedFilm {
+  story: Story;
+  mode: 'inline' | 'referenced';
+  sources: Map<string, CompositionSource>;
+}
+
+export type LoadStoryResult =
+  | { value: Story; resolved: ResolvedFilm; errors: [] }
+  | { value?: never; resolved?: never; errors: string[] };
+
 export type Pronunciation = string | { text: string; lang: string };
 
 export interface StoryVoice {

@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 import { access, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { loadStory } from './validate.ts';
+import { loadStory, validateProject } from './validate.ts';
+import { assembleIndex } from './assemble.ts';
+import { filmFiles } from './film-files.ts';
 
 /**
  * The record that a person or a fresh-context reviewer audited every on-screen domain fact against the sources
@@ -24,8 +26,24 @@ function onScreen(value: unknown): unknown {
 export async function onScreenTextHash(project: string): Promise<string> {
   const loaded = await loadStory(project);
   if (!loaded.value) throw new Error(loaded.errors.join('\n'));
-  const names = (await readdir(join(project, 'compositions'))).filter(name => name.endsWith('.html')).sort();
-  const compositions = await Promise.all(names.map(async name => [name, await readFile(join(project, 'compositions', name), 'utf8')]));
+  const names = (await readdir(join(project, 'compositions')).catch(error => {
+    if (loaded.resolved.mode === 'referenced' && (error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  })).filter(name => name.endsWith('.html')).sort();
+  let runtimeHTML: string[] = [];
+  if (loaded.resolved.mode === 'referenced') {
+    const validated = await validateProject(project);
+    if (!validated.valid) throw new Error(validated.errors.join('\n'));
+    const assembled = assembleIndex(await readFile(join(project, 'index.html'), 'utf8'), validated.story, validated.timing, validated.resolved);
+    if (assembled.errors.length) throw new Error(assembled.errors.join('\n'));
+    runtimeHTML = (await filmFiles(project, { resolved: validated.resolved, rootHTML: assembled.html })).filter(path => path !== 'index.html' && path.endsWith('.html'));
+  }
+  const paths = loaded.resolved.mode === 'inline' ? names : [...new Set([
+    ...names.map(name => `compositions/${name}`),
+    ...[...loaded.resolved.sources.values()].flatMap(source => source.html ? [source.html] : []),
+    ...runtimeHTML,
+  ])].sort();
+  const compositions = await Promise.all(paths.map(async path => [path, await readFile(join(project, loaded.resolved.mode === 'inline' ? 'compositions' : '', path), 'utf8')]));
   return createHash('sha256').update(JSON.stringify({ version: 1, story: onScreen(loaded.value), compositions })).digest('hex');
 }
 

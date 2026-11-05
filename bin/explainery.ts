@@ -11,6 +11,8 @@ import { subtitleCues, formatSubtitles } from '../src/subtitles.ts';
 import { clearFocus, readFocus, writeFocus } from '../src/focus.ts';
 import { hyperframesDist } from '../src/hyperframes.ts';
 import { prepareSceneProject } from '../src/scene-project.ts';
+import type { ResolvedFilm } from '../src/types.ts';
+import { referencedAssemblyErrors } from '../src/assemble.ts';
 import { requireAssembledTheme } from '../src/theme.ts';
 import { selectionName } from '../src/story.ts';
 import { alignTimingWithReport, type AlignmentOptions, type AudioSegment } from '../src/align.ts';
@@ -297,13 +299,17 @@ async function playback(mode: PlaybackMode) {
   const presenters = option('--presenters');
   const subtitles = option('--subtitles');
   const view = sceneIds.length || compositionIds.length || narration || presenters !== undefined || subtitles !== undefined ? await prepareSceneProject(project, sceneIds, { narration, compositionIds, presenters, subtitles }) : { directory: project, start: 0, duration: timing.duration, sceneIds, compositionIds };
+  if (view.directory === project) {
+    const errors = referencedAssemblyErrors(await readFile(join(project, 'index.html'), 'utf8'), validation.resolved, timing);
+    if (errors.length) return fail(errors);
+  }
   await requireAssembledTheme(view.directory, story);
   reportScope(story, timing, view);
   // A composition selection's scene id stays in sceneIds, so only compositionIds tells it apart from that scene.
   const selection = compositionIds.length ? { compositionIds } : { sceneIds };
   const planned = mode === 'render' ? renderChapters(story, timing, selection) : undefined;
   if (mode === 'render' && flag('--reuse') && !view.sceneIds.length) {
-    const stale = await staleIndex(story, timing, 'before reusable rendering');
+    const stale = await staleIndex(story, timing, 'before reusable rendering', validation.resolved);
     if (stale.length) return fail(stale);
   }
   const settings = { quality, sceneIds: view.sceneIds, compositionIds, workers: workers() };
@@ -327,9 +333,9 @@ async function playback(mode: PlaybackMode) {
 
 // Errors when index.html differs from what story.yaml and timing.json assemble, because commands that play the
 // original root would then show other times or copy than the sources name.
-async function staleIndex(story: Story, timing: Timing, purpose: string): Promise<string[]> {
+async function staleIndex(story: Story, timing: Timing, purpose: string, resolved?: ResolvedFilm): Promise<string[]> {
   const html = await readFile(join(project, 'index.html'), 'utf8');
-  const assembled = assembleIndex(html, story, timing);
+  const assembled = assembleIndex(html, story, timing, resolved);
   if (assembled.errors.length) return assembled.errors;
   return assembled.html === html ? [] : [`index.html is stale; run explainery assemble ${purpose}`];
 }
@@ -344,7 +350,7 @@ async function snapshot() {
   const validation = await validateProject(project);
   if (!validation.valid) return fail(validation.errors);
   const { story, timing } = validation;
-  const stale = await staleIndex(story, timing, 'so snapshot times match timing.json');
+  const stale = await staleIndex(story, timing, 'so snapshot times match timing.json', validation.resolved);
   if (stale.length) return fail(stale);
   const times = snapshotTimes(timing, list);
   const out = resolve(option('--out') ?? join('renders', 'snapshots'));
@@ -369,7 +375,7 @@ async function assemble({ check }: { check: boolean }) {
   const { story, timing } = validation;
   const file = join(project, 'index.html');
   const current = await readFile(file, 'utf8');
-  const assembled = assembleIndex(current, story, timing);
+  const assembled = assembleIndex(current, story, timing, validation.resolved);
   if (assembled.errors.length) return fail(assembled.errors);
   if (assembled.html === current) return report('index.html is up to date');
   if (check) return fail(['index.html is out of date with story.yaml and timing.json; run explainery assemble']);

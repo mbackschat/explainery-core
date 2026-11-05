@@ -19,5 +19,6 @@ Read these records for decisions and rationale, including later refinements of e
 | [0013 — Studio review overlays](0013-studio-review-overlays.md) | Preview-only presenter stills and subtitle overlays. |
 | [0014 — Language-aware pronunciation](0014-language-aware-pronunciation.md) | Narration language and pronunciation provenance, refined by ADR 0015. |
 | [0015 — English terms in non-English narration](0015-english-terms-in-non-english-narration.md) | Per-term language annotations and English technical pronunciation. |
+| [0016 — Scene source folders](0016-scene-source-folders.md) | Referenced scene sources, resolved paths and preserved film integration. |
 
 Return to the [documentation index](../README.md).
